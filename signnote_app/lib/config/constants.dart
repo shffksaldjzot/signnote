@@ -9,7 +9,7 @@ class AppConstants {
   static const String appNameKo = '사인노트';             // 앱 한글 이름
 
   // API 서버 주소 (나중에 실제 서버 주소로 변경)
-  static const String apiBaseUrl = 'http://localhost:3000'; // 개발용 로컬 서버
+  static const String apiBaseUrl = 'https://signnote.onrender.com'; // Render 배포 서버
   static const String apiVersion = '/api/v1';               // API 버전
 
   // 참여 코드 길이 (디자인에서 6칸 확인)
