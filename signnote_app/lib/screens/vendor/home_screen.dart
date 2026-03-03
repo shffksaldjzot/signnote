@@ -127,33 +127,15 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
     );
   }
 
-  // 로고 + "협력업체" 뱃지
+  // 로고 + "협력업체" 뱃지 (진짜 logo.png 이미지 사용)
   Widget _buildLogo() {
     return Row(
       children: [
-        Container(
-          width: 28,
+        // 진짜 로고 이미지 파일 사용
+        Image.asset(
+          'assets/images/logo.png',
           height: 28,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: const Center(
-            child: Icon(Icons.edit_document, color: AppColors.white, size: 16),
-          ),
-        ),
-        const SizedBox(width: 6),
-        RichText(
-          text: const TextSpan(children: [
-            TextSpan(
-              text: 'sign',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-            ),
-            TextSpan(
-              text: 'note',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.primary),
-            ),
-          ]),
+          fit: BoxFit.contain,
         ),
         const SizedBox(width: 8),
         // "협력업체" 뱃지

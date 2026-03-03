@@ -106,42 +106,14 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
             children: [
               const SizedBox(height: 40),
 
-              // 로고 + 역할 뱃지
+              // 로고 + 역할 뱃지 (진짜 logo.png 이미지 사용)
               Row(
                 children: [
-                  // 로고 아이콘
-                  Container(
-                    width: 32,
+                  // 진짜 로고 이미지 파일 사용
+                  Image.asset(
+                    'assets/images/logo.png',
                     height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.edit_document, color: AppColors.white, size: 18),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // "signnote" 텍스트
-                  RichText(
-                    text: const TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'sign',
-                          style: TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        TextSpan(
-                          text: 'note',
-                          style: TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.w800,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
+                    fit: BoxFit.contain,
                   ),
                   // 역할 뱃지 (업체/주관사만 표시)
                   if (_roleBadgeText.isNotEmpty) ...[

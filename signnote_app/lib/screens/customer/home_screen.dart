@@ -132,7 +132,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // 로고 위젯 (+ 역할 뱃지)
+  // 로고 위젯 (진짜 logo.png 이미지 사용 + 역할 뱃지)
   Widget _buildLogo() {
     String? roleBadge;
     if (widget.role == AppConstants.roleVendor) roleBadge = '협력업체';
@@ -140,29 +140,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
     return Row(
       children: [
-        Container(
-          width: 28,
+        // 진짜 로고 이미지 파일 사용
+        Image.asset(
+          'assets/images/logo.png',
           height: 28,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: const Center(
-            child: Icon(Icons.edit_document, color: AppColors.white, size: 16),
-          ),
-        ),
-        const SizedBox(width: 6),
-        RichText(
-          text: const TextSpan(children: [
-            TextSpan(
-              text: 'sign',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-            ),
-            TextSpan(
-              text: 'note',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.primary),
-            ),
-          ]),
+          fit: BoxFit.contain,
         ),
         if (roleBadge != null) ...[
           const SizedBox(width: 8),

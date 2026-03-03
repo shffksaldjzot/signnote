@@ -2,16 +2,28 @@
 // Prisma 서비스
 // 데이터베이스(창고)와 연결하는 공통 서비스
 // 다른 모듈에서 이 서비스를 가져다 쓰면 DB에 접근 가능
+// Prisma v7에서는 adapter 방식으로 DB 연결
 // ============================================
 
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  // Prisma v7: pg 어댑터를 사용해서 DB 연결
+  constructor() {
+    const pool = new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+    const adapter = new PrismaPg(pool);
+    super({ adapter });
+  }
+
   // 서버 시작할 때 DB에 연결
   async onModuleInit() {
     await this.$connect();
