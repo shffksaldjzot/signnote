@@ -1,0 +1,248 @@
+// ============================================
+// Signnote 데이터베이스 스키마 (설계도)
+// 모든 데이터의 구조를 여기서 정의합니다
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"       // PostgreSQL 사용
+  // DB 접속 주소는 prisma.config.ts에서 관리
+}
+
+// ---- 사용자 역할 (고객/업체/주관사/관리자) ----
+enum Role {
+  CUSTOMER    // 고객 - 입주옵션품목 구매
+  VENDOR      // 협력업체 - 품목 등록/판매
+  ORGANIZER   // 주관사 - 행사 생성/관리
+  ADMIN       // 관리자 - 전체 관리
+}
+
+// ---- 행사 상태 ----
+enum EventStatus {
+  UPCOMING    // 예정 - 아직 시작 안 함
+  ACTIVE      // 진행중 - 현재 진행 중
+  ENDED       // 종료 - 행사 끝남
+}
+
+// ---- 계약 상태 ----
+enum ContractStatus {
+  PENDING     // 대기중 - 계약금 결제 전
+  CONFIRMED   // 확정 - 계약금 결제 완료
+  CANCELLED   // 취소됨
+}
+
+// ---- 결제 상태 ----
+enum PaymentStatus {
+  PENDING     // 대기중
+  COMPLETED   // 결제 완료
+  FAILED      // 결제 실패
+  REFUNDED    // 환불됨
+}
+
+// ---- 정산 상태 ----
+enum SettlementStatus {
+  PENDING       // 대기중
+  TRANSFERRED   // 송금됨
+  COMPLETED     // 완료
+}
+
+// ---- 세금계산서 상태 ----
+enum TaxInvoiceStatus {
+  DRAFT         // 작성중
+  ISSUED        // 발행됨
+  NTS_REPORTED  // 국세청 신고 완료
+}
+
+// ============================================
+// 사용자 (User)
+// 앱을 사용하는 모든 사람 (고객, 업체, 주관사)
+// ============================================
+model User {
+  id             String   @id @default(uuid())  // 고유 ID
+  email          String   @unique               // 이메일 (로그인용, 중복 불가)
+  password       String                         // 비밀번호 (암호화해서 저장)
+  name           String                         // 이름
+  phone          String                         // 전화번호
+  role           Role                           // 역할 (고객/업체/주관사/관리자)
+  businessNumber String?                        // 사업자번호 (업체만 해당, ?는 선택사항)
+  bankAccount    String?                        // 계좌정보 (업체만 해당, 정산용)
+  createdAt      DateTime @default(now())       // 가입 날짜 (자동 기록)
+
+  // 관계 설정 (이 사용자와 연결된 데이터들)
+  contracts      Contract[]                     // 이 고객의 계약 목록
+  cartItems      CartItem[]                     // 이 고객의 장바구니
+  vendorProducts Product[]                      // 이 업체가 등록한 상품들
+  organizedEvents Event[]                       // 이 주관사가 만든 행사들
+
+  @@map("users")  // 실제 DB 테이블 이름
+}
+
+// ============================================
+// 행사 (Event)
+// 아파트 입주박람회 행사 정보
+// ============================================
+model Event {
+  id                  String      @id @default(uuid())
+  title               String                          // 행사명 (예: "창원 자이 사전 박람회")
+  organizerId         String                          // 주관사 ID (누가 만들었는지)
+  organizer           User        @relation(fields: [organizerId], references: [id])
+  contractMethod      String      @default("online")  // 계약 방식
+  siteName            String?                         // 현장명
+  unitCount           Int                             // 세대수
+  moveInDate          DateTime?                       // 입주 예정일
+  housingTypes        String[]                        // 적용 타입 ["74A","74B","84A","84B"]
+  coverImage          String?                         // 커버 이미지 URL
+  startDate           DateTime                        // 행사 시작일
+  endDate             DateTime                        // 행사 종료일
+  cancelDeadlineStart DateTime?                       // 취소 지정 기간 시작
+  cancelDeadlineEnd   DateTime?                       // 취소 지정 기간 종료
+  allowOnlineContract Boolean     @default(false)     // 취소기간에도 온라인 계약 허용?
+  entryCode           String      @unique             // 참여 코드 (6자리, 중복 불가)
+  status              EventStatus @default(UPCOMING)  // 행사 상태
+  createdAt           DateTime    @default(now())
+
+  // 관계 설정
+  products            Product[]                       // 이 행사의 상품들
+  contracts           Contract[]                      // 이 행사의 계약들
+  cartItems           CartItem[]                      // 이 행사의 장바구니들
+
+  @@map("events")
+}
+
+// ============================================
+// 상품 (Product)
+// 협력업체가 등록하는 입주옵션품목
+// ============================================
+model Product {
+  id            String   @id @default(uuid())
+  name          String                              // 상품명 (예: "줄눈 A 패키지")
+  category      String                              // 품목 카테고리 (예: "줄눈", "나노코팅")
+  eventId       String                              // 소속 행사 ID
+  event         Event    @relation(fields: [eventId], references: [id])
+  vendorId      String                              // 소속 업체 ID
+  vendor        User     @relation(fields: [vendorId], references: [id])
+  vendorName    String                              // 업체명 (예: "앤드 디자인")
+  housingTypes  String[]                            // 적용 주거 타입 ["84A","84B"]
+  image         String?                             // 상품 이미지 URL
+  description   String?                             // 상품 설명 (예: "욕실2바닥+현관+안방...")
+  price         Int                                 // 가격 (원)
+  commissionRate Float   @default(0)                // 수수료율 (주관사용, 예: 0.2 = 20%)
+  participationFee Int   @default(0)                // 참가비 (주관사용)
+  createdAt     DateTime @default(now())
+
+  // 관계 설정
+  contracts     Contract[]
+  cartItems     CartItem[]
+
+  @@map("products")
+}
+
+// ============================================
+// 장바구니 (CartItem)
+// 고객이 담아둔 상품 목록
+// ============================================
+model CartItem {
+  id        String   @id @default(uuid())
+  userId    String                              // 고객 ID
+  user      User     @relation(fields: [userId], references: [id])
+  productId String                              // 상품 ID
+  product   Product  @relation(fields: [productId], references: [id])
+  eventId   String                              // 행사 ID
+  event     Event    @relation(fields: [eventId], references: [id])
+  quantity  Int      @default(1)                // 수량
+  addedAt   DateTime @default(now())            // 담은 날짜
+
+  @@map("cart_items")
+}
+
+// ============================================
+// 계약 (Contract)
+// 고객이 품목을 계약한 내역
+// ============================================
+model Contract {
+  id              String         @id @default(uuid())
+  customerId      String                              // 고객 ID
+  customer        User           @relation(fields: [customerId], references: [id])
+  customerName    String                              // 고객명
+  customerPhone   String?                             // 고객 전화번호
+  customerAddress String?                             // 고객 주소 (예: "창원 자이 201동 1305호")
+  productId       String                              // 상품 ID
+  product         Product        @relation(fields: [productId], references: [id])
+  eventId         String                              // 행사 ID
+  event           Event          @relation(fields: [eventId], references: [id])
+  vendorId        String                              // 업체 ID
+  originalPrice   Int                                 // 원래 가격
+  depositAmount   Int                                 // 계약금 (보통 30%)
+  remainAmount    Int                                 // 잔금
+  status          ContractStatus @default(PENDING)    // 계약 상태
+  createdAt       DateTime       @default(now())
+
+  // 관계 설정
+  payments        Payment[]                           // 이 계약의 결제 내역
+  settlement      Settlement?                         // 이 계약의 정산 내역
+
+  @@map("contracts")
+}
+
+// ============================================
+// 결제 (Payment)
+// PG사를 통한 결제 내역
+// ============================================
+model Payment {
+  id              String        @id @default(uuid())
+  contractId      String                              // 계약 ID
+  contract        Contract      @relation(fields: [contractId], references: [id])
+  pgTransactionId String?                             // PG사 거래번호
+  amount          Int                                 // 결제 금액
+  method          String?                             // 결제 수단 (카드/계좌이체)
+  status          PaymentStatus @default(PENDING)     // 결제 상태
+  paidAt          DateTime?                           // 결제 완료 시각
+  createdAt       DateTime      @default(now())
+
+  @@map("payments")
+}
+
+// ============================================
+// 정산 (Settlement)
+// 업체에게 돈을 분배하는 내역
+// ============================================
+model Settlement {
+  id            String           @id @default(uuid())
+  contractId    String           @unique               // 계약 ID (1:1 관계)
+  contract      Contract         @relation(fields: [contractId], references: [id])
+  vendorId      String                                 // 업체 ID
+  amount        Int                                    // 정산 금액
+  fee           Int                                    // 수수료
+  status        SettlementStatus @default(PENDING)     // 정산 상태
+  transferDate  DateTime?                              // 지급일
+  createdAt     DateTime         @default(now())
+
+  // 관계 설정
+  taxInvoice    TaxInvoice?                            // 세금계산서
+
+  @@map("settlements")
+}
+
+// ============================================
+// 세금계산서 (TaxInvoice)
+// 팝빌 API로 발행하는 전자세금계산서
+// ============================================
+model TaxInvoice {
+  id             String           @id @default(uuid())
+  settlementId   String           @unique              // 정산 ID (1:1 관계)
+  settlement     Settlement       @relation(fields: [settlementId], references: [id])
+  vendorId       String                                // 공급자 (업체)
+  buyerId        String                                // 공급받는자
+  amount         Int                                   // 공급가액
+  taxAmount      Int                                   // 세액
+  issueType      String                                // 발행 유형 (정발행/위수탁)
+  ntsApprovalNo  String?                               // 국세청 승인번호
+  status         TaxInvoiceStatus @default(DRAFT)      // 상태
+  issuedAt       DateTime?                             // 발행일
+  createdAt      DateTime         @default(now())
+
+  @@map("tax_invoices")
+}

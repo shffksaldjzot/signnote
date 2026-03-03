@@ -1,0 +1,200 @@
+import 'package:flutter/material.dart';
+import '../../config/theme.dart';
+import '../../config/constants.dart';
+import '../../widgets/common/app_button.dart';
+import '../../services/auth_service.dart';
+import 'register_screen.dart';
+import 'entry_code_screen.dart';
+
+// ============================================
+// 로그인 화면 (Login Screen)
+//
+// 디자인 참고: login.jpg
+// - Signnote 로고
+// - "안녕하세요. 사인노트 사용을 위해 로그인 및 회원가입을 해주세요."
+// - 아이디(이메일) 입력
+// - 비밀번호 입력
+// - 파란 "로그인" 버튼
+// - 검정 "회원가입" 버튼
+// ============================================
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  // 입력값 컨트롤러 (사용자가 입력한 값을 가져오기 위해)
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _authService = AuthService();  // 인증 API 서비스
+  bool _isLoading = false;  // 로딩 중인지
+
+  @override
+  void dispose() {
+    // 화면 종료 시 컨트롤러 정리 (메모리 누수 방지)
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // 로그인 버튼 눌렀을 때
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    // 빈칸 체크
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('아이디와 비밀번호를 입력해 주세요')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // 서버에 로그인 요청
+    final result = await _authService.login(email, password);
+
+    setState(() => _isLoading = false);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      // 로그인 성공 → 참여 코드 입장 화면으로 이동
+      final user = result['user'];
+      final role = user['role'] ?? AppConstants.roleCustomer;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => EntryCodeScreen(role: role),
+        ),
+      );
+    } else {
+      // 로그인 실패 → 에러 메시지 표시
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '로그인에 실패했습니다')),
+      );
+    }
+  }
+
+  // 회원가입 버튼 눌렀을 때 → 회원가입 화면으로 이동
+  void _handleRegister() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 60),
+
+              // Signnote 로고 (이미지가 있으면 이미지, 없으면 텍스트)
+              Row(
+                children: [
+                  // 로고 아이콘 (파란 사각형)
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.edit_document,
+                        color: AppColors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // "signnote" 텍스트 로고
+                  RichText(
+                    text: const TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'sign',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'note',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // 환영 메시지
+              const Text(
+                '안녕하세요.\n사인노트 사용을 위해\n로그인 및 회원가입을 해주세요.',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                  height: 1.4,  // 줄 간격
+                ),
+              ),
+              const SizedBox(height: 48),
+
+              // 아이디(이메일) 입력 필드
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  hintText: '아이디',
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 비밀번호 입력 필드
+              TextField(
+                controller: _passwordController,
+                obscureText: true,     // 비밀번호 숨기기 (●●●●)
+                decoration: const InputDecoration(
+                  hintText: '비밀번호',
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // 로그인 버튼 (파란색)
+              AppButton(
+                text: '로그인',
+                onPressed: _handleLogin,
+                isLoading: _isLoading,
+              ),
+              const SizedBox(height: 12),
+
+              // 회원가입 버튼 (검정색)
+              AppButton.black(
+                text: '회원가입',
+                onPressed: _handleRegister,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
