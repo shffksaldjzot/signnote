@@ -3,7 +3,10 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/event/event_card.dart';
+import '../../services/event_service.dart';
+import '../../services/auth_service.dart';
 import 'event_detail_screen.dart';
+import 'contract_screen.dart';
 
 // ============================================
 // 고객 홈 화면 (행사 목록)
@@ -28,18 +31,161 @@ class CustomerHomeScreen extends StatefulWidget {
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
-  int _currentTabIndex = 0;
+  final int _currentTabIndex = 0;
 
-  // TODO: API에서 행사 목록 가져오기 (현재 임시 데이터)
-  final List<Map<String, dynamic>> _events = [
-    {
-      'id': '1',
-      'title': '창원 자이 사전 박람회',
-      'coverImageUrl': null,
-      'startDate': DateTime(2026, 3, 1),
-      'endDate': DateTime(2026, 3, 3),
-    },
-  ];
+  // API에서 가져온 행사 목록
+  List<Map<String, dynamic>> _events = [];
+  bool _isLoading = true;
+  String? _error;
+
+  final EventService _eventService = EventService();
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents(); // 화면 열릴 때 행사 목록 불러오기
+  }
+
+  // 서버에서 행사 목록 가져오기
+  Future<void> _loadEvents() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final result = await _eventService.getEvents();
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final List events = result['events'] ?? [];
+      setState(() {
+        _events = events.map<Map<String, dynamic>>((e) {
+          return {
+            'id': e['id']?.toString() ?? '',
+            'title': e['title'] ?? '행사명 없음',
+            'coverImageUrl': e['coverImage'],
+            'startDate': e['startDate'] != null
+                ? DateTime.tryParse(e['startDate'].toString())
+                : null,
+            'endDate': e['endDate'] != null
+                ? DateTime.tryParse(e['endDate'].toString())
+                : null,
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _error = result['error'] ?? '행사 목록을 불러올 수 없습니다';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 참여 코드 입력 다이얼로그 (새 행사 추가용)
+  void _showEntryCodeDialog() {
+    final codeController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          '행사 참여 코드 입력',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '6자리 참여 코드를 입력해 주세요.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: codeController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 8,
+              ),
+              decoration: InputDecoration(
+                hintText: '000000',
+                counterText: '',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final code = codeController.text;
+              if (code.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('6자리 코드를 입력해 주세요')),
+                );
+                return;
+              }
+              // async 전에 미리 참조 저장
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(context);
+              final result = await _authService.enterEvent(code);
+              if (!mounted) return;
+              if (result['success'] == true) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('행사에 참여했습니다!')),
+                );
+                _loadEvents(); // 목록 새로고침
+              } else {
+                messenger.showSnackBar(
+                  SnackBar(content: Text(result['error'] ?? '입장에 실패했습니다')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            child: const Text('입장하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 탭 클릭 시 화면 이동
+  void _onTabChanged(int index) {
+    if (index == _currentTabIndex) return;
+
+    switch (index) {
+      case 0: // 홈 — 현재 화면이므로 무시
+        break;
+      case 1: // 장바구니 (행사 상세에서 접근 필요)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('행사를 선택한 후 장바구니를 이용해 주세요')),
+        );
+        break;
+      case 2: // 계약함
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const CustomerContractScreen()),
+        );
+        break;
+      case 3: // 마이페이지 (아직 없음)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('마이페이지는 준비 중입니다')),
+        );
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +213,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Icon(
+                  const Icon(
                     Icons.chevron_right,
                     color: AppColors.textPrimary,
                     size: 22,
@@ -75,48 +221,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              // 행사 카드 그리드
-              Expanded(
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,          // 2열
-                    crossAxisSpacing: 12,        // 가로 간격
-                    mainAxisSpacing: 16,         // 세로 간격
-                    childAspectRatio: 0.72,      // 카드 세로:가로 비율
-                  ),
-                  itemCount: _events.length + 1,  // 행사 수 + 추가 카드(+)
-                  itemBuilder: (context, index) {
-                    // 마지막은 + 추가 카드
-                    if (index == _events.length) {
-                      return AddEventCard(
-                        onTap: () {
-                          // TODO: 참여 코드 입력 모달 표시
-                        },
-                      );
-                    }
-
-                    final event = _events[index];
-                    return EventCard(
-                      title: event['title'],
-                      coverImageUrl: event['coverImageUrl'],
-                      startDate: event['startDate'],
-                      endDate: event['endDate'],
-                      onTap: () {
-                        // 행사 상세 화면으로 이동
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => EventDetailScreen(
-                              eventId: event['id'],
-                              eventTitle: event['title'],
-                            ),
-                          ),
-                        );
-                      },
-                      onMoreTap: () {},
-                    );
-                  },
-                ),
-              ),
+              // 행사 카드 그리드 (로딩/에러/데이터 분기)
+              Expanded(child: _buildBody()),
             ],
           ),
         ),
@@ -124,11 +230,67 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       // 하단 탭바
       bottomNavigationBar: AppTabBar.customer(
         currentIndex: _currentTabIndex,
-        onTap: (index) {
-          setState(() => _currentTabIndex = index);
-          // TODO: 탭별 화면 이동
-        },
+        onTap: _onTabChanged,
       ),
+    );
+  }
+
+  // 본문 영역: 로딩 / 에러 / 행사 목록 분기
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _loadEvents, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,          // 2열
+        crossAxisSpacing: 12,        // 가로 간격
+        mainAxisSpacing: 16,         // 세로 간격
+        childAspectRatio: 0.72,      // 카드 세로:가로 비율
+      ),
+      itemCount: _events.length + 1,  // 행사 수 + 추가 카드(+)
+      itemBuilder: (context, index) {
+        // 마지막은 + 추가 카드
+        if (index == _events.length) {
+          return AddEventCard(
+            onTap: _showEntryCodeDialog,
+          );
+        }
+
+        final event = _events[index];
+        return EventCard(
+          title: event['title'],
+          coverImageUrl: event['coverImageUrl'],
+          startDate: event['startDate'],
+          endDate: event['endDate'],
+          onTap: () {
+            // 행사 상세 화면으로 이동
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EventDetailScreen(
+                  eventId: event['id'],
+                  eventTitle: event['title'],
+                ),
+              ),
+            );
+          },
+          onMoreTap: () {},
+        );
+      },
     );
   }
 

@@ -29,9 +29,10 @@ enum EventStatus {
 
 // ---- 계약 상태 ----
 enum ContractStatus {
-  PENDING     // 대기중 - 계약금 결제 전
-  CONFIRMED   // 확정 - 계약금 결제 완료
-  CANCELLED   // 취소됨
+  PENDING           // 대기중 - 계약금 결제 전
+  CONFIRMED         // 확정 - 계약금 결제 완료
+  CANCEL_REQUESTED  // 취소 요청 - 고객이 취소 신청 (업체 승인 대기)
+  CANCELLED         // 취소됨
 }
 
 // ---- 결제 상태 ----
@@ -71,11 +72,14 @@ model User {
   bankAccount    String?                        // 계좌정보 (업체만 해당, 정산용)
   createdAt      DateTime @default(now())       // 가입 날짜 (자동 기록)
 
+  fcmToken       String?                        // FCM 푸시 토큰 (앱에서 등록)
+
   // 관계 설정 (이 사용자와 연결된 데이터들)
   contracts      Contract[]                     // 이 고객의 계약 목록
   cartItems      CartItem[]                     // 이 고객의 장바구니
   vendorProducts Product[]                      // 이 업체가 등록한 상품들
   organizedEvents Event[]                       // 이 주관사가 만든 행사들
+  notifications  Notification[]                 // 이 사용자의 알림 목록
 
   @@map("users")  // 실제 DB 테이블 이름
 }
@@ -230,6 +234,40 @@ model Settlement {
 // 세금계산서 (TaxInvoice)
 // 팝빌 API로 발행하는 전자세금계산서
 // ============================================
+// ============================================
+// 알림 (Notification)
+// 사용자에게 보내는 알림 기록
+// ============================================
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String                              // 받는 사용자 ID
+  user      User     @relation(fields: [userId], references: [id])
+  type      String                              // 알림 종류 (CONTRACT_CREATED, CANCEL_REQUESTED 등)
+  title     String                              // 알림 제목
+  body      String                              // 알림 내용
+  data      Json?                               // 추가 데이터 (계약ID, 행사ID 등)
+  isRead    Boolean  @default(false)            // 읽음 여부
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+// ============================================
+// 활동 로그 (ActivityLog)
+// 사용자 행동 기록 (로그인, 계약, 취소 등)
+// ============================================
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String?                              // 행동한 사용자 ID (비회원 접근은 null)
+  action    String                               // 행동 종류 (LOGIN, CONTRACT_CREATE 등)
+  target    String?                              // 대상 (contractId, eventId 등)
+  detail    String?                              // 상세 설명
+  ipAddress String?                              // IP 주소
+  createdAt DateTime @default(now())
+
+  @@map("activity_logs")
+}
+
 model TaxInvoice {
   id             String           @id @default(uuid())
   settlementId   String           @unique              // 정산 ID (1:1 관계)

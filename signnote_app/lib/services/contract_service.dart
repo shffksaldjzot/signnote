@@ -111,7 +111,7 @@ class ContractService {
     }
   }
 
-  // 계약 취소
+  // 계약 취소 요청 (고객: CONFIRMED → CANCEL_REQUESTED)
   Future<Map<String, dynamic>> cancelContract(String contractId) async {
     try {
       final response = await _api.put('/contracts/$contractId/cancel');
@@ -122,7 +122,39 @@ class ContractService {
     } on DioException catch (e) {
       return {
         'success': false,
-        'error': e.response?.data['message'] ?? '계약 취소에 실패했습니다',
+        'error': e.response?.data['message'] ?? '취소 요청에 실패했습니다',
+      };
+    }
+  }
+
+  // 취소 요청 승인 (업체: CANCEL_REQUESTED → CANCELLED)
+  Future<Map<String, dynamic>> approveCancel(String contractId) async {
+    try {
+      final response = await _api.put('/contracts/$contractId/approve-cancel');
+      return {
+        'success': true,
+        'contract': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '취소 승인에 실패했습니다',
+      };
+    }
+  }
+
+  // 취소 요청 거부 (업체: CANCEL_REQUESTED → CONFIRMED)
+  Future<Map<String, dynamic>> rejectCancel(String contractId) async {
+    try {
+      final response = await _api.put('/contracts/$contractId/reject-cancel');
+      return {
+        'success': true,
+        'contract': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '취소 거부에 실패했습니다',
       };
     }
   }

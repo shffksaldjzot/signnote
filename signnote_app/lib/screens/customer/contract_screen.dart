@@ -3,6 +3,7 @@ import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/contract/contract_card.dart';
+import '../../services/contract_service.dart';
 
 // ============================================
 // 고객용 계약함 화면
@@ -57,15 +58,69 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     },
   ];
 
+  final ContractService _contractService = ContractService();
+
   // 상태 문자열 → ContractCardStatus 변환
+  // PENDING = 결제 대기, CONFIRMED = 결제 완료, CANCEL_REQUESTED = 취소 요청, CANCELLED = 취소
   ContractCardStatus _parseStatus(String status) {
     switch (status) {
       case 'CONFIRMED':
         return ContractCardStatus.confirmed;
+      case 'CANCEL_REQUESTED':
+        return ContractCardStatus.cancelRequested;
       case 'CANCELLED':
         return ContractCardStatus.cancelled;
+      case 'PENDING':
       default:
-        return ContractCardStatus.confirmed;
+        return ContractCardStatus.pending;
+    }
+  }
+
+  // 취소 요청 확인 다이얼로그
+  void _showCancelRequestDialog(Map<String, dynamic> contract) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('취소 요청'),
+        content: Text(
+          '\'${contract['productName']}\' 계약을 취소 요청하시겠습니까?\n\n'
+          '업체가 승인하면 취소가 완료됩니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _requestCancel(contract);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.priceRed),
+            child: const Text('취소 요청'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 취소 요청 API 호출
+  Future<void> _requestCancel(Map<String, dynamic> contract) async {
+    final result = await _contractService.cancelContract(contract['id']);
+    if (!mounted) return;
+
+    if (result['success']) {
+      // 로컬 상태 업데이트 (서버 재조회 없이 바로 반영)
+      setState(() {
+        contract['status'] = 'CANCEL_REQUESTED';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('취소 요청이 완료되었습니다. 업체 승인을 기다려주세요.')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '취소 요청에 실패했습니다')),
+      );
     }
   }
 
@@ -118,6 +173,10 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                         onDetailTap: () {
                           // TODO: 계약 상세 화면으로 이동
                         },
+                        // 확정 상태일 때만 취소 요청 가능
+                        onCancelTap: contract['status'] == 'CONFIRMED'
+                            ? () => _showCancelRequestDialog(contract)
+                            : null,
                       );
                     },
                   ),

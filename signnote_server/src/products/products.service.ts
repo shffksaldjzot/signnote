@@ -87,6 +87,23 @@ export class ProductsService {
     });
   }
 
+  // 전체 상품 목록 조회 (주관사/관리자용)
+  // eventId, category로 필터 가능
+  async findAll(eventId?: string, category?: string) {
+    const where: any = {};
+    if (eventId) where.eventId = eventId;
+    if (category) where.category = category;
+
+    return this.prisma.product.findMany({
+      where,
+      include: {
+        vendor: { select: { id: true, name: true } },
+        event: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   // 업체가 등록한 상품 목록
   async findByVendor(vendorId: string, eventId?: string) {
     const where: any = { vendorId };

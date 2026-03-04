@@ -26,5 +26,11 @@ Thumbs.db
 # Claude
 .claude/
 
+# bkit (AI 도구 상태 파일)
+.bkit/
+
+# Cloudflare Wrangler (로컬 빌드 캐시)
+.wrangler/
+
 # Misc
 *.log

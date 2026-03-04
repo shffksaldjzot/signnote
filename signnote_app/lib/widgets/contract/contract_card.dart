@@ -30,6 +30,7 @@ import '../../config/theme.dart';
 
 /// 계약 상태 종류
 enum ContractCardStatus {
+  pending,         // 계약금 결제 대기
   confirmed,       // 계약금 결제 완료
   cancelRequested, // 취소 요청
   cancelled,       // 취소 완료
@@ -43,8 +44,11 @@ class ContractCard extends StatelessWidget {
   final int price;                 // 원래 가격
   final int depositAmount;         // 계약금
   final ContractCardStatus status; // 상태
-  final VoidCallback? onDetailTap; // 상세보기 눌렀을 때
-  final String? category;          // 카테고리 (줄눈 등)
+  final VoidCallback? onDetailTap;   // 상세보기 눌렀을 때
+  final VoidCallback? onCancelTap;   // 취소 요청 눌렀을 때 (고객용)
+  final VoidCallback? onApproveTap;  // 취소 승인 눌렀을 때 (업체용)
+  final VoidCallback? onRejectTap;   // 취소 거부 눌렀을 때 (업체용)
+  final String? category;            // 카테고리 (줄눈 등)
 
   // 업체용 추가 정보
   final String? customerName;      // 고객명
@@ -61,11 +65,12 @@ class ContractCard extends StatelessWidget {
     required this.depositAmount,
     required this.status,
     this.onDetailTap,
+    this.onCancelTap,
     this.category,
     this.customerName,
     this.customerAddress,
     this.customerPhone,
-  });
+  }) : onApproveTap = null, onRejectTap = null;
 
   // 업체용 생성자
   const ContractCard.vendor({
@@ -77,11 +82,13 @@ class ContractCard extends StatelessWidget {
     required this.depositAmount,
     required this.status,
     this.onDetailTap,
+    this.onApproveTap,
+    this.onRejectTap,
     this.category,
     required this.customerName,
     required this.customerAddress,
     required this.customerPhone,
-  });
+  }) : onCancelTap = null;
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +236,61 @@ class ContractCard extends StatelessWidget {
               ],
             ),
           ),
+          // 고객용: 취소 요청 버튼 (확정 상태일 때만)
+          if (onCancelTap != null && status == ContractCardStatus.confirmed) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: onCancelTap,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.priceRed,
+                  side: const BorderSide(color: AppColors.priceRed),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('취소 요청'),
+              ),
+            ),
+          ],
+          // 업체용: 취소 승인/거부 버튼 (취소 요청 상태일 때)
+          if (onApproveTap != null && status == ContractCardStatus.cancelRequested) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                // 거부 버튼
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onRejectTap,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('거부'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // 승인 버튼
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onApproveTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.priceRed,
+                      foregroundColor: AppColors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('취소 승인'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -241,6 +303,10 @@ class ContractCard extends StatelessWidget {
     Color textColor;
 
     switch (status) {
+      case ContractCardStatus.pending:
+        text = '결제 대기';
+        bgColor = AppColors.primary;          // 파란 배경
+        textColor = AppColors.white;          // 흰 글씨
       case ContractCardStatus.confirmed:
         text = '계약금 결제 완료';
         bgColor = AppColors.textPrimary;     // 검정 배경

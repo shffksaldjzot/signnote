@@ -28,6 +28,18 @@ import { JwtAuthGuard, RolesGuard, Roles } from '../auth/roles.guard';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  // 전체 상품 목록 (주관사/관리자용)
+  // ?eventId=xxx&category=xxx 로 필터 가능
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ORGANIZER', 'ADMIN')
+  @Get('products')
+  async findAll(
+    @Query('eventId') eventId?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.productsService.findAll(eventId, category);
+  }
+
   // 행사별 상품 목록 (로그인 필요)
   // ?housingType=84A 로 평형 필터 가능
   @UseGuards(JwtAuthGuard)

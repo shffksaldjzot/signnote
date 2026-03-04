@@ -26,6 +26,29 @@ export class UsersService {
     });
   }
 
+  // 전체 사용자 목록 조회 (주관사/관리자용)
+  // role 필터: 'CUSTOMER', 'VENDOR', 'ORGANIZER' 등
+  async findAll(role?: string) {
+    const where: any = {};
+    if (role) where.role = role;
+
+    const users = await this.prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        businessNumber: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return users;
+  }
+
   // 새 사용자 생성 (회원가입)
   async create(dto: CreateUserDto) {
     // 이미 같은 이메일이 있는지 확인

@@ -13,6 +13,10 @@ import { EventsModule } from './events/events.module';
 import { ProductsModule } from './products/products.module';
 import { CartsModule } from './carts/carts.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { SettlementsModule } from './settlements/settlements.module';
+import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -36,8 +40,14 @@ import { AppService } from './app.service';
     CartsModule,
     // 계약 모듈 (Phase 4) ✅
     ContractsModule,
-    // PaymentsModule,     // 결제 (Phase 5)
-    // SettlementsModule,  // 정산 (Phase 7)
+    // 결제 모듈 (Phase 5) ✅
+    PaymentsModule,
+    // 알림 모듈 (Phase 10) ✅
+    NotificationsModule,
+    // 정산 모듈 (Phase 7) ✅
+    SettlementsModule,
+    // 활동 로그 모듈 (전역) ✅
+    ActivityLogsModule,
     // TaxInvoicesModule,  // 세금계산서 (Phase 8)
     // NotificationsModule,// 알림 (Phase 10)
   ],

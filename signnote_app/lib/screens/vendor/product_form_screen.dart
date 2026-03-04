@@ -4,6 +4,7 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
+import '../../services/product_service.dart';
 
 // ============================================
 // 업체용 상품 추가/수정 폼 화면
@@ -36,6 +37,7 @@ class VendorProductFormScreen extends StatefulWidget {
 
 class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final ProductService _productService = ProductService();
 
   // 입력 필드 컨트롤러들
   late final TextEditingController _categoryController;
@@ -80,7 +82,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     super.dispose();
   }
 
-  // 폼 제출 (등록 또는 수정)
+  // 폼 제출 (등록 또는 수정) — 실제 API 호출
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedTypes.isEmpty) {
@@ -92,19 +94,52 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
 
     setState(() => _isLoading = true);
 
-    // TODO: API 호출로 실제 등록/수정 처리
-    // 현재는 성공했다고 가정하고 이전 화면으로 돌아감
-    await Future.delayed(const Duration(milliseconds: 500));
+    Map<String, dynamic> result;
+
+    if (_isEditMode) {
+      // 수정 모드: updateProduct API 호출
+      result = await _productService.updateProduct(
+        widget.product!['id'].toString(),
+        {
+          'category': _categoryController.text,
+          'name': _nameController.text,
+          'description': _descriptionController.text,
+          'price': int.parse(_priceController.text),
+          'housingTypes': _selectedTypes.toList(),
+        },
+      );
+    } else {
+      // 등록 모드: createProduct API 호출
+      result = await _productService.createProduct(
+        eventId: widget.eventId,
+        name: _nameController.text,
+        category: _categoryController.text,
+        vendorName: '', // 서버에서 로그인 사용자 정보로 자동 처리
+        housingTypes: _selectedTypes.toList(),
+        price: int.parse(_priceController.text),
+        description: _descriptionController.text.isNotEmpty
+            ? _descriptionController.text
+            : null,
+      );
+    }
 
     setState(() => _isLoading = false);
 
-    if (mounted) {
+    if (!mounted) return;
+
+    if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_isEditMode ? '상품이 수정되었습니다' : '상품이 등록되었습니다'),
         ),
       );
       Navigator.of(context).pop(true);  // true = 변경됨 (목록 새로고침용)
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['error'] ?? '처리에 실패했습니다'),
+        ),
+      );
     }
   }
 

@@ -15,13 +15,17 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service';
 import { CreateContractDto } from './dto/create-contract.dto';
+import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
 @Injectable()
 export class ContractsService {
   // 계약금 비율 (30%)
   private readonly DEPOSIT_RATE = 0.3;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   // 계약 생성 (장바구니 → 계약)
   // 여러 상품을 한번에 계약 (각 상품별로 개별 계약 생성)
@@ -72,6 +76,17 @@ export class ContractsService {
       });
 
       contracts.push(contract);
+    }
+
+    // 계약 생성 알림 → 업체에게 전송
+    for (const contract of contracts) {
+      await this.notifications.send({
+        userId: contract.vendorId,
+        type: NotificationType.CONTRACT_CREATED,
+        title: '새 계약이 들어왔습니다',
+        body: `${user.name}님이 '${contract.product?.name}'을(를) 계약했습니다.`,
+        data: { contractId: contract.id, eventId: contract.eventId },
+      });
     }
 
     // 계약 완료된 상품은 장바구니에서 제거
@@ -162,7 +177,8 @@ export class ContractsService {
     return contract;
   }
 
-  // 계약 취소
+  // 계약 취소 요청 (고객이 호출)
+  // CONFIRMED → CANCEL_REQUESTED 로 상태 변경 (바로 취소되지 않음)
   async cancel(contractId: string, userId: string) {
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
@@ -172,19 +188,128 @@ export class ContractsService {
       throw new NotFoundException('계약을 찾을 수 없습니다');
     }
 
-    // 본인 계약인지 확인 (고객 또는 업체)
-    if (contract.customerId !== userId && contract.vendorId !== userId) {
-      throw new BadRequestException('본인의 계약만 취소할 수 있습니다');
+    // 본인 계약인지 확인 (고객만 취소 요청 가능)
+    if (contract.customerId !== userId) {
+      throw new BadRequestException('본인의 계약만 취소 요청할 수 있습니다');
     }
 
-    // 이미 취소된 계약인지 확인
-    if (contract.status === 'CANCELLED') {
-      throw new BadRequestException('이미 취소된 계약입니다');
+    // CONFIRMED 상태에서만 취소 요청 가능
+    if (contract.status !== 'CONFIRMED') {
+      throw new BadRequestException(
+        '확정된 계약만 취소 요청할 수 있습니다 (현재 상태: ' + contract.status + ')',
+      );
     }
 
-    return this.prisma.contract.update({
+    const updated = await this.prisma.contract.update({
       where: { id: contractId },
-      data: { status: 'CANCELLED' },
+      data: { status: 'CANCEL_REQUESTED' },
+      include: { product: true, customer: { select: { name: true } } },
     });
+
+    // 취소 요청 알림 → 업체에게 전송
+    await this.notifications.send({
+      userId: contract.vendorId,
+      type: NotificationType.CANCEL_REQUESTED,
+      title: '계약 취소 요청이 들어왔습니다',
+      body: `${updated.customer?.name}님이 '${updated.product?.name}' 계약 취소를 요청했습니다.`,
+      data: { contractId },
+    });
+
+    return updated;
+  }
+
+  // 취소 요청 승인 (업체가 호출)
+  // CANCEL_REQUESTED → CANCELLED + 결제 환불 처리
+  async approveCancel(contractId: string, vendorId: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+      include: { payments: true },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('계약을 찾을 수 없습니다');
+    }
+
+    // 해당 업체의 계약인지 확인
+    if (contract.vendorId !== vendorId) {
+      throw new BadRequestException('본인 상품의 계약만 처리할 수 있습니다');
+    }
+
+    // CANCEL_REQUESTED 상태에서만 승인 가능
+    if (contract.status !== 'CANCEL_REQUESTED') {
+      throw new BadRequestException('취소 요청 상태의 계약만 승인할 수 있습니다');
+    }
+
+    // 트랜잭션으로 계약 취소 + 결제 환불 동시 처리
+    const updatedContract = await this.prisma.$transaction(async (tx) => {
+      // 1. 계약 상태 → CANCELLED
+      const updated = await tx.contract.update({
+        where: { id: contractId },
+        data: { status: 'CANCELLED' },
+        include: { product: true },
+      });
+
+      // 2. 완료된 결제가 있으면 환불 처리
+      await tx.payment.updateMany({
+        where: {
+          contractId,
+          status: 'COMPLETED',
+        },
+        data: { status: 'REFUNDED' },
+      });
+
+      return updated;
+    });
+
+    // 취소 승인 알림 → 고객에게 전송
+    await this.notifications.send({
+      userId: contract.customerId,
+      type: NotificationType.CANCEL_APPROVED,
+      title: '계약 취소가 승인되었습니다',
+      body: `'${updatedContract.product?.name}' 계약이 취소되었습니다. 결제금이 환불됩니다.`,
+      data: { contractId },
+    });
+
+    return updatedContract;
+  }
+
+  // 취소 요청 거부 (업체가 호출)
+  // CANCEL_REQUESTED → CONFIRMED (원래 상태로 복귀)
+  async rejectCancel(contractId: string, vendorId: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('계약을 찾을 수 없습니다');
+    }
+
+    // 해당 업체의 계약인지 확인
+    if (contract.vendorId !== vendorId) {
+      throw new BadRequestException('본인 상품의 계약만 처리할 수 있습니다');
+    }
+
+    // CANCEL_REQUESTED 상태에서만 거부 가능
+    if (contract.status !== 'CANCEL_REQUESTED') {
+      throw new BadRequestException('취소 요청 상태의 계약만 거부할 수 있습니다');
+    }
+
+    // CONFIRMED로 원복
+    const updated = await this.prisma.contract.update({
+      where: { id: contractId },
+      data: { status: 'CONFIRMED' },
+      include: { product: true },
+    });
+
+    // 취소 거부 알림 → 고객에게 전송
+    await this.notifications.send({
+      userId: contract.customerId,
+      type: NotificationType.CANCEL_REJECTED,
+      title: '계약 취소 요청이 거부되었습니다',
+      body: `'${updated.product?.name}' 계약 취소 요청이 거부되어 계약이 유지됩니다.`,
+      data: { contractId },
+    });
+
+    return updated;
   }
 }

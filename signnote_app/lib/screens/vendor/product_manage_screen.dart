@@ -5,6 +5,7 @@ import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/product/product_card.dart';
 import '../../widgets/product/housing_type_selector.dart';
 import '../../widgets/common/app_button.dart';
+import '../../services/product_service.dart';
 import 'product_form_screen.dart';
 
 // ============================================
@@ -37,27 +38,56 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
   int _currentTabIndex = 0;
   final String _selectedType = '84A';
 
-  // TODO: API에서 내 상품 목록 가져오기 (현재 임시 데이터)
-  final List<Map<String, dynamic>> _myProducts = [
-    {
-      'id': '1',
-      'category': '줄눈',
-      'vendorName': '앤드 디자인',
-      'name': '줄눈 A 패키지',
-      'description': '욕실2바닥+현관+안방샤워부스 벽면1곳\n+다용도실',
-      'price': 700000,
-      'imageUrl': null,
-    },
-    {
-      'id': '2',
-      'category': '줄눈',
-      'vendorName': '앤드 디자인',
-      'name': '줄눈 B 패키지',
-      'description': 'A패키지 + 욕실 전체벽',
-      'price': 1400000,
-      'imageUrl': null,
-    },
-  ];
+  // API에서 가져온 내 상품 목록
+  List<Map<String, dynamic>> _myProducts = [];
+  bool _isLoading = true;
+  String? _error;
+
+  final ProductService _productService = ProductService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts(); // 화면 열릴 때 상품 목록 불러오기
+  }
+
+  // 서버에서 내 상품 목록 가져오기
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final result = await _productService.getMyProducts(eventId: widget.eventId);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final List products = result['products'] ?? [];
+      setState(() {
+        _myProducts = products.map<Map<String, dynamic>>((p) {
+          return {
+            'id': p['id']?.toString() ?? '',
+            'category': p['category'] ?? '기타',
+            'vendorName': p['vendorName'] ?? '',
+            'name': p['name'] ?? '상품명 없음',
+            'description': p['description'] ?? '',
+            'price': p['price'] ?? 0,
+            'imageUrl': p['image'],
+            'housingTypes': p['housingTypes'] != null
+                ? List<String>.from(p['housingTypes'])
+                : <String>[],
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _error = result['error'] ?? '상품 목록을 불러올 수 없습니다';
+        _isLoading = false;
+      });
+    }
+  }
 
   // 카테고리별로 상품 그룹핑
   Map<String, List<Map<String, dynamic>>> get _groupedProducts {
@@ -99,52 +129,7 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
             ),
           ),
           // 상품 목록 (카테고리별)
-          Expanded(
-            child: _myProducts.isEmpty
-                ? _buildEmptyState()
-                : ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    children: _groupedProducts.entries.map((entry) {
-                      final category = entry.key;
-                      final products = entry.value;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 12),
-                          // 카테고리 헤더
-                          Text(
-                            category,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          // 카테고리 내 상품들 (수정 아이콘 표시)
-                          ...products.map((product) => ProductCard(
-                            vendorName: product['vendorName'],
-                            productName: product['name'],
-                            description: product['description'],
-                            price: product['price'],
-                            imageUrl: product['imageUrl'],
-                            onEditTap: () {
-                              // 상품 수정 화면으로 이동
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => VendorProductFormScreen(
-                                    eventId: widget.eventId,
-                                    product: product,  // 기존 상품 데이터 전달
-                                  ),
-                                ),
-                              );
-                            },
-                          )),
-                          const Divider(height: 24),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-          ),
+          Expanded(child: _buildBody()),
         ],
       ),
       // 하단: "상품 추가" 버튼 + 탭바
@@ -155,15 +140,17 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
             child: AppButton.black(
               text: '상품 추가',
-              onPressed: () {
+              onPressed: () async {
                 // 상품 추가 화면으로 이동 (빈 폼)
-                Navigator.of(context).push(
+                final result = await Navigator.of(context).push<bool>(
                   MaterialPageRoute(
                     builder: (_) => VendorProductFormScreen(
                       eventId: widget.eventId,
                     ),
                   ),
                 );
+                // 추가 성공 시 목록 새로고침
+                if (result == true) _loadProducts();
               },
             ),
           ),
@@ -173,6 +160,73 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // 본문: 로딩 / 에러 / 상품 목록 분기
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _loadProducts, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+    if (_myProducts.isEmpty) return _buildEmptyState();
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      children: _groupedProducts.entries.map((entry) {
+        final category = entry.key;
+        final products = entry.value;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            // 카테고리 헤더
+            Text(
+              category,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            // 카테고리 내 상품들 (수정 아이콘 표시)
+            ...products.map((product) => ProductCard(
+              vendorName: product['vendorName'],
+              productName: product['name'],
+              description: product['description'],
+              price: product['price'],
+              imageUrl: product['imageUrl'],
+              onEditTap: () async {
+                // 상품 수정 화면으로 이동
+                final result = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => VendorProductFormScreen(
+                      eventId: widget.eventId,
+                      product: product,  // 기존 상품 데이터 전달
+                    ),
+                  ),
+                );
+                // 수정 성공 시 목록 새로고침
+                if (result == true) _loadProducts();
+              },
+            )),
+            const Divider(height: 24),
+          ],
+        );
+      }).toList(),
     );
   }
 

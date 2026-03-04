@@ -2,12 +2,14 @@
 // 계약 컨트롤러 (Contracts Controller)
 //
 // API 목록:
-//   POST   /api/v1/contracts              → 계약 생성 (고객)
-//   GET    /api/v1/contracts              → 내 계약 목록 (고객)
-//   GET    /api/v1/contracts/vendor       → 내 상품 계약 목록 (업체)
-//   GET    /api/v1/contracts/event/:eventId → 행사별 계약 목록 (주관사)
-//   GET    /api/v1/contracts/:id          → 계약 상세
-//   PUT    /api/v1/contracts/:id/cancel   → 계약 취소
+//   POST   /api/v1/contracts                    → 계약 생성 (고객)
+//   GET    /api/v1/contracts                    → 내 계약 목록 (고객)
+//   GET    /api/v1/contracts/vendor             → 내 상품 계약 목록 (업체)
+//   GET    /api/v1/contracts/event/:eventId     → 행사별 계약 목록 (주관사)
+//   GET    /api/v1/contracts/:id                → 계약 상세
+//   PUT    /api/v1/contracts/:id/cancel         → 취소 요청 (고객)
+//   PUT    /api/v1/contracts/:id/approve-cancel → 취소 승인 (업체)
+//   PUT    /api/v1/contracts/:id/reject-cancel  → 취소 거부 (업체)
 // ============================================
 
 import {
@@ -73,10 +75,26 @@ export class ContractsController {
     return this.contractsService.findOne(id);
   }
 
-  // 계약 취소
+  // 계약 취소 요청 (고객: CONFIRMED → CANCEL_REQUESTED)
   @UseGuards(JwtAuthGuard)
   @Put(':id/cancel')
   async cancel(@Request() req: any, @Param('id') id: string) {
     return this.contractsService.cancel(id, req.user.id);
+  }
+
+  // 취소 요청 승인 (업체: CANCEL_REQUESTED → CANCELLED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('VENDOR')
+  @Put(':id/approve-cancel')
+  async approveCancel(@Request() req: any, @Param('id') id: string) {
+    return this.contractsService.approveCancel(id, req.user.id);
+  }
+
+  // 취소 요청 거부 (업체: CANCEL_REQUESTED → CONFIRMED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('VENDOR')
+  @Put(':id/reject-cancel')
+  async rejectCancel(@Request() req: any, @Param('id') id: string) {
+    return this.contractsService.rejectCancel(id, req.user.id);
   }
 }

@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/common/app_button.dart';
+import '../../services/auth_service.dart';
+import '../customer/home_screen.dart';
+import '../vendor/home_screen.dart';
+import '../organizer/home_screen.dart';
 
 // ============================================
 // 참여 코드 입장 화면 (Entry Code Screen)
@@ -40,6 +44,8 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
   );
   bool _isLoading = false;
 
+  final AuthService _authService = AuthService();
+
   @override
   void dispose() {
     for (final c in _controllers) {
@@ -56,7 +62,7 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
     return _controllers.map((c) => c.text).join();
   }
 
-  // 입장하기 버튼 눌렀을 때
+  // 입장하기 버튼 눌렀을 때 — 실제 API 호출
   Future<void> _handleEnter() async {
     if (_entryCode.length < AppConstants.entryCodeLength) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -67,14 +73,39 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
 
     setState(() => _isLoading = true);
 
-    // TODO: 실제 API 연동
-    await Future.delayed(const Duration(seconds: 1));
+    // AuthService를 통해 실제 API 호출
+    final result = await _authService.enterEvent(_entryCode);
 
     setState(() => _isLoading = false);
 
-    if (mounted) {
+    if (!mounted) return;
+
+    if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('입력한 코드: $_entryCode (API 연동 예정)')),
+        const SnackBar(content: Text('행사에 입장합니다!')),
+      );
+
+      // 역할별 홈 화면으로 이동 (기존 화면 스택 모두 제거)
+      Widget homeScreen;
+      switch (widget.role) {
+        case AppConstants.roleVendor:
+          homeScreen = const VendorHomeScreen();
+          break;
+        case AppConstants.roleOrganizer:
+          homeScreen = const OrganizerHomeScreen();
+          break;
+        default: // CUSTOMER
+          homeScreen = const CustomerHomeScreen();
+          break;
+      }
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => homeScreen),
+        (route) => false, // 모든 이전 화면 제거
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '유효하지 않은 참여 코드입니다')),
       );
     }
   }

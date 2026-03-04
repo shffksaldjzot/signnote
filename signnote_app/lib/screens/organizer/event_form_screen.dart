@@ -4,6 +4,7 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
+import '../../services/event_service.dart';
 
 // ============================================
 // 주관사용 행사 생성/수정 폼 화면
@@ -35,6 +36,7 @@ class OrganizerEventFormScreen extends StatefulWidget {
 
 class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final EventService _eventService = EventService();
 
   // 입력 필드 컨트롤러들
   late final TextEditingController _titleController;
@@ -105,7 +107,12 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
   }
 
-  // 폼 제출
+  // 날짜를 API 전송용 문자열로 변환 (ISO 8601)
+  String _toIsoDate(DateTime date) {
+    return date.toIso8601String().split('T').first;
+  }
+
+  // 폼 제출 — 실제 API 호출
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
@@ -123,24 +130,76 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
 
     setState(() => _isLoading = true);
 
-    // TODO: API 호출로 실제 등록/수정 처리
-    // 서버에서 참여 코드(6자리 숫자)가 자동으로 생성됨
-    // 전송 데이터에 _allowOnlineContract 포함
-    debugPrint('계약방식: $_contractMethod, 온라인허용: $_allowOnlineContract');
-    await Future.delayed(const Duration(milliseconds: 500));
+    Map<String, dynamic> result;
+
+    if (_isEditMode) {
+      // 수정 모드: updateEvent API 호출
+      result = await _eventService.updateEvent(
+        widget.event!['id'].toString(),
+        {
+          'title': _titleController.text,
+          'startDate': _toIsoDate(_startDate!),
+          'endDate': _toIsoDate(_endDate!),
+          if (_siteNameController.text.isNotEmpty)
+            'siteName': _siteNameController.text,
+          if (_unitCountController.text.isNotEmpty)
+            'unitCount': int.parse(_unitCountController.text),
+          if (_moveInDate != null)
+            'moveInDate': _toIsoDate(_moveInDate!),
+          'housingTypes': _selectedTypes.toList(),
+          'contractMethod': _contractMethod,
+          'allowOnlineContract': _allowOnlineContract,
+          if (_cancelDeadlineStart != null)
+            'cancelDeadlineStart': _toIsoDate(_cancelDeadlineStart!),
+          if (_cancelDeadlineEnd != null)
+            'cancelDeadlineEnd': _toIsoDate(_cancelDeadlineEnd!),
+        },
+      );
+    } else {
+      // 등록 모드: createEvent API 호출
+      result = await _eventService.createEvent(
+        title: _titleController.text,
+        startDate: _toIsoDate(_startDate!),
+        endDate: _toIsoDate(_endDate!),
+        siteName: _siteNameController.text.isNotEmpty
+            ? _siteNameController.text
+            : null,
+        unitCount: _unitCountController.text.isNotEmpty
+            ? int.parse(_unitCountController.text)
+            : null,
+        moveInDate: _moveInDate != null ? _toIsoDate(_moveInDate!) : null,
+        housingTypes: _selectedTypes.toList(),
+        contractMethod: _contractMethod,
+        allowOnlineContract: _allowOnlineContract,
+        cancelDeadlineStart: _cancelDeadlineStart != null
+            ? _toIsoDate(_cancelDeadlineStart!)
+            : null,
+        cancelDeadlineEnd: _cancelDeadlineEnd != null
+            ? _toIsoDate(_cancelDeadlineEnd!)
+            : null,
+      );
+    }
 
     setState(() => _isLoading = false);
 
-    if (mounted) {
-      // 등록 성공 시 참여 코드 알림
+    if (!mounted) return;
+
+    if (result['success'] == true) {
       if (!_isEditMode) {
-        _showEntryCodeDialog('123456');  // TODO: 실제 서버 응답의 참여코드 사용
+        // 등록 성공 시 서버에서 반환한 실제 참여 코드 사용
+        final event = result['event'] ?? {};
+        final entryCode = event['entryCode']?.toString() ?? '------';
+        _showEntryCodeDialog(entryCode);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('행사가 수정되었습니다')),
         );
         Navigator.of(context).pop(true);
       }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '처리에 실패했습니다')),
+      );
     }
   }
 

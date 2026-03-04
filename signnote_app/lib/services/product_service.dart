@@ -112,6 +112,32 @@ class ProductService {
     }
   }
 
+  // 전체 상품 목록 조회 (주관사/관리자용)
+  // eventId, category로 필터 가능
+  Future<Map<String, dynamic>> getAllProducts({
+    String? eventId,
+    String? category,
+  }) async {
+    try {
+      final response = await _api.get(
+        '/products',
+        queryParams: {
+          if (eventId != null) 'eventId': eventId,
+          if (category != null) 'category': category,
+        },
+      );
+      return {
+        'success': true,
+        'products': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '전체 상품 목록을 불러올 수 없습니다',
+      };
+    }
+  }
+
   // 내가 등록한 상품 목록 (업체용)
   Future<Map<String, dynamic>> getMyProducts({String? eventId}) async {
     try {

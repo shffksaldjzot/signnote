@@ -5,6 +5,7 @@ import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/product/product_card.dart';
 import '../../widgets/product/housing_type_selector.dart';
+import '../../services/product_service.dart';
 
 // ============================================
 // 주관사용 행사 관리 화면
@@ -41,36 +42,53 @@ class _OrganizerEventManageScreenState
   int _currentTabIndex = 0;
   final String _selectedType = '84A';
 
-  // TODO: API에서 전체 상품 목록 가져오기 (현재 임시 데이터)
-  final List<Map<String, dynamic>> _products = [
-    {
-      'id': '1',
-      'category': '줄눈',
-      'vendorName': '앤드 디자인',
-      'name': '줄눈 A 패키지',
-      'description': '욕실2바닥+현관+안방샤워부스 벽면1곳\n+다용도실',
-      'price': 700000,
-      'imageUrl': null,
-    },
-    {
-      'id': '2',
-      'category': '줄눈',
-      'vendorName': '앤드 디자인',
-      'name': '줄눈 B 패키지',
-      'description': 'A패키지 + 욕실 전체벽',
-      'price': 1400000,
-      'imageUrl': null,
-    },
-    {
-      'id': '3',
-      'category': '나노코팅',
-      'vendorName': '워터바이',
-      'name': '나노코팅 A 패키지',
-      'description': '(욕실)거울2+세면대2+변기2+샤워부스1\n(주방)싱크대 상판',
-      'price': 700000,
-      'imageUrl': null,
-    },
-  ];
+  // API에서 가져온 전체 상품 목록
+  List<Map<String, dynamic>> _products = [];
+  bool _isLoading = true;
+  String? _error;
+
+  final ProductService _productService = ProductService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts(); // 화면 열릴 때 상품 목록 불러오기
+  }
+
+  // 서버에서 행사별 상품 목록 가져오기
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final result = await _productService.getProductsByEvent(widget.eventId);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final List products = result['products'] ?? [];
+      setState(() {
+        _products = products.map<Map<String, dynamic>>((p) {
+          return {
+            'id': p['id']?.toString() ?? '',
+            'category': p['category'] ?? '기타',
+            'vendorName': p['vendorName'] ?? '',
+            'name': p['name'] ?? '상품명 없음',
+            'description': p['description'] ?? '',
+            'price': p['price'] ?? 0,
+            'imageUrl': p['image'],
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _error = result['error'] ?? '상품 목록을 불러올 수 없습니다';
+        _isLoading = false;
+      });
+    }
+  }
 
   // 카테고리별로 그룹핑
   Map<String, List<Map<String, dynamic>>> get _groupedProducts {
@@ -126,49 +144,7 @@ class _OrganizerEventManageScreenState
           ),
 
           // 상품 목록 (카테고리별)
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              children: _groupedProducts.entries.map((entry) {
-                final category = entry.key;
-                final products = entry.value;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
-                    // 카테고리 헤더
-                    Row(
-                      children: [
-                        Text(
-                          category,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.help_outline,
-                            size: 16, color: AppColors.textSecondary),
-                      ],
-                    ),
-                    // 상품 카드들 (주관사는 수정 가능)
-                    ...products.map((product) => ProductCard(
-                          vendorName: product['vendorName'],
-                          productName: product['name'],
-                          description: product['description'],
-                          price: product['price'],
-                          imageUrl: product['imageUrl'],
-                          onEditTap: () {
-                            // TODO: 상품 수정 화면으로 이동
-                          },
-                        )),
-                    const Divider(height: 24),
-                  ],
-                );
-              }).toList(),
-            ),
-          ),
+          Expanded(child: _buildBody()),
         ],
       ),
       // 하단 탭바
@@ -176,6 +152,81 @@ class _OrganizerEventManageScreenState
         currentIndex: _currentTabIndex,
         onTap: (index) => setState(() => _currentTabIndex = index),
       ),
+    );
+  }
+
+  // 본문: 로딩 / 에러 / 상품 목록 분기
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _loadProducts, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+    if (_products.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inventory_2_outlined, size: 48, color: AppColors.textHint),
+            SizedBox(height: 12),
+            Text('등록된 품목이 없습니다', style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      children: _groupedProducts.entries.map((entry) {
+        final category = entry.key;
+        final products = entry.value;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            // 카테고리 헤더
+            Row(
+              children: [
+                Text(
+                  category,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.help_outline,
+                    size: 16, color: AppColors.textSecondary),
+              ],
+            ),
+            // 상품 카드들 (주관사는 수정 가능)
+            ...products.map((product) => ProductCard(
+                  vendorName: product['vendorName'],
+                  productName: product['name'],
+                  description: product['description'],
+                  price: product['price'],
+                  imageUrl: product['imageUrl'],
+                  onEditTap: () {
+                    // TODO: 상품 수정 화면으로 이동
+                  },
+                )),
+            const Divider(height: 24),
+          ],
+        );
+      }).toList(),
     );
   }
 

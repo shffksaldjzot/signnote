@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/event/event_card.dart';
+import '../../services/event_service.dart';
 import 'event_form_screen.dart';
 import 'event_manage_screen.dart';
 
@@ -24,19 +25,78 @@ class OrganizerHomeScreen extends StatefulWidget {
 }
 
 class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
-  int _currentTabIndex = 0;
+  final int _currentTabIndex = 0;
 
-  // TODO: API에서 행사 목록 가져오기 (현재 임시 데이터)
-  final List<Map<String, dynamic>> _events = [
-    {
-      'id': '1',
-      'title': '창원 자이 사전 박람회',
-      'coverImageUrl': null,
-      'startDate': DateTime(2026, 3, 1),
-      'endDate': DateTime(2026, 3, 3),
-      'entryCode': '123456',
-    },
-  ];
+  // API에서 가져온 행사 목록
+  List<Map<String, dynamic>> _events = [];
+  bool _isLoading = true;
+  String? _error;
+
+  final EventService _eventService = EventService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents(); // 화면 열릴 때 행사 목록 불러오기
+  }
+
+  // 서버에서 행사 목록 가져오기
+  Future<void> _loadEvents() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final result = await _eventService.getEvents();
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final List events = result['events'] ?? [];
+      setState(() {
+        _events = events.map<Map<String, dynamic>>((e) {
+          return {
+            'id': e['id']?.toString() ?? '',
+            'title': e['title'] ?? '행사명 없음',
+            'coverImageUrl': e['coverImage'],
+            'startDate': e['startDate'] != null
+                ? DateTime.tryParse(e['startDate'].toString())
+                : null,
+            'endDate': e['endDate'] != null
+                ? DateTime.tryParse(e['endDate'].toString())
+                : null,
+            'entryCode': e['entryCode']?.toString(),
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _error = result['error'] ?? '행사 목록을 불러올 수 없습니다';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 탭 클릭 시 화면 이동
+  void _onTabChanged(int index) {
+    if (index == _currentTabIndex) return;
+
+    switch (index) {
+      case 0: // 홈 — 현재 화면이므로 무시
+        break;
+      case 1: // 계약함 (아직 없음)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('주관사 계약함은 준비 중입니다')),
+        );
+        break;
+      case 2: // 마이페이지 (아직 없음)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('마이페이지는 준비 중입니다')),
+        );
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,54 +132,8 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              // 행사 카드 그리드
-              Expanded(
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.72,
-                  ),
-                  itemCount: _events.length + 1,
-                  itemBuilder: (context, index) {
-                    // 마지막은 + 추가 카드 (주관사는 행사 생성)
-                    if (index == _events.length) {
-                      return AddEventCard(
-                        onTap: () {
-                          // 행사 생성 폼으로 이동
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const OrganizerEventFormScreen(),
-                            ),
-                          );
-                        },
-                      );
-                    }
-
-                    final event = _events[index];
-                    return EventCard(
-                      title: event['title'],
-                      coverImageUrl: event['coverImageUrl'],
-                      startDate: event['startDate'],
-                      endDate: event['endDate'],
-                      onTap: () {
-                        // 행사 관리 화면으로 이동
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => OrganizerEventManageScreen(
-                              eventId: event['id'],
-                              eventTitle: event['title'],
-                              entryCode: event['entryCode'],
-                            ),
-                          ),
-                        );
-                      },
-                      onMoreTap: () {},
-                    );
-                  },
-                ),
-              ),
+              // 행사 카드 그리드 (로딩/에러/데이터 분기)
+              Expanded(child: _buildBody()),
             ],
           ),
         ),
@@ -127,11 +141,77 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
       // 하단 탭바 (주관사용 3탭)
       bottomNavigationBar: AppTabBar.organizer(
         currentIndex: _currentTabIndex,
-        onTap: (index) {
-          setState(() => _currentTabIndex = index);
-          // TODO: 탭별 화면 이동
-        },
+        onTap: _onTabChanged,
       ),
+    );
+  }
+
+  // 본문 영역: 로딩 / 에러 / 행사 목록 분기
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _loadEvents, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.72,
+      ),
+      itemCount: _events.length + 1,
+      itemBuilder: (context, index) {
+        // 마지막은 + 추가 카드 (주관사는 행사 생성)
+        if (index == _events.length) {
+          return AddEventCard(
+            onTap: () async {
+              // 행사 생성 폼으로 이동
+              final result = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => const OrganizerEventFormScreen(),
+                ),
+              );
+              // 생성 성공 시 목록 새로고침
+              if (result == true) _loadEvents();
+            },
+          );
+        }
+
+        final event = _events[index];
+        return EventCard(
+          title: event['title'],
+          coverImageUrl: event['coverImageUrl'],
+          startDate: event['startDate'],
+          endDate: event['endDate'],
+          onTap: () {
+            // 행사 관리 화면으로 이동
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => OrganizerEventManageScreen(
+                  eventId: event['id'],
+                  eventTitle: event['title'],
+                  entryCode: event['entryCode'],
+                ),
+              ),
+            );
+          },
+          onMoreTap: () {},
+        );
+      },
     );
   }
 

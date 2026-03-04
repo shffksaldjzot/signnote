@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
+import '../../config/routes.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
@@ -63,15 +65,27 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
-      // 로그인 성공 → 참여 코드 입장 화면으로 이동
+      // 로그인 성공 → 역할 + 화면 크기에 따라 분기
       final user = result['user'];
       final role = user['role'] ?? AppConstants.roleCustomer;
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => EntryCodeScreen(role: role),
-        ),
-      );
+      // 주관사/관리자 + PC 화면(768px 이상)이면 → PC 대시보드로 이동
+      final screenWidth = MediaQuery.of(context).size.width;
+      final isOrganizerOrAdmin = (role == AppConstants.roleOrganizer ||
+          role == AppConstants.roleAdmin);
+      final isPcScreen = screenWidth >= 768;
+
+      if (isOrganizerOrAdmin && isPcScreen) {
+        // PC 웹 대시보드로 이동
+        context.go(AppRoutes.organizerDashboard);
+      } else {
+        // 그 외 → 기존 모바일 플로우 (참여 코드 입력)
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => EntryCodeScreen(role: role),
+          ),
+        );
+      }
     } else {
       // 로그인 실패 → 에러 메시지 표시
       ScaffoldMessenger.of(context).showSnackBar(

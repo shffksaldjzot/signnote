@@ -5,6 +5,8 @@ import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
+import '../../services/contract_service.dart';
+import 'payment_screen.dart';
 
 // ============================================
 // 장바구니 화면
@@ -33,9 +35,12 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  final ContractService _contractService = ContractService();
+
   // 선택된 항목들 (체크박스)
   final Set<String> _selectedIds = {};
   bool _selectAll = true;
+  bool _isContractLoading = false;  // 계약 생성 중
 
   // TODO: API에서 장바구니 목록 가져오기 (현재 임시 데이터)
   final List<Map<String, dynamic>> _cartItems = [
@@ -126,7 +131,7 @@ class _CartScreenState extends State<CartScreen> {
     // TODO: API 호출로 서버에서도 삭제
   }
 
-  // 계약하기
+  // 계약하기 → 계약 API 호출 → 결제 화면으로 이동
   void _handleContract() {
     if (_selectedIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,7 +143,7 @@ class _CartScreenState extends State<CartScreen> {
     // 계약 확인 다이얼로그
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           '계약하시겠습니까?',
@@ -161,24 +166,20 @@ class _CartScreenState extends State<CartScreen> {
             ),
             const SizedBox(height: 12),
             const Text(
-              '계약 후 계약금 결제가 필요합니다.',
+              '계약 후 계약금 결제가 진행됩니다.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('취소'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              // TODO: 계약 API 호출
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('계약이 생성되었습니다')),
-              );
-              Navigator.of(context).pop(true);  // 장바구니 화면 닫기
+              Navigator.of(dialogContext).pop();
+              _createContractAndPay();
             },
             child: const Text(
               '계약하기',
@@ -191,6 +192,48 @@ class _CartScreenState extends State<CartScreen> {
         ],
       ),
     );
+  }
+
+  // 계약 API 호출 후 결제 화면으로 이동
+  Future<void> _createContractAndPay() async {
+    // 선택된 상품들로 계약 생성 요청 데이터 만들기
+    final selectedItems = _cartItems
+        .where((item) => _selectedIds.contains(item['id']))
+        .map((item) => {
+              'productId': item['productId'] as String,
+              'eventId': widget.eventId,
+            })
+        .toList();
+
+    setState(() => _isContractLoading = true);
+
+    // 계약 API 호출
+    final result = await _contractService.createContracts(
+      items: selectedItems,
+    );
+
+    setState(() => _isContractLoading = false);
+
+    if (!mounted) return;
+
+    if (result['success']) {
+      // 계약 생성 성공 → 결제 화면으로 이동
+      final contracts = List<Map<String, dynamic>>.from(result['contracts']);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            contracts: contracts,
+            eventId: widget.eventId,
+            eventTitle: widget.eventTitle,
+          ),
+        ),
+      );
+    } else {
+      // 계약 생성 실패
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '계약 생성에 실패했습니다')),
+      );
+    }
   }
 
   @override
@@ -240,6 +283,7 @@ class _CartScreenState extends State<CartScreen> {
                   child: AppButton(
                     text: '계약하기',
                     enabled: _selectedIds.isNotEmpty,
+                    isLoading: _isContractLoading,
                     onPressed: _handleContract,
                   ),
                 ),
