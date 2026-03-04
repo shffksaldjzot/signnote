@@ -164,22 +164,19 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 24),
 
-          // ── 통계 카드 4개 ──
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Row(
-                  children: [
-                    _buildStatCard('총 행사수', '${_events.length}', Icons.event, AppColors.primary),
-                    const SizedBox(width: 16),
-                    _buildStatCard('총 계약수', '$_totalContracts', Icons.description, AppColors.primaryDark),
-                    const SizedBox(width: 16),
-                    _buildStatCard('확정 계약', '$_confirmedContracts', Icons.check_circle, AppColors.success),
-                    const SizedBox(width: 16),
-                    _buildStatCard('취소 요청', '$_cancelRequestedContracts', Icons.cancel, AppColors.priceRed),
-                    const SizedBox(width: 16),
-                    _buildStatCard('총 매출', '${NumberFormat('#,###', 'ko_KR').format(_totalRevenue)}원', Icons.payments, Colors.purple),
-                  ],
-                ),
+          // ── 통계 카드 ──
+          if (!_isLoading)
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                _buildStatCard('총 행사수', '${_events.length}', Icons.event, AppColors.primary),
+                _buildStatCard('총 계약수', '$_totalContracts', Icons.description, AppColors.primaryDark),
+                _buildStatCard('확정 계약', '$_confirmedContracts', Icons.check_circle, AppColors.success),
+                _buildStatCard('취소 요청', '$_cancelRequestedContracts', Icons.cancel, AppColors.priceRed),
+                _buildStatCard('총 매출', '${NumberFormat('#,###', 'ko_KR').format(_totalRevenue)}원', Icons.payments, Colors.purple),
+              ],
+            ),
 
           const SizedBox(height: 32),
 
@@ -199,10 +196,30 @@ class _DashboardPageState extends State<DashboardPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _events.isEmpty
-                    ? const Center(
-                        child: Text(
-                          '등록된 행사가 없습니다',
-                          style: TextStyle(color: AppColors.textSecondary),
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.event_note, size: 64, color: AppColors.textHint),
+                            const SizedBox(height: 16),
+                            const Text(
+                              '등록된 행사가 없습니다',
+                              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 24),
+                            // 화면 중앙에 큰 행사 등록 버튼
+                            ElevatedButton.icon(
+                              onPressed: () => _showEventFormDialog(),
+                              icon: const Icon(Icons.add, size: 24),
+                              label: const Text('행사 등록하기', style: TextStyle(fontSize: 16)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     : AppCard(
@@ -254,7 +271,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
   // 통계 카드 위젯
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
-    return Expanded(
+    return SizedBox(
+      width: 180,
       child: AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

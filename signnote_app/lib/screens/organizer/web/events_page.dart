@@ -170,14 +170,30 @@ class _EventsPageState extends State<EventsPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _events.isEmpty
-                    ? const Center(
-                        child: Text(
-                          '등록된 행사가 없습니다.\n우측 상단의 "행사 등록" 버튼을 눌러 행사를 추가하세요.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
-                          ),
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.event_note, size: 64, color: AppColors.textHint),
+                            const SizedBox(height: 16),
+                            const Text(
+                              '등록된 행사가 없습니다',
+                              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 24),
+                            // 화면 중앙에 큰 행사 등록 버튼
+                            ElevatedButton.icon(
+                              onPressed: _showEventFormDialog,
+                              icon: const Icon(Icons.add, size: 24),
+                              label: const Text('행사 등록하기', style: TextStyle(fontSize: 16)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     : AppCard(
