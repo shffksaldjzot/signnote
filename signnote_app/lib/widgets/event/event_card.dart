@@ -22,8 +22,8 @@ import '../common/badge_icon.dart';
 class EventCard extends StatelessWidget {
   final String title;             // 행사명
   final String? coverImageUrl;    // 커버 이미지 URL (없으면 기본 이미지)
-  final DateTime startDate;       // 시작일
-  final DateTime endDate;         // 종료일
+  final DateTime? startDate;      // 시작일 (null 가능)
+  final DateTime? endDate;        // 종료일 (null 가능)
   final VoidCallback? onTap;      // 카드 눌렀을 때
   final VoidCallback? onMoreTap;  // ⋮ 더보기 눌렀을 때
 
@@ -31,20 +31,24 @@ class EventCard extends StatelessWidget {
     super.key,
     required this.title,
     this.coverImageUrl,
-    required this.startDate,
-    required this.endDate,
+    this.startDate,
+    this.endDate,
     this.onTap,
     this.onMoreTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // D-day 계산 (오늘 기준 남은 일수)
+    // D-day 계산 (날짜가 없으면 0)
     final now = DateTime.now();
-    final daysLeft = startDate.difference(DateTime(now.year, now.month, now.day)).inDays;
+    final daysLeft = startDate != null
+        ? startDate!.difference(DateTime(now.year, now.month, now.day)).inDays
+        : 0;
 
     // 날짜 포맷 (예: "2026.03.01~03.03")
-    final dateText = '${_formatDate(startDate)}~${_formatDate(endDate)}';
+    final dateText = startDate != null && endDate != null
+        ? '${_formatDate(startDate!)}~${_formatDate(endDate!)}'
+        : '날짜 미정';
 
     return GestureDetector(
       onTap: onTap,
@@ -93,8 +97,10 @@ class EventCard extends StatelessWidget {
           // D-day 뱃지 + 날짜 + ⋮ 더보기
           Row(
             children: [
-              DdayBadge(daysLeft: daysLeft),
-              const SizedBox(width: 6),
+              if (startDate != null) ...[
+                DdayBadge(daysLeft: daysLeft),
+                const SizedBox(width: 6),
+              ],
               Expanded(
                 child: Text(
                   dateText,
