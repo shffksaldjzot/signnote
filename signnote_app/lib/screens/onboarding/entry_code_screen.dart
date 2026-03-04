@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
+import '../../config/routes.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
 import '../customer/home_screen.dart';
@@ -203,7 +205,23 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                       onPressed: _handleEnter,
                       isLoading: _isLoading,
                     ),
-              const SizedBox(height: 60),
+              const SizedBox(height: 16),
+              // 로그아웃 버튼 (다른 계정으로 전환할 수 있게)
+              Center(
+                child: TextButton.icon(
+                  onPressed: () async {
+                    await _authService.logout();
+                    if (!mounted) return;
+                    context.go(AppRoutes.login);
+                  },
+                  icon: const Icon(Icons.logout, size: 16),
+                  label: const Text('로그아웃'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
             ],
           ),
         ),
