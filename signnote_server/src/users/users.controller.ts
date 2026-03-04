@@ -2,16 +2,25 @@
 // 사용자 컨트롤러 (Users Controller)
 //
 // API 목록:
-//   GET /api/v1/users          → 전체 사용자 목록 (주관사/관리자)
-//   GET /api/v1/users/:id      → 사용자 상세 (주관사/관리자)
+//   GET    /api/v1/users          → 전체 사용자 목록 (주관사/관리자)
+//   GET    /api/v1/users/:id      → 사용자 상세 (주관사/관리자)
+//   PATCH  /api/v1/users/:id/approve → 사용자 승인 (관리자 전용)
+//   PATCH  /api/v1/users/:id/reject  → 사용자 거부 (관리자 전용)
+//
+// 접근 제어:
+//   - 관리자: 주관사+협력업체 전체 열람 가능
+//   - 주관사: 협력업체 정보만 열람 가능
 // ============================================
 
 import {
   Controller,
   Get,
+  Patch,
   Param,
   Query,
   UseGuards,
+  Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard, RolesGuard, Roles } from '../auth/roles.guard';
@@ -21,23 +30,57 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   // 전체 사용자 목록 (주관사/관리자만)
-  // ?role=CUSTOMER 로 역할별 필터 가능
+  // 주관사는 업체(VENDOR) 목록만 볼 수 있음
+  // 관리자는 전체 열람 가능
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ORGANIZER', 'ADMIN')
   @Get()
-  async findAll(@Query('role') role?: string) {
-    return this.usersService.findAll(role);
+  async findAll(@Query('role') role: string, @Request() req: any) {
+    const currentUser = req.user;
+
+    // 주관사는 VENDOR만 조회 가능 (다른 역할 요청 시 거부)
+    if (currentUser.role === 'ORGANIZER') {
+      return this.usersService.findAll('VENDOR');
+    }
+
+    // 관리자는 모든 역할 조회 가능
+    return this.usersService.findAll(role || undefined);
   }
 
   // 사용자 상세 (주관사/관리자만)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ORGANIZER', 'ADMIN')
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    const currentUser = req.user;
     const user = await this.usersService.findById(id);
     if (!user) return null;
+
+    // 주관사는 VENDOR 정보만 열람 가능
+    if (currentUser.role === 'ORGANIZER' && user.role !== 'VENDOR') {
+      throw new ForbiddenException('업체 정보만 열람할 수 있습니다');
+    }
+
     // 비밀번호 제외하고 반환
     const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
+  }
+
+  // ---- 사용자 승인 (관리자 전용) ----
+  // 업체/주관사가 가입 신청하면 관리자가 승인해야 로그인 가능
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Patch(':id/approve')
+  async approveUser(@Param('id') id: string) {
+    return this.usersService.approveUser(id);
+  }
+
+  // ---- 사용자 거부 (관리자 전용) ----
+  // 승인 거부 시 해당 계정 삭제
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Patch(':id/reject')
+  async rejectUser(@Param('id') id: string) {
+    return this.usersService.rejectUser(id);
   }
 }

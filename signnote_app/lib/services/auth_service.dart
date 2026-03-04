@@ -41,6 +41,8 @@ class AuthService {
   }
 
   // 회원가입
+  // businessNumber: 사업자등록번호 (업체/주관사)
+  // businessLicenseImage: 사업자등록증 이미지 URL (업체/주관사)
   Future<Map<String, dynamic>> register({
     required String email,
     required String password,
@@ -48,6 +50,7 @@ class AuthService {
     required String phone,
     required String role,
     String? businessNumber,
+    String? businessLicenseImage,
   }) async {
     try {
       final response = await _api.post('/auth/register', data: {
@@ -57,6 +60,7 @@ class AuthService {
         'phone': phone,
         'role': role,
         if (businessNumber != null) 'businessNumber': businessNumber,
+        if (businessLicenseImage != null) 'businessLicenseImage': businessLicenseImage,
       });
 
       final data = response.data;

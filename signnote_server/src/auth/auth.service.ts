@@ -12,6 +12,7 @@
 import {
   Injectable,
   UnauthorizedException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -35,7 +36,7 @@ export class AuthService {
     // 사용자 생성 (비밀번호 암호화는 UsersService에서 처리)
     const user = await this.usersService.create(dto);
 
-    // 토큰 발급 (가입하면 바로 로그인 상태)
+    // 업체/주관사는 승인 대기 → 토큰은 발급하되 isApproved 상태 알려주기
     const tokens = await this.generateTokens(user.id, user.role);
 
     return {
@@ -56,6 +57,11 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다');
+    }
+
+    // 승인 체크: 업체/주관사는 관리자 승인이 필요
+    if (!user.isApproved) {
+      throw new ForbiddenException('관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.');
     }
 
     // 토큰 발급

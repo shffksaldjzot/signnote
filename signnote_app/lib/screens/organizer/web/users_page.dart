@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../config/theme.dart';
 import '../../../services/user_service.dart';
+import '../../../services/api_service.dart';
 
 // ============================================
 // 사용자 관리 페이지 (Users Page)
@@ -12,10 +13,13 @@ import '../../../services/user_service.dart';
 // └────────────────────────────────────────────┘
 //
 // ┌─ 사용자 테이블 ─────────────────────────────┐
-// | 이름 | 이메일 | 전화번호 | 역할 | 가입일     |
+// | 이름 | 이메일 | 전화번호 | 역할 | 승인 | 가입일 | 관리 |
 // └────────────────────────────────────────────┘
 //
-// 데이터: UserService.getUsers (주관사/관리자 전용 API)
+// 기능:
+//   - 관리자: 주관사+협력업체 전체 열람, 승인/거부 가능
+//   - 주관사: 협력업체 정보만 열람 가능
+//   - 사용자 상세보기 (사업자등록번호, 사업자등록증 이미지 등)
 // ============================================
 
 class UsersPage extends StatefulWidget {
@@ -32,6 +36,7 @@ class _UsersPageState extends State<UsersPage> {
   List<dynamic> _users = [];          // 사용자 목록
   String? _selectedRole;              // 선택된 역할 필터
   String _searchQuery = '';           // 검색어
+  String _currentUserRole = '';       // 현재 로그인한 사용자의 역할
 
   // 날짜 포맷
   final _dateFormat = DateFormat('yyyy-MM-dd');
@@ -55,8 +60,22 @@ class _UsersPageState extends State<UsersPage> {
   @override
   void initState() {
     super.initState();
+    _loadCurrentUserRole();
     _loadUsers();
   }
+
+  // 현재 로그인한 사용자의 역할 확인
+  Future<void> _loadCurrentUserRole() async {
+    final userInfo = await ApiService().getUserInfo();
+    if (userInfo != null && mounted) {
+      setState(() {
+        _currentUserRole = userInfo['role'] ?? '';
+      });
+    }
+  }
+
+  // 관리자인지 확인
+  bool get _isAdmin => _currentUserRole == 'ADMIN';
 
   // 사용자 목록 불러오기
   Future<void> _loadUsers() async {
@@ -84,6 +103,231 @@ class _UsersPageState extends State<UsersPage> {
       final phone = (u['phone'] ?? '').toString().toLowerCase();
       return name.contains(query) || email.contains(query) || phone.contains(query);
     }).toList();
+  }
+
+  // ---- 사용자 승인 처리 ----
+  Future<void> _approveUser(dynamic user) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('사용자 승인'),
+        content: Text('${user['name']}의 가입을 승인하시겠습니까?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.green),
+            child: const Text('승인'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final result = await _userService.approveUser(user['id']);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${user['name']}이(가) 승인되었습니다')),
+      );
+      _loadUsers(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '승인 처리에 실패했습니다')),
+      );
+    }
+  }
+
+  // ---- 사용자 거부 처리 ----
+  Future<void> _rejectUser(dynamic user) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('가입 거부'),
+        content: Text(
+          '${user['name']}의 가입을 거부하시겠습니까?\n\n'
+          '거부하면 해당 계정이 삭제됩니다.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('거부'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final result = await _userService.rejectUser(user['id']);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${user['name']}의 가입이 거부되었습니다')),
+      );
+      _loadUsers(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '거부 처리에 실패했습니다')),
+      );
+    }
+  }
+
+  // ---- 사용자 상세 보기 다이얼로그 ----
+  void _showUserDetail(dynamic user) {
+    final role = user['role'] ?? 'CUSTOMER';
+    final roleName = _roleNames[role] ?? role;
+    final isApproved = user['isApproved'] ?? true;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          width: 480,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 제목
+              Row(
+                children: [
+                  const Text('사용자 상세 정보',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 8),
+
+              // 기본 정보
+              _buildDetailRow('이름/업체명', user['name'] ?? '-'),
+              _buildDetailRow('이메일', user['email'] ?? '-'),
+              _buildDetailRow('전화번호', user['phone'] ?? '-'),
+              _buildDetailRow('역할', roleName),
+              _buildDetailRow('승인 상태', isApproved ? '승인됨' : '대기중',
+                  valueColor: isApproved ? Colors.green : Colors.orange),
+
+              // 사업자 정보 (업체/주관사만)
+              if (role == 'VENDOR' || role == 'ORGANIZER') ...[
+                const SizedBox(height: 8),
+                const Divider(),
+                const SizedBox(height: 8),
+                _buildDetailRow('사업자등록번호', user['businessNumber'] ?? '미등록'),
+
+                // 사업자등록증 이미지
+                const SizedBox(height: 12),
+                const Text('사업자등록증',
+                    style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                if (user['businessLicenseImage'] != null)
+                  Container(
+                    width: double.infinity,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        user['businessLicenseImage'],
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Text('이미지를 불러올 수 없습니다', style: TextStyle(color: Colors.grey)),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: Text('사업자등록증 미첨부', style: TextStyle(color: Colors.grey)),
+                    ),
+                  ),
+              ],
+
+              // 가입일
+              const SizedBox(height: 8),
+              _buildDetailRow('가입일',
+                  user['createdAt'] != null
+                      ? _dateFormat.format(DateTime.parse(user['createdAt']))
+                      : '-'),
+
+              // 승인/거부 버튼 (관리자 + 미승인 사용자만)
+              if (_isAdmin && !isApproved) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _rejectUser(user);
+                      },
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text('거부'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _approveUser(user);
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                      child: const Text('승인', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 상세 정보 행 위젯
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label,
+                style: TextStyle(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: valueColor ?? Colors.black87,
+                )),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -136,13 +380,18 @@ class _UsersPageState extends State<UsersPage> {
       child: Row(
         children: [
           // 역할 필터 탭
-          _buildRoleTab(null, '전체'),
-          const SizedBox(width: 8),
-          _buildRoleTab('CUSTOMER', '고객'),
-          const SizedBox(width: 8),
+          // 주관사는 업체 탭만 표시, 관리자는 전체 표시
+          if (_isAdmin) ...[
+            _buildRoleTab(null, '전체'),
+            const SizedBox(width: 8),
+            _buildRoleTab('CUSTOMER', '고객'),
+            const SizedBox(width: 8),
+          ],
           _buildRoleTab('VENDOR', '업체'),
-          const SizedBox(width: 8),
-          _buildRoleTab('ORGANIZER', '주관사'),
+          if (_isAdmin) ...[
+            const SizedBox(width: 8),
+            _buildRoleTab('ORGANIZER', '주관사'),
+          ],
 
           const Spacer(),
 
@@ -208,19 +457,21 @@ class _UsersPageState extends State<UsersPage> {
       child: SingleChildScrollView(
         child: DataTable(
           headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
-          columnSpacing: 32,
-          columns: const [
-            DataColumn(label: Text('이름', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('사업자번호', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold))),
+          columnSpacing: 24,
+          columns: [
+            const DataColumn(label: Text('이름/업체명', style: TextStyle(fontWeight: FontWeight.bold))),
+            const DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold))),
+            const DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold))),
+            const DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold))),
+            const DataColumn(label: Text('승인', style: TextStyle(fontWeight: FontWeight.bold))),
+            const DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold))),
+            const DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.bold))),
           ],
           rows: users.map<DataRow>((u) {
             final role = u['role'] ?? 'CUSTOMER';
             final roleName = _roleNames[role] ?? role;
             final roleColor = _roleColors[role] ?? Colors.grey;
+            final isApproved = u['isApproved'] ?? true;
             final createdAt = u['createdAt'] != null
                 ? _dateFormat.format(DateTime.parse(u['createdAt']))
                 : '-';
@@ -230,8 +481,34 @@ class _UsersPageState extends State<UsersPage> {
               DataCell(Text(u['email'] ?? '-')),
               DataCell(Text(u['phone'] ?? '-')),
               DataCell(_buildRoleBadge(roleName, roleColor)),
-              DataCell(Text(u['businessNumber'] ?? '-', style: TextStyle(color: Colors.grey[600]))),
+              // 승인 상태 표시
+              DataCell(_buildApprovalBadge(isApproved)),
               DataCell(Text(createdAt, style: TextStyle(color: Colors.grey[600]))),
+              // 관리 버튼 (상세보기 + 승인/거부)
+              DataCell(Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 상세보기 버튼
+                  IconButton(
+                    icon: const Icon(Icons.visibility, size: 20),
+                    tooltip: '상세보기',
+                    onPressed: () => _showUserDetail(u),
+                  ),
+                  // 승인 버튼 (관리자 + 미승인 사용자만)
+                  if (_isAdmin && !isApproved) ...[
+                    IconButton(
+                      icon: const Icon(Icons.check_circle, size: 20, color: Colors.green),
+                      tooltip: '승인',
+                      onPressed: () => _approveUser(u),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
+                      tooltip: '거부',
+                      onPressed: () => _rejectUser(u),
+                    ),
+                  ],
+                ],
+              )),
             ]);
           }).toList(),
         ),
@@ -250,6 +527,27 @@ class _UsersPageState extends State<UsersPage> {
       child: Text(
         roleName,
         style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  // 승인 상태 뱃지
+  Widget _buildApprovalBadge(bool isApproved) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: isApproved
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.orange.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        isApproved ? '승인' : '대기',
+        style: TextStyle(
+          color: isApproved ? Colors.green : Colors.orange,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

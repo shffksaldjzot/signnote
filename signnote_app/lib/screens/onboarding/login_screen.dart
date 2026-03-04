@@ -7,6 +7,7 @@ import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
 import 'entry_code_screen.dart';
+import '../organizer/home_screen.dart';
 
 // ============================================
 // 로그인 화면 (Login Screen)
@@ -18,6 +19,12 @@ import 'entry_code_screen.dart';
 // - 비밀번호 입력
 // - 파란 "로그인" 버튼
 // - 검정 "회원가입" 버튼
+//
+// 로그인 후 분기:
+//   - 주관사/관리자 + PC → PC 대시보드
+//   - 주관사 (모바일) → 바로 주관사 홈 (행사코드 건너뜀)
+//   - 고객/업체 → 참여 코드 입력 화면
+//   - 미승인 업체/주관사 → 에러 메시지 (서버에서 403 반환)
 // ============================================
 
 class LoginScreen extends StatefulWidget {
@@ -78,8 +85,15 @@ class _LoginScreenState extends State<LoginScreen> {
       if (isOrganizerOrAdmin && isPcScreen) {
         // PC 웹 대시보드로 이동
         context.go(AppRoutes.organizerDashboard);
+      } else if (role == AppConstants.roleOrganizer) {
+        // 주관사 (모바일) → 바로 주관사 홈으로 (행사코드 건너뜀)
+        // 주관사는 행사를 만드는 쪽이라 참여코드 입력이 필요 없음
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const OrganizerHomeScreen()),
+          (route) => false,
+        );
       } else {
-        // 그 외 → 기존 모바일 플로우 (참여 코드 입력)
+        // 고객/업체 → 참여 코드 입력 화면
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => EntryCodeScreen(role: role),

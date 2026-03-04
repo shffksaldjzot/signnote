@@ -68,8 +68,10 @@ model User {
   name           String                         // 이름
   phone          String                         // 전화번호
   role           Role                           // 역할 (고객/업체/주관사/관리자)
-  businessNumber String?                        // 사업자번호 (업체만 해당, ?는 선택사항)
+  businessNumber String?                        // 사업자번호 (업체/주관사, ?는 선택사항)
+  businessLicenseImage String?                  // 사업자등록증 이미지 URL (업체/주관사)
   bankAccount    String?                        // 계좌정보 (업체만 해당, 정산용)
+  isApproved     Boolean  @default(true)        // 관리자 승인 여부 (업체/주관사는 false로 시작)
   createdAt      DateTime @default(now())       // 가입 날짜 (자동 기록)
 
   fcmToken       String?                        // FCM 푸시 토큰 (앱에서 등록)

@@ -154,9 +154,14 @@ class ApiService {
     return _dio.post(path, data: data);
   }
 
-  // PUT 요청 (데이터 수정)
+  // PUT 요청 (데이터 전체 수정)
   Future<Response> put(String path, {dynamic data}) {
     return _dio.put(path, data: data);
+  }
+
+  // PATCH 요청 (데이터 부분 수정)
+  Future<Response> patch(String path, {dynamic data}) {
+    return _dio.patch(path, data: data);
   }
 
   // DELETE 요청 (데이터 삭제)

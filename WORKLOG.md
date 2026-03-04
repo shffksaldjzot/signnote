@@ -646,4 +646,73 @@
 
 ---
 
+### 2026-03-04 — 회원가입 시스템 개편 + 주관사 로그인 플로우 수정
+
+> **사용자 요청:**
+> 1. 업체/주관사 가입 시 "이름"→"업체명", 관리자 승인 필수, 사업자등록번호/사업자등록증 첨부
+> 2. 주관사는 로그인 후 행사코드 입력 화면을 건너뛰어야 함
+
+**기능 1: 회원가입 시스템 개편 (업체/주관사 관리자 승인제) ✅**
+
+*DB 수정:*
+- [x] `User` 모델에 `isApproved` (Boolean) 필드 추가 — 업체/주관사는 false로 시작, 고객은 true
+- [x] `User` 모델에 `businessLicenseImage` (String?) 필드 추가 — 사업자등록증 이미지 URL
+- [x] Prisma DB push + Client 재생성 완료
+
+*백엔드 수정:*
+- [x] `auth.service.ts` — 로그인 시 `isApproved` 체크, 미승인이면 403 에러 반환
+- [x] `users.service.ts` — `approveUser()`, `rejectUser()` 메서드 추가
+- [x] `users.controller.ts` — `PATCH /users/:id/approve` (승인), `PATCH /users/:id/reject` (거부) API 추가 (관리자 전용)
+- [x] `users.controller.ts` — 주관사는 VENDOR 정보만 열람 가능, 관리자는 전체 열람
+- [x] `create-user.dto.ts` — `businessLicenseImage` 필드 추가
+
+*앱 수정:*
+- [x] `register_screen.dart` — 전면 개편
+  - 역할 선택을 상단으로 이동 (선택에 따라 아래 필드 동적 변경)
+  - 업체/주관사 선택 시 "이름" 라벨 → "업체명"으로 자동 변경
+  - 전화번호 입력: `010-0000-0000` 자동 포맷팅
+  - 사업자등록번호 입력: `000-00-00000` 자동 포맷팅
+  - 사업자등록번호 필드: 업체+주관사 모두 표시 (기존에는 업체만)
+  - 사업자등록증 이미지 첨부 영역 추가 (파일 스토리지 연동 시 활성화)
+  - 하단에 "관리자 승인 후 로그인 가능" 안내 문구
+  - 가입 후 승인 대기 안내 다이얼로그 → 로그인 화면으로 이동
+- [x] `auth_service.dart` — `businessLicenseImage` 파라미터 추가
+- [x] `api_service.dart` — `patch()` HTTP 메서드 추가
+- [x] `user_service.dart` — `approveUser()`, `rejectUser()` API 추가
+- [x] `users_page.dart` — 전면 개편
+  - "승인" 상태 열 추가 (승인/대기 뱃지)
+  - 관리자: 승인/거부 버튼 (아이콘 + 확인 다이얼로그)
+  - 상세보기 다이얼로그 (이름, 이메일, 전화번호, 역할, 승인상태, 사업자등록번호, 사업자등록증 이미지)
+  - 주관사: 업체 탭만 표시 / 관리자: 전체 역할 탭 표시
+  - "관리" 열 추가 (상세보기 + 승인/거부 아이콘)
+
+**기능 2: 주관사 로그인 후 행사코드 화면 건너뛰기 ✅**
+- [x] `login_screen.dart` — 주관사 로그인 시 `OrganizerHomeScreen`으로 직행 (행사코드 입력 건너뜀)
+- [x] `register_screen.dart` — 주관사 가입 후 승인된 경우 바로 주관사 홈으로 이동
+
+**배포 ✅**
+- [x] Flutter 웹 빌드 성공 (에러 0건)
+- [x] TypeScript 빌드 에러 0건
+- [x] Firebase Hosting 배포 완료: https://dealflow-app-c899e.web.app
+- [x] Render.com 백엔드: GitHub push 시 자동 배포
+
+---
+
+**현재 배포 현황:**
+
+| 서비스 | 주소 | 상태 |
+|--------|------|------|
+| 앱 (웹) | https://dealflow-app-c899e.web.app | ✅ Firebase Hosting |
+| 서버 (API) | https://signnote.onrender.com | ✅ Render.com |
+| DB | Neon PostgreSQL (싱가포르) | ✅ 연결됨 |
+| 코드 저장소 | https://github.com/shffksaldjzot/signnote | ✅ GitHub |
+
+**최종 남은 작업:**
+- [ ] GitHub 커밋 + 푸시 (이번 작업 반영)
+- [ ] Phase 5: PG 결제 실제 연동 — PG사 계약 필요
+- [ ] Phase 8: 세금계산서 자동 발행 (팝빌 API) — 보류
+- [ ] FCM/카카오 알림톡 키 설정 후 알림 활성화
+- [ ] 사업자등록증 이미지 실제 업로드 기능 (파일 스토리지 연동)
+- [ ] 앱 패키징 (APK/IPA) + 스토어 배포
+
 <!-- 새 항목은 이 아래에 추가 -->

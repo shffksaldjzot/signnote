@@ -40,7 +40,11 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
-  businessNumber?: string;     // 사업자번호 (업체만)
+  businessNumber?: string;     // 사업자번호 (업체/주관사)
+
+  @IsOptional()
+  @IsString()
+  businessLicenseImage?: string;  // 사업자등록증 이미지 URL (업체/주관사)
 
   @IsOptional()
   @IsString()
