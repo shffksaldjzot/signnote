@@ -11,8 +11,7 @@ import '../../services/api_service.dart';
 //
 // 앱을 켜면 가장 먼저 보이는 화면.
 // 로고를 2초간 보여준 뒤 자동로그인 처리:
-// - 로그인 O + 주관사 → 주관사 홈 (행사코드 건너뜀)
-// - 로그인 O + 주관사/관리자 + PC → 웹 대시보드
+// - 로그인 O + 주관사/관리자 → 주관사 홈 (PC/모바일 동일)
 // - 로그인 O + 고객/업체 → 참여코드 입장 화면
 // - 로그인 X → 로그인 화면
 // ============================================
@@ -66,16 +65,8 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (!mounted) return;
 
-      // 주관사/관리자 + PC 화면이면 → 웹 대시보드
-      final screenWidth = MediaQuery.of(context).size.width;
-      final isOrganizerOrAdmin = (role == AppConstants.roleOrganizer ||
-          role == AppConstants.roleAdmin);
-      final isPcScreen = screenWidth >= 768;
-
-      if (isOrganizerOrAdmin && isPcScreen) {
-        context.go(AppRoutes.organizerDashboard);
-      } else if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
-        // 주관사/관리자 (모바일) → 바로 주관사 홈 (행사코드 건너뜀)
+      // 주관사/관리자 → 바로 주관사 홈 (PC/모바일 동일한 화면)
+      if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
         context.go(AppRoutes.organizerHome);
       } else {
         // 고객/업체 → 참여코드 입장 화면 (역할 정보 전달)

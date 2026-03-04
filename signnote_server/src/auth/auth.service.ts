@@ -108,20 +108,26 @@ export class AuthService {
     }
 
     // 로그인한 사용자가 있으면 참여 기록 저장 (중복 시 무시)
+    // try-catch: DB 테이블이 아직 없거나 오류 발생 시에도 입장은 가능하게
     if (userId) {
-      await this.prisma.eventParticipant.upsert({
-        where: {
-          eventId_userId: {
+      try {
+        await this.prisma.eventParticipant.upsert({
+          where: {
+            eventId_userId: {
+              eventId: event.id,
+              userId: userId,
+            },
+          },
+          create: {
             eventId: event.id,
             userId: userId,
           },
-        },
-        create: {
-          eventId: event.id,
-          userId: userId,
-        },
-        update: {},  // 이미 있으면 아무것도 안 함
-      });
+          update: {},  // 이미 있으면 아무것도 안 함
+        });
+      } catch (e) {
+        // 참여 기록 저장 실패해도 행사 입장은 진행
+        console.error('EventParticipant 저장 실패:', e.message);
+      }
     }
 
     return {

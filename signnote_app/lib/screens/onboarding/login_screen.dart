@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
-import '../../config/routes.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
@@ -21,8 +19,7 @@ import '../organizer/home_screen.dart';
 // - 검정 "회원가입" 버튼
 //
 // 로그인 후 분기:
-//   - 주관사/관리자 + PC → PC 대시보드
-//   - 주관사 (모바일) → 바로 주관사 홈 (행사코드 건너뜀)
+//   - 주관사/관리자 → 바로 주관사 홈 (PC/모바일 동일)
 //   - 고객/업체 → 참여 코드 입력 화면
 //   - 미승인 업체/주관사 → 에러 메시지 (서버에서 403 반환)
 // ============================================
@@ -76,18 +73,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = result['user'];
       final role = user['role'] ?? AppConstants.roleCustomer;
 
-      // 주관사/관리자 + PC 화면(768px 이상)이면 → PC 대시보드로 이동
-      final screenWidth = MediaQuery.of(context).size.width;
-      final isOrganizerOrAdmin = (role == AppConstants.roleOrganizer ||
-          role == AppConstants.roleAdmin);
-      final isPcScreen = screenWidth >= 768;
-
-      if (isOrganizerOrAdmin && isPcScreen) {
-        // PC 웹 대시보드로 이동
-        context.go(AppRoutes.organizerDashboard);
-      } else if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
-        // 주관사/관리자 (모바일) → 바로 주관사 홈으로 (행사코드 건너뜀)
-        // 주관사/관리자는 행사를 관리하는 쪽이라 참여코드 입력이 필요 없음
+      // 주관사/관리자 → 바로 주관사 홈으로 (PC/모바일 동일한 화면)
+      if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const OrganizerHomeScreen()),
           (route) => false,

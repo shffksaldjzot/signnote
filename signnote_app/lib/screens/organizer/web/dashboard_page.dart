@@ -1,25 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import '../../../config/theme.dart';
-import '../../../widgets/common/app_card.dart';
 import '../../../services/event_service.dart';
-import '../../../services/contract_service.dart';
 import '../event_form_screen.dart';
 
 // ============================================
 // 대시보드 메인 페이지 (Dashboard)
 //
-// 구조:
-// ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-// | 총 행사수 | | 총 계약수 | | 확정 계약 | | 취소 요청 | | 총 매출   |
-// └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘
-//
-// ┌─ 행사 목록 테이블 ──────────────────────────────┐
-// | 행사명 | 현장명 | 세대수 | 참여코드 | 상태       |
-// └────────────────────────────────────────────────┘
-//
-// 데이터: EventService + ContractService로 집계
+// 모바일과 동일한 카드 그리드 방식으로 행사 목록 표시
+// + 카드를 눌러 행사 생성
 // ============================================
 
 class DashboardPage extends StatefulWidget {
@@ -31,64 +21,35 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final EventService _eventService = EventService();
-  final ContractService _contractService = ContractService();
 
   bool _isLoading = true;
-  List<dynamic> _events = [];          // 행사 목록
-  int _totalContracts = 0;             // 총 계약 수
-  int _confirmedContracts = 0;         // 확정된 계약 수
-  int _cancelRequestedContracts = 0;   // 취소 요청 수
-  int _totalRevenue = 0;               // 총 매출 (확정 계약 금액 합계)
+  List<Map<String, dynamic>> _events = [];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadEvents();
   }
 
-  // 데이터 불러오기 (행사 목록 + 계약 통계)
-  Future<void> _loadData() async {
+  // 행사 목록 불러오기
+  Future<void> _loadEvents() async {
     setState(() => _isLoading = true);
 
-    // 행사 목록 불러오기
-    final eventResult = await _eventService.getEvents();
+    final result = await _eventService.getEvents();
 
-    if (eventResult['success'] == true) {
-      final events = eventResult['events'] as List? ?? [];
-      _events = events;
-
-      // 각 행사별 계약 데이터를 모아서 통계 계산
-      int total = 0;
-      int confirmed = 0;
-      int cancelRequested = 0;
-      int revenue = 0;
-
-      for (final event in events) {
-        final eventId = event['id']?.toString() ?? '';
-        if (eventId.isEmpty) continue;
-
-        final contractResult = await _contractService.getEventContracts(eventId);
-        if (contractResult['success'] == true) {
-          final contracts = contractResult['contracts'] as List? ?? [];
-          total += contracts.length;
-
-          for (final contract in contracts) {
-            final status = contract['status']?.toString() ?? '';
-            if (status == 'CONFIRMED') {
-              confirmed++;
-              // 확정 계약의 총 금액 합산
-              final amount = contract['totalAmount'] ?? contract['depositAmount'] ?? 0;
-              revenue += (amount is int) ? amount : (amount as num).toInt();
-            }
-            if (status == 'CANCEL_REQUESTED') cancelRequested++;
-          }
-        }
-      }
-
-      _totalContracts = total;
-      _confirmedContracts = confirmed;
-      _cancelRequestedContracts = cancelRequested;
-      _totalRevenue = revenue;
+    if (result['success'] == true) {
+      final List events = result['events'] ?? [];
+      _events = events.map<Map<String, dynamic>>((e) {
+        return {
+          'id': e['id']?.toString() ?? '',
+          'title': e['title'] ?? '행사명 없음',
+          'coverImage': e['coverImage'],
+          'startDate': e['startDate']?.toString(),
+          'endDate': e['endDate']?.toString(),
+          'entryCode': e['entryCode']?.toString(),
+          'siteName': e['siteName'] ?? '',
+        };
+      }).toList();
     }
 
     if (mounted) {
@@ -96,38 +57,39 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // 행사 상태 텍스트 계산
-  String _getEventStatus(Map<String, dynamic> event) {
-    try {
-      final now = DateTime.now();
-      final startStr = event['startDate']?.toString();
-      final endStr = event['endDate']?.toString();
-
-      if (startStr == null || endStr == null) return '미정';
-
-      final start = DateTime.parse(startStr);
-      final end = DateTime.parse(endStr);
-
-      if (now.isBefore(start)) return '예정';
-      if (now.isAfter(end)) return '종료';
-      return '진행중';
-    } catch (_) {
-      return '미정';
-    }
-  }
-
-  // 상태별 색상
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case '진행중':
-        return AppColors.success;
-      case '예정':
-        return AppColors.primary;
-      case '종료':
-        return AppColors.textSecondary;
-      default:
-        return AppColors.textHint;
-    }
+  // 행사 등록 다이얼로그 (팝업 형태)
+  void _showEventFormDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SizedBox(
+          width: 600,
+          height: MediaQuery.of(context).size.height * 0.85,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Scaffold(
+              body: Stack(
+                children: [
+                  const OrganizerEventFormScreen(),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ).then((result) {
+      if (result == true) _loadEvents();
+    });
   }
 
   @override
@@ -142,7 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                '대시보드',
+                '행사 목록',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
@@ -150,13 +112,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () => _showEventFormDialog(),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('행사 등록'),
+                onPressed: _showEventFormDialog,
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('행사 등록', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
@@ -164,203 +126,171 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 24),
 
-          // ── 통계 카드 ──
-          if (!_isLoading)
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                _buildStatCard('총 행사수', '${_events.length}', Icons.event, AppColors.primary),
-                _buildStatCard('총 계약수', '$_totalContracts', Icons.description, AppColors.primaryDark),
-                _buildStatCard('확정 계약', '$_confirmedContracts', Icons.check_circle, AppColors.success),
-                _buildStatCard('취소 요청', '$_cancelRequestedContracts', Icons.cancel, AppColors.priceRed),
-                _buildStatCard('총 매출', '${NumberFormat('#,###', 'ko_KR').format(_totalRevenue)}원', Icons.payments, Colors.purple),
-              ],
-            ),
-
-          const SizedBox(height: 32),
-
-          // ── 행사 목록 테이블 ──
-          const Text(
-            '행사 목록',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // 테이블 영역
+          // ── 행사 카드 그리드 (모바일과 동일한 카드 방식) ──
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _events.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.event_note, size: 64, color: AppColors.textHint),
-                            const SizedBox(height: 16),
-                            const Text(
-                              '등록된 행사가 없습니다',
-                              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 24),
-                            // 화면 중앙에 큰 행사 등록 버튼
-                            ElevatedButton.icon(
-                              onPressed: () => _showEventFormDialog(),
-                              icon: const Icon(Icons.add, size: 24),
-                              label: const Text('행사 등록하기', style: TextStyle(fontSize: 16)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : AppCard(
-                        padding: EdgeInsets.zero,
-                        child: SingleChildScrollView(
-                          child: _buildEventsTable(),
-                        ),
-                      ),
+                : GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,     // 4열 그리드 (웹은 넓으니까)
+                      crossAxisSpacing: 20,
+                      mainAxisSpacing: 20,
+                      childAspectRatio: 0.8,
+                    ),
+                    itemCount: _events.length + 1, // +1은 추가 카드
+                    itemBuilder: (context, index) {
+                      // 마지막은 + 추가 카드
+                      if (index == _events.length) {
+                        return _buildAddCard();
+                      }
+                      return _buildEventCard(_events[index]);
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
 
-  // 행사 등록 다이얼로그 (웹에서는 팝업 다이얼로그로 표시)
-  void _showEventFormDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: SizedBox(
-          width: 600,
-          height: 700,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Scaffold(
-              body: Stack(
-                children: [
-                  const OrganizerEventFormScreen(),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                ],
+  // 행사 카드 (모바일과 동일한 디자인)
+  Widget _buildEventCard(Map<String, dynamic> event) {
+    // 커버 이미지 처리
+    final coverImage = event['coverImage']?.toString();
+    ImageProvider? imageProvider;
+    if (coverImage != null && coverImage.startsWith('data:image')) {
+      try {
+        final base64Str = coverImage.split(',').last;
+        imageProvider = MemoryImage(base64Decode(base64Str));
+      } catch (_) {}
+    } else if (coverImage != null && coverImage.isNotEmpty) {
+      imageProvider = NetworkImage(coverImage);
+    }
+
+    // D-day 계산
+    String dDayText = '';
+    try {
+      final startStr = event['startDate'];
+      if (startStr != null) {
+        final start = DateTime.parse(startStr);
+        final now = DateTime.now();
+        final diff = start.difference(DateTime(now.year, now.month, now.day)).inDays;
+        if (diff > 0) {
+          dDayText = 'D-$diff';
+        } else if (diff == 0) {
+          dDayText = 'D-DAY';
+        } else {
+          dDayText = 'D+${-diff}';
+        }
+      }
+    } catch (_) {}
+
+    return GestureDetector(
+      onTap: () {
+        final eventId = event['id'] ?? '';
+        context.go('/organizer/events/$eventId');
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 커버 이미지 (정사각형)
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: AppColors.background,
+                image: imageProvider != null
+                    ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
+                    : null,
               ),
+              child: imageProvider == null
+                  ? const Center(
+                      child: Icon(Icons.image_outlined, size: 40, color: AppColors.textHint),
+                    )
+                  : null,
             ),
           ),
-        ),
-      ),
-    ).then((result) {
-      if (result == true) _loadData();
-    });
-  }
-
-  // 통계 카드 위젯
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
-    return SizedBox(
-      width: 180,
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 20, color: color),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
+          const SizedBox(height: 10),
+          // 행사명
+          Text(
+            event['title'] ?? '-',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          // D-day + 참여코드
+          Row(
+            children: [
+              if (dDayText.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    dDayText,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
                   ),
                 ),
+                const SizedBox(width: 6),
               ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: color,
+              Text(
+                '코드: ${event['entryCode'] ?? '-'}',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  // 행사 목록 테이블
-  Widget _buildEventsTable() {
-    final numberFormat = NumberFormat('#,###');
-
-    return DataTable(
-      headingRowColor: WidgetStateProperty.all(AppColors.background),
-      columnSpacing: 24,
-      horizontalMargin: 20,
-      columns: const [
-        DataColumn(label: Text('행사명', style: TextStyle(fontWeight: FontWeight.w600))),
-        DataColumn(label: Text('현장명', style: TextStyle(fontWeight: FontWeight.w600))),
-        DataColumn(label: Text('세대수', style: TextStyle(fontWeight: FontWeight.w600))),
-        DataColumn(label: Text('참여코드', style: TextStyle(fontWeight: FontWeight.w600))),
-        DataColumn(label: Text('상태', style: TextStyle(fontWeight: FontWeight.w600))),
-      ],
-      rows: _events.map((event) {
-        final status = _getEventStatus(event);
-        final unitCount = event['unitCount'] ?? 0;
-
-        return DataRow(
-          // 행사 클릭 → 행사 상세로 이동
-          onSelectChanged: (_) {
-            final eventId = event['id']?.toString() ?? '';
-            context.go('/organizer/events/$eventId');
-          },
-          cells: [
-            DataCell(Text(event['title'] ?? '-')),
-            DataCell(Text(event['siteName'] ?? '-')),
-            DataCell(Text(unitCount > 0 ? numberFormat.format(unitCount) : '-')),
-            DataCell(Text(
-              event['entryCode'] ?? '-',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                letterSpacing: 2,
+  // + 추가 카드 (행사 생성)
+  Widget _buildAddCard() {
+    return GestureDetector(
+      onTap: _showEventFormDialog,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: AppColors.background,
+                border: Border.all(color: AppColors.border, width: 2, strokeAlign: BorderSide.strokeAlignInside),
               ),
-            )),
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(status).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _getStatusColor(status),
-                  ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_circle_outline, size: 48, color: AppColors.primary),
+                    SizedBox(height: 8),
+                    Text(
+                      '행사 등록',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        );
-      }).toList(),
+          ),
+          const SizedBox(height: 10),
+          const Text('', style: TextStyle(fontSize: 14)), // 높이 맞추기용 빈 텍스트
+          const SizedBox(height: 4),
+          const Text('', style: TextStyle(fontSize: 12)), // 높이 맞추기용
+        ],
+      ),
     );
   }
 }
