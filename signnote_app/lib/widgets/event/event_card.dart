@@ -156,7 +156,7 @@ class AddEventCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // + 버튼 영역 (EventCard 커버 이미지와 동일한 정사각형)
+          // + 버튼 영역 (디자인 가이드: 심플하게 + 아이콘만)
           AspectRatio(
             aspectRatio: 1,
             child: Container(
@@ -165,21 +165,7 @@ class AddEventCard extends StatelessWidget {
                 color: AppColors.background,
               ),
               child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_circle_outline, size: 36, color: AppColors.primary),
-                    SizedBox(height: 6),
-                    Text(
-                      '행사 등록',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
+                child: Icon(Icons.add, size: 32, color: AppColors.textSecondary),
               ),
             ),
           ),
@@ -187,7 +173,7 @@ class AddEventCard extends StatelessWidget {
           const SizedBox(height: 8),
           const Text('', style: TextStyle(fontSize: 14)),
           const SizedBox(height: 4),
-          const SizedBox(height: 18), // D-day 뱃지 줄 높이
+          const SizedBox(height: 18),
         ],
       ),
     );

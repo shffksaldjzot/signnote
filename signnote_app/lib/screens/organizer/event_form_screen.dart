@@ -259,7 +259,20 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            // 복사하기 버튼
+            TextButton.icon(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: code));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('참여 코드가 복사되었습니다')),
+                );
+              },
+              icon: const Icon(Icons.copy, size: 16),
+              label: const Text('복사하기'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            ),
+            const SizedBox(height: 4),
             const Text(
               '이 코드를 고객과 업체에게 공유해 주세요',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),

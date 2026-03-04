@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
-import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
 import 'event_form_screen.dart';
@@ -27,8 +26,6 @@ class OrganizerHomeScreen extends StatefulWidget {
 }
 
 class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
-  final int _currentTabIndex = 0;
-
   // API에서 가져온 행사 목록
   List<Map<String, dynamic>> _events = [];
   bool _isLoading = true;
@@ -80,24 +77,6 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     }
   }
 
-  // 탭 클릭 시 화면 이동
-  void _onTabChanged(int index) {
-    if (index == _currentTabIndex) return;
-
-    switch (index) {
-      case 0: // 홈 — 현재 화면이므로 무시
-        break;
-      case 1: // 계약함 (아직 없음)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('주관사 계약함은 준비 중입니다')),
-        );
-        break;
-      case 2: // 마이페이지
-        context.push(AppRoutes.mypage, extra: 'ORGANIZER');
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,10 +117,26 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           ),
         ),
       ),
-      // 하단 탭바 (주관사용 3탭)
-      bottomNavigationBar: AppTabBar.organizer(
-        currentIndex: _currentTabIndex,
-        onTap: _onTabChanged,
+      // 하단: 마이페이지 아이콘 (디자인 가이드라인대로)
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.only(bottom: 16, right: 24),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            onTap: () => context.push(AppRoutes.mypage, extra: 'ORGANIZER'),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.person_outline, size: 28, color: AppColors.textSecondary),
+                SizedBox(height: 2),
+                Text(
+                  '마이페이지',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
