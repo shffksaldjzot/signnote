@@ -923,8 +923,21 @@
 ---
 
 <!-- 새 항목은 이 아래에 추가 -->
-1. 주관사 모바일에서는 행사 생성 버튼이 있어 그런데 웹페이지에서는 안보여. 이거 그냥 웹페이지에 모바엘에서 보는 화면 그대로 보여지게 하면안돼? 그렇게 해줘.
-2. 행사 등록할때 타입 입력하는 부분있는데 추라하는 필드하고 추가 버튼이 없어 이부분도 수정해줘.
-3. 
-5   │ 코드 입장 에러 해결        │ ✅ OptionalJwtAuthGuard로 비로그인도 입장 가능  <- 니가 이렇게 해결했는데 이러면 안돼 로그인하고 입장해야돼. 그리고 아직도 인터널서버에러 라고 나와 해결해.
+
+## 2026-03-04 수정 (세션 3)
+
+### 수정 내용 3건
+
+| # | 요청 | 처리 내용 | 수정 파일 |
+|---|------|----------|----------|
+| 1 | 웹에서 모바일 화면 그대로 보여주기 | PC에서도 웹 대시보드 대신 모바일 OrganizerHomeScreen 표시 (화면 크기 분기 제거) | splash_screen.dart, login_screen.dart |
+| 2 | 행사 등록 타입 입력/추가 버튼 안 보임 | 1번 수정으로 해결 — 웹 대시보드 팝업(700px)이 원인, 모바일 전체화면 전환으로 타입 입력 정상 표시 | (1번과 동일) |
+| 3 | 참여코드 입장 에러 (로그인 필수 + 500에러) | OptionalJwtAuthGuard → JwtAuthGuard 복원 + EventParticipant upsert try-catch 추가 + 운영 DB 테이블 반영 (prisma db push) | auth.controller.ts, auth.service.ts |
+
+### 배포
+
+- [x] Flutter 웹 빌드 → Cloudflare Pages 배포 완료
+- [x] 서버 GitHub push → Render 자동 배포
+- [x] 운영 DB에 EventParticipant 테이블 반영 (prisma db push)
+- [x] Flutter analyze: 에러/경고 0건 / TypeScript 빌드 에러 0건
 
