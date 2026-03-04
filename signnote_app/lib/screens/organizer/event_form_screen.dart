@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
@@ -520,43 +520,44 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 입력 필드 + 추가 버튼
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _typeInputController,
-                decoration: InputDecoration(
-                  hintText: '예: 84A, 59B 등',
-                  hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                  ),
+        // 입력 필드 (suffix에 추가 버튼 포함)
+        TextField(
+          controller: _typeInputController,
+          decoration: InputDecoration(
+            hintText: '예: 84A, 59B 등',
+            hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+            // 입력 필드 오른쪽에 추가 버튼
+            suffixIcon: GestureDetector(
+              onTap: _addType,
+              child: Container(
+                margin: const EdgeInsets.all(4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                onSubmitted: (_) => _addType(),  // 엔터 키로도 추가 가능
+                child: const Text(
+                  '추가',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: _addType,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('추가', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-            ),
-          ],
+            suffixIconConstraints: const BoxConstraints(minWidth: 60, minHeight: 40),
+          ),
+          onSubmitted: (_) => _addType(),  // 엔터 키로도 추가 가능
         ),
         const SizedBox(height: 12),
         // 추가된 타입 목록 (칩 형태, X 버튼으로 삭제 가능)
@@ -609,22 +610,25 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     });
   }
 
-  // 커버 이미지 선택 (갤러리에서 사진 선택 → base64 변환)
-  // PC 웹에서도 파일 선택 다이얼로그가 열림
+  // 커버 이미지 선택 (파일 선택 다이얼로그 → base64 변환)
+  // file_picker 사용 — PC 웹 + 모바일 모두 호환
   Future<void> _pickCoverImage() async {
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,  // 이미지 파일만 선택 가능
+        withData: true,        // 파일 바이트 데이터 포함
       );
 
-      if (picked == null) return;
+      if (result == null || result.files.isEmpty) return;
 
-      // 이미지를 바이트로 읽기
-      final bytes = await picked.readAsBytes();
+      final file = result.files.first;
+      final bytes = file.bytes;
+      if (bytes == null) return;
+
       // base64 문자열로 변환 (data URL 형식)
       final base64Str = base64Encode(bytes);
-      final mimeType = picked.name.endsWith('.png') ? 'image/png' : 'image/jpeg';
+      final extension = file.extension?.toLowerCase() ?? 'jpg';
+      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
 
       setState(() {
         _coverImageBase64 = 'data:$mimeType;base64,$base64Str';
