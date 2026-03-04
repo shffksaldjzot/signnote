@@ -871,4 +871,55 @@
 
 ---
 
+## 2026-03-04 (5차 수정)
+
+**1. 마이페이지 + 비밀번호 변경 (전체 역할) ✅**
+- [x] 백엔드: `PATCH /api/v1/users/me/password` API 추가 — 현재 비밀번호 확인 후 새 비밀번호로 변경
+- [x] 모바일 마이페이지: "비밀번호 변경" 메뉴 추가 (고객/업체/주관사 모두)
+- [x] 웹 대시보드: 사이드바에 "마이페이지" 메뉴 추가 → 프로필 카드 + 비밀번호 변경 폼
+- [x] 라우트 등록: `/organizer/mypage` 경로 + MypagePage 화면 생성
+
+**2. 행사 생성 버튼 수정 ✅**
+- [x] 대시보드의 행사 등록 버튼: Navigator.push → 다이얼로그 방식으로 변경 (웹에서 사이드바 사라지는 문제 해결)
+- [x] 행사 관리 페이지의 행사 등록 버튼도 동일 다이얼로그 방식 유지
+
+**3. 계약방식 변경 ✅**
+- [x] 기존 3개 옵션 (온라인/현장/병행) → 2개 옵션으로 변경
+  - "통합계약" (integrated): 모든 품목을 한 번에 계약
+  - "개별계약" (individual): 품목별로 따로 계약
+- [x] 기본값: 통합계약
+- [x] 각 옵션에 설명 추가 (subtitle)
+
+**4. 커버이미지 업로드 ✅**
+- [x] 행사 생성/수정 폼에 "커버 이미지" 선택 UI 추가
+- [x] image_picker 패키지 설치 → 갤러리에서 이미지 선택
+- [x] 이미지를 base64로 변환하여 DB에 직접 저장 (MVP 방식)
+- [x] 이미지 미리보기 + 삭제(X) 버튼
+- [x] event_card.dart: base64 data URL도 배경 이미지로 표시 가능하게 수정
+
+**5. 행사 코드 입력 Internal Server Error 해결 ✅**
+- [x] 원인: `/auth/enter` 엔드포인트에 `JwtAuthGuard` 추가 → 비로그인 사용자 접근 불가 + event_participants 테이블 미생성
+- [x] 해결: `OptionalJwtAuthGuard` 새로 생성 — 로그인한 사용자는 참여 기록 저장, 비로그인도 입장 가능
+- [x] roles.guard.ts에 OptionalJwtAuthGuard 클래스 추가
+
+**수정 파일 목록:**
+- `signnote_server/src/auth/roles.guard.ts` — OptionalJwtAuthGuard 추가
+- `signnote_server/src/auth/auth.controller.ts` — enter 엔드포인트 가드 변경
+- `signnote_server/src/users/users.service.ts` — changePassword 메서드 추가
+- `signnote_server/src/users/users.controller.ts` — PATCH me/password 엔드포인트 추가
+- `signnote_app/lib/screens/organizer/event_form_screen.dart` — 계약방식 변경 + 커버이미지 추가
+- `signnote_app/lib/screens/common/mypage_screen.dart` — 비밀번호 변경 다이얼로그 추가
+- `signnote_app/lib/screens/organizer/web/mypage_page.dart` — 웹 마이페이지 신규 생성
+- `signnote_app/lib/screens/organizer/web/web_shell.dart` — 마이페이지 메뉴 추가
+- `signnote_app/lib/screens/organizer/web/dashboard_page.dart` — 행사 등록 다이얼로그 방식으로 변경
+- `signnote_app/lib/widgets/event/event_card.dart` — base64 이미지 지원
+- `signnote_app/lib/config/routes.dart` — organizerWebMypage 경로 추가
+- `signnote_app/lib/config/app_router.dart` — MypagePage 라우트 등록
+- `signnote_app/lib/services/user_service.dart` — changePassword API 추가
+- `signnote_app/pubspec.yaml` — image_picker 패키지 추가
+
+- [x] Flutter analyze 에러 0건 / TypeScript 빌드 에러 0건
+
+---
+
 <!-- 새 항목은 이 아래에 추가 -->

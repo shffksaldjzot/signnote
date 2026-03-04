@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../common/badge_icon.dart';
@@ -59,7 +60,7 @@ class EventCard extends StatelessWidget {
                 color: AppColors.background,
                 image: coverImageUrl != null
                     ? DecorationImage(
-                        image: NetworkImage(coverImageUrl!),
+                        image: _resolveImage(coverImageUrl!),
                         fit: BoxFit.cover,
                       )
                     : null,
@@ -118,6 +119,15 @@ class EventCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // 이미지 URL 판별 (base64 data URL이면 MemoryImage, 아니면 NetworkImage)
+  ImageProvider _resolveImage(String url) {
+    if (url.startsWith('data:image')) {
+      final base64Str = url.split(',').last;
+      return MemoryImage(base64Decode(base64Str));
+    }
+    return NetworkImage(url);
   }
 
   // 날짜를 "2026.03.01" 형식으로 변환

@@ -5,6 +5,7 @@ import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
+import '../../services/user_service.dart';
 
 // ============================================
 // 마이페이지 화면
@@ -29,6 +30,7 @@ class MypageScreen extends StatefulWidget {
 class _MypageScreenState extends State<MypageScreen> {
   final AuthService _authService = AuthService();
   final ApiService _apiService = ApiService();
+  final UserService _userService = UserService();
 
   String _userName = '';
   String _userEmail = '';
@@ -94,6 +96,107 @@ class _MypageScreenState extends State<MypageScreen> {
     );
   }
 
+  // 비밀번호 변경 다이얼로그
+  void _showChangePasswordDialog() {
+    final currentPwController = TextEditingController();
+    final newPwController = TextEditingController();
+    final confirmPwController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          '비밀번호 변경',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 현재 비밀번호
+            TextField(
+              controller: currentPwController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: '현재 비밀번호',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 새 비밀번호
+            TextField(
+              controller: newPwController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: '새 비밀번호',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 새 비밀번호 확인
+            TextField(
+              controller: confirmPwController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: '새 비밀번호 확인',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              // 입력값 검증
+              if (currentPwController.text.isEmpty ||
+                  newPwController.text.isEmpty ||
+                  confirmPwController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('모든 필드를 입력해주세요')),
+                );
+                return;
+              }
+              if (newPwController.text != confirmPwController.text) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('새 비밀번호가 일치하지 않습니다')),
+                );
+                return;
+              }
+              if (newPwController.text.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('비밀번호는 6자 이상이어야 합니다')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+
+              // API 호출
+              final result = await _userService.changePassword(
+                currentPassword: currentPwController.text,
+                newPassword: newPwController.text,
+              );
+
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(result['success'] == true
+                      ? '비밀번호가 변경되었습니다'
+                      : result['error'] ?? '비밀번호 변경에 실패했습니다'),
+                ),
+              );
+            },
+            child: const Text('변경'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // 로그아웃 실행
   Future<void> _performLogout() async {
     await _authService.logout();
@@ -115,6 +218,11 @@ class _MypageScreenState extends State<MypageScreen> {
                 _buildProfileCard(),
                 const SizedBox(height: 24),
                 // 메뉴 항목들
+                _buildMenuItem(
+                  icon: Icons.lock_reset,
+                  title: '비밀번호 변경',
+                  onTap: _showChangePasswordDialog,
+                ),
                 _buildMenuItem(
                   icon: Icons.notifications_outlined,
                   title: '알림',

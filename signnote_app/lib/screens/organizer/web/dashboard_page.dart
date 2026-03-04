@@ -150,13 +150,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () async {
-                  // 행사 등록 화면으로 이동, 등록 완료 시 데이터 새로고침
-                  final result = await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const OrganizerEventFormScreen()),
-                  );
-                  if (result == true) _loadData();
-                },
+                onPressed: () => _showEventFormDialog(),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('행사 등록'),
                 style: ElevatedButton.styleFrom(
@@ -221,6 +215,41 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
     );
+  }
+
+  // 행사 등록 다이얼로그 (웹에서는 팝업 다이얼로그로 표시)
+  void _showEventFormDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SizedBox(
+          width: 600,
+          height: 700,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Scaffold(
+              body: Stack(
+                children: [
+                  const OrganizerEventFormScreen(),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ).then((result) {
+      if (result == true) _loadData();
+    });
   }
 
   // 통계 카드 위젯

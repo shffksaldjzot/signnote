@@ -49,4 +49,5 @@ class AppRoutes {
   static const String organizerWebUsers = '/organizer/users';          // 사용자 관리
   static const String organizerWebSettlements = '/organizer/settlements'; // 정산 관리
   static const String organizerWebLogs = '/organizer/logs';             // 활동 로그
+  static const String organizerWebMypage = '/organizer/mypage';         // 마이페이지 (웹)
 }

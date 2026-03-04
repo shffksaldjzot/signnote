@@ -14,7 +14,7 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { EnterEventDto } from './dto/enter-event.dto';
-import { JwtAuthGuard } from './roles.guard';
+import { OptionalJwtAuthGuard } from './roles.guard';
 
 @Controller('auth')  // /api/v1/auth 경로
 export class AuthController {
@@ -38,8 +38,8 @@ export class AuthController {
     return this.authService.refreshToken(refreshToken);
   }
 
-  // 참여 코드로 행사 입장 (로그인한 사용자면 참여 기록 저장)
-  @UseGuards(JwtAuthGuard)
+  // 참여 코드로 행사 입장 (로그인 안 해도 가능, 로그인했으면 참여 기록 저장)
+  @UseGuards(OptionalJwtAuthGuard)
   @Post('enter')
   async enterEvent(@Body() dto: EnterEventDto, @Request() req: any) {
     const userId = req.user?.id;

@@ -4,6 +4,7 @@
 // API 목록:
 //   GET    /api/v1/users          → 전체 사용자 목록 (주관사/관리자)
 //   GET    /api/v1/users/:id      → 사용자 상세 (주관사/관리자)
+//   PATCH  /api/v1/users/me/password  → 본인 비밀번호 변경 (모든 역할)
 //   PATCH  /api/v1/users/:id/approve → 사용자 승인 (관리자 전용)
 //   PATCH  /api/v1/users/:id/reject  → 사용자 거부 (관리자 전용)
 //
@@ -18,6 +19,7 @@ import {
   Patch,
   Param,
   Query,
+  Body,
   UseGuards,
   Request,
   ForbiddenException,
@@ -45,6 +47,21 @@ export class UsersController {
 
     // 관리자는 모든 역할 조회 가능
     return this.usersService.findAll(role || undefined);
+  }
+
+  // ---- 본인 비밀번호 변경 (로그인한 모든 사용자) ----
+  // 현재 비밀번호 확인 후 새 비밀번호로 변경
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/password')
+  async changePassword(
+    @Request() req: any,
+    @Body() body: { currentPassword: string; newPassword: string },
+  ) {
+    return this.usersService.changePassword(
+      req.user.id,
+      body.currentPassword,
+      body.newPassword,
+    );
   }
 
   // 사용자 상세 (주관사/관리자만)

@@ -84,6 +84,29 @@ class UserService {
     }
   }
 
+  // ---- 본인 비밀번호 변경 (모든 역할) ----
+  // 현재 비밀번호 확인 후 새 비밀번호로 변경
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _api.patch('/users/me/password', data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      });
+      return {
+        'success': true,
+        'message': response.data['message'],
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '비밀번호 변경에 실패했습니다',
+      };
+    }
+  }
+
   // ---- 사용자 거부 (관리자 전용) ----
   // 업체/주관사 가입 신청을 거부 (계정 삭제)
   Future<Map<String, dynamic>> rejectUser(String userId) async {

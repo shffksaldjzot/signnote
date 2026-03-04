@@ -3,7 +3,7 @@
 // 사용자 데이터를 DB에서 조회/생성/승인하는 로직
 // ============================================
 
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../common/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -174,6 +174,30 @@ export class UsersService {
 
     // 초기화된 비밀번호를 반환 (관리자에게 보여주기 위해)
     return { newPassword };
+  }
+
+  // ---- 본인 비밀번호 변경 (로그인한 모든 사용자) ----
+  // 현재 비밀번호 확인 후 새 비밀번호로 변경
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다');
+    }
+
+    // 현재 비밀번호가 맞는지 확인
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      throw new BadRequestException('현재 비밀번호가 올바르지 않습니다');
+    }
+
+    // 새 비밀번호 암호화 후 저장
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    return { message: '비밀번호가 변경되었습니다' };
   }
 
   // ---- 사용자 가입 거부 (관리자 전용) ----

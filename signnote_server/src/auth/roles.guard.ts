@@ -26,6 +26,16 @@ export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {}
 
+// 선택적 JWT 인증 가드 (로그인 안 해도 통과, 로그인했으면 사용자 정보 추출)
+// 예: 행사 입장 시 로그인한 사용자는 참여 기록 저장, 비로그인은 그냥 입장
+@Injectable()
+export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
+  handleRequest(err: any, user: any) {
+    // 에러가 나거나 사용자가 없어도 그냥 통과시킴 (null 반환)
+    return user || null;
+  }
+}
+
 // 역할 확인 가드 (특정 역할만 허용)
 @Injectable()
 export class RolesGuard implements CanActivate {

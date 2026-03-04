@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
@@ -53,9 +55,13 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   late List<String> _selectedTypes;
   final TextEditingController _typeInputController = TextEditingController();
 
-  // 계약 방식
-  String _contractMethod = 'online';  // 'online' 또는 'offline'
+  // 계약 방식: 'integrated'(통합계약) 또는 'individual'(개별계약)
+  String _contractMethod = 'integrated';
   bool _allowOnlineContract = true;
+
+  // 커버 이미지 (base64 문자열)
+  String? _coverImageBase64;
+  Uint8List? _coverImageBytes; // 미리보기용
 
   bool _isLoading = false;
   bool get _isEditMode => widget.event != null;
@@ -77,8 +83,17 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
       _startDate = widget.event!['startDate'];
       _endDate = widget.event!['endDate'];
       _moveInDate = widget.event!['moveInDate'];
-      _contractMethod = widget.event!['contractMethod'] ?? 'online';
+      _contractMethod = widget.event!['contractMethod'] ?? 'integrated';
       _allowOnlineContract = widget.event!['allowOnlineContract'] ?? true;
+      // 기존 커버이미지가 있으면 불러오기
+      final existingImage = widget.event!['coverImage']?.toString();
+      if (existingImage != null && existingImage.startsWith('data:image')) {
+        _coverImageBase64 = existingImage;
+        try {
+          final base64Str = existingImage.split(',').last;
+          _coverImageBytes = base64Decode(base64Str);
+        } catch (_) {}
+      }
     }
   }
 
@@ -150,6 +165,8 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           'housingTypes': _selectedTypes.toList(),
           'contractMethod': _contractMethod,
           'allowOnlineContract': _allowOnlineContract,
+          if (_coverImageBase64 != null)
+            'coverImage': _coverImageBase64,
           if (_cancelDeadlineStart != null)
             'cancelDeadlineStart': _toIsoDate(_cancelDeadlineStart!),
           if (_cancelDeadlineEnd != null)
@@ -170,6 +187,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
             : null,
         moveInDate: _moveInDate != null ? _toIsoDate(_moveInDate!) : null,
         housingTypes: _selectedTypes.toList(),
+        coverImage: _coverImageBase64,
         contractMethod: _contractMethod,
         allowOnlineContract: _allowOnlineContract,
         cancelDeadlineStart: _cancelDeadlineStart != null
@@ -367,6 +385,12 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
               _buildLabel('계약 방식'),
               const SizedBox(height: 8),
               _buildContractMethodSelector(),
+              const SizedBox(height: 20),
+
+              // 커버 이미지 (행사 카드 배경으로 사용)
+              _buildLabel('커버 이미지 (선택)'),
+              const SizedBox(height: 8),
+              _buildCoverImagePicker(),
               const SizedBox(height: 20),
 
               // 취소 가능 기간
@@ -585,41 +609,132 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     });
   }
 
+  // 커버 이미지 선택 (갤러리에서 사진 선택 → base64 변환)
+  Future<void> _pickCoverImage() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 800,
+        imageQuality: 80,
+      );
+
+      if (picked == null) return;
+
+      // 이미지를 바이트로 읽기
+      final bytes = await picked.readAsBytes();
+      // base64 문자열로 변환 (data URL 형식)
+      final base64Str = base64Encode(bytes);
+      final mimeType = picked.name.endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+      setState(() {
+        _coverImageBase64 = 'data:$mimeType;base64,$base64Str';
+        _coverImageBytes = bytes;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미지 선택에 실패했습니다')),
+        );
+      }
+    }
+  }
+
+  // 커버 이미지 선택/미리보기 위젯
+  Widget _buildCoverImagePicker() {
+    return GestureDetector(
+      onTap: _pickCoverImage,
+      child: Container(
+        width: double.infinity,
+        height: 180,
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: _coverImageBytes != null
+            // 이미지가 선택된 경우: 미리보기 표시
+            ? Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      _coverImageBytes!,
+                      width: double.infinity,
+                      height: 180,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  // 삭제 버튼
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _coverImageBase64 = null;
+                          _coverImageBytes = null;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            // 이미지가 없는 경우: 업로드 안내
+            : const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_photo_alternate_outlined, size: 40, color: AppColors.textHint),
+                  SizedBox(height: 8),
+                  Text(
+                    '탭하여 커버 이미지 선택',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '행사 카드 배경으로 표시됩니다',
+                    style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
   // 계약 방식 선택 (라디오 버튼)
+  // 통합계약: 모든 품목을 한 번에 계약 / 개별계약: 품목별로 따로 계약
   Widget _buildContractMethodSelector() {
     return Column(
       children: [
         RadioListTile<String>(
-          title: const Text('온라인 계약', style: TextStyle(fontSize: 14)),
-          value: 'online',
+          title: const Text('통합계약', style: TextStyle(fontSize: 14)),
+          subtitle: const Text('모든 품목을 한 번에 계약', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          value: 'integrated',
           groupValue: _contractMethod,
           activeColor: AppColors.primary,
           contentPadding: EdgeInsets.zero,
           onChanged: (v) => setState(() {
             _contractMethod = v!;
-            _allowOnlineContract = true;
           }),
         ),
         RadioListTile<String>(
-          title: const Text('현장 계약', style: TextStyle(fontSize: 14)),
-          value: 'offline',
+          title: const Text('개별계약', style: TextStyle(fontSize: 14)),
+          subtitle: const Text('품목별로 따로 계약', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          value: 'individual',
           groupValue: _contractMethod,
           activeColor: AppColors.primary,
           contentPadding: EdgeInsets.zero,
           onChanged: (v) => setState(() {
             _contractMethod = v!;
-            _allowOnlineContract = false;
-          }),
-        ),
-        RadioListTile<String>(
-          title: const Text('온라인 + 현장 병행', style: TextStyle(fontSize: 14)),
-          value: 'both',
-          groupValue: _contractMethod,
-          activeColor: AppColors.primary,
-          contentPadding: EdgeInsets.zero,
-          onChanged: (v) => setState(() {
-            _contractMethod = v!;
-            _allowOnlineContract = true;
           }),
         ),
       ],

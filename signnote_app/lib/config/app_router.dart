@@ -17,6 +17,7 @@ import '../screens/organizer/web/products_page.dart';
 import '../screens/organizer/web/users_page.dart';
 import '../screens/organizer/web/settlements_page.dart';
 import '../screens/organizer/web/logs_page.dart';
+import '../screens/organizer/web/mypage_page.dart';
 
 // ============================================
 // GoRouter 라우터 설정
@@ -145,6 +146,13 @@ final GoRouter appRouter = GoRouter(
           path: AppRoutes.organizerWebLogs,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: LogsPage(),
+          ),
+        ),
+        // 마이페이지 (비밀번호 변경)
+        GoRoute(
+          path: AppRoutes.organizerWebMypage,
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: MypagePage(),
           ),
         ),
       ],

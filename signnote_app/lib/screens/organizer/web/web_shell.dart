@@ -68,6 +68,7 @@ class _SidebarState extends State<_Sidebar> {
     _MenuItem(icon: Icons.people_outline, activeIcon: Icons.people, label: '파트너 관리', path: AppRoutes.organizerWebUsers, adminOnly: false),
     _MenuItem(icon: Icons.account_balance_wallet_outlined, activeIcon: Icons.account_balance_wallet, label: '정산 관리', path: AppRoutes.organizerWebSettlements, adminOnly: false),
     _MenuItem(icon: Icons.history_outlined, activeIcon: Icons.history, label: '활동 로그', path: AppRoutes.organizerWebLogs, adminOnly: true),
+    _MenuItem(icon: Icons.person_outline, activeIcon: Icons.person, label: '마이페이지', path: AppRoutes.organizerWebMypage, adminOnly: false),
   ];
 
   @override
