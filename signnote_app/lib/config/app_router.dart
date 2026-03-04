@@ -7,6 +7,7 @@ import '../screens/onboarding/register_screen.dart';
 import '../screens/onboarding/entry_code_screen.dart';
 import '../screens/common/mypage_screen.dart';
 import '../screens/common/notification_screen.dart';
+import '../screens/organizer/home_screen.dart';
 import '../screens/organizer/web/web_shell.dart';
 import '../screens/organizer/web/dashboard_page.dart';
 import '../screens/organizer/web/events_page.dart';
@@ -71,6 +72,12 @@ final GoRouter appRouter = GoRouter(
         final role = state.extra as String? ?? 'CUSTOMER';
         return MypageScreen(role: role);
       },
+    ),
+
+    // ── 주관사 모바일 홈 ──
+    GoRoute(
+      path: AppRoutes.organizerHome,
+      builder: (context, state) => const OrganizerHomeScreen(),
     ),
 
     // ── 주관사 PC 웹 대시보드 (사이드바 레이아웃) ──

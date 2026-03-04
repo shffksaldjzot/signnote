@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../services/auth_service.dart';
+import '../../services/api_service.dart';
 
 // ============================================
 // 스플래시 화면 (앱 시작 시 로고 표시)
 //
 // 앱을 켜면 가장 먼저 보이는 화면.
-// 로고를 2초간 보여준 뒤 로그인 여부에 따라:
-// - 로그인 O → 참여코드 입장 화면
+// 로고를 2초간 보여준 뒤 자동로그인 처리:
+// - 로그인 O + 주관사 → 주관사 홈 (행사코드 건너뜀)
+// - 로그인 O + 주관사/관리자 + PC → 웹 대시보드
+// - 로그인 O + 고객/업체 → 참여코드 입장 화면
 // - 로그인 X → 로그인 화면
 // ============================================
 
@@ -46,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen>
     Future.delayed(const Duration(seconds: 2), _navigateNext);
   }
 
-  // 로그인 상태에 따라 다음 화면 결정
+  // 자동로그인: 저장된 토큰과 사용자 정보로 역할별 홈 화면으로 이동
   Future<void> _navigateNext() async {
     if (!mounted) return;
 
@@ -56,8 +60,27 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (isLoggedIn) {
-      // 로그인 되어 있으면 → 참여코드 입장 화면
-      context.go(AppRoutes.entryCode);
+      // 저장된 사용자 정보에서 역할 가져오기
+      final userInfo = await ApiService().getUserInfo();
+      final role = userInfo?['role'] ?? '';
+
+      if (!mounted) return;
+
+      // 주관사/관리자 + PC 화면이면 → 웹 대시보드
+      final screenWidth = MediaQuery.of(context).size.width;
+      final isOrganizerOrAdmin = (role == AppConstants.roleOrganizer ||
+          role == AppConstants.roleAdmin);
+      final isPcScreen = screenWidth >= 768;
+
+      if (isOrganizerOrAdmin && isPcScreen) {
+        context.go(AppRoutes.organizerDashboard);
+      } else if (role == AppConstants.roleOrganizer) {
+        // 주관사 (모바일) → 바로 주관사 홈 (행사코드 건너뜀)
+        context.go(AppRoutes.organizerHome);
+      } else {
+        // 고객/업체 → 참여코드 입장 화면 (역할 정보 전달)
+        context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
+      }
     } else {
       // 로그인 안 되어 있으면 → 로그인 화면
       context.go(AppRoutes.login);
