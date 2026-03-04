@@ -11,16 +11,16 @@ import '../organizer/home_screen.dart';
 // ============================================
 // 회원가입 화면 (Register Screen)
 //
-// 입력 항목:
-//   - 이메일 (아이디)
-//   - 비밀번호 / 비밀번호 확인
-//   - 이름 (고객) 또는 업체명 (업체/주관사)
-//   - 전화번호 (010-0000-0000 형식)
-//   - 역할 선택 (고객 / 협력업체 / 주관사)
-//   - 사업자등록번호 (업체/주관사, 000-00-00000 형식)
-//   - 사업자등록증 이미지 첨부 (업체/주관사)
+// 필드 순서:
+//   1. 가입 유형 선택 (고객 / 협력업체 / 주관사) ← 맨 위
+//   2. 이메일
+//   3. 비밀번호 / 비밀번호 확인
+//   4. 이름 (고객) 또는 업체명 (협력업체/주관사)
+//   5. 전화번호 (010-0000-0000 형식)
+//   6. 사업자등록번호 (협력업체/주관사, 000-00-00000 형식)
+//   7. 사업자등록증 이미지 첨부 (협력업체/주관사)
 //
-// 업체/주관사는 관리자 승인 후 로그인 가능
+// 협력업체/주관사는 관리자 승인 후 로그인 가능
 // ============================================
 
 class RegisterScreen extends StatefulWidget {
@@ -53,32 +53,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // 업체 또는 주관사인지 확인
+  // 협력업체 또는 주관사인지 확인
   bool get _isBusinessRole =>
       _selectedRole == AppConstants.roleVendor ||
       _selectedRole == AppConstants.roleOrganizer;
-
-  // 전화번호 자동 포맷팅 (010-0000-0000)
-  // 숫자만 남기고 하이픈 자동 삽입
-  String _formatPhoneNumber(String value) {
-    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 7) {
-      return '${digits.substring(0, 3)}-${digits.substring(3)}';
-    }
-    return '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7, digits.length > 11 ? 11 : digits.length)}';
-  }
-
-  // 사업자등록번호 자동 포맷팅 (000-00-00000)
-  // 숫자만 남기고 하이픈 자동 삽입
-  String _formatBusinessNumber(String value) {
-    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 5) {
-      return '${digits.substring(0, 3)}-${digits.substring(3)}';
-    }
-    return '${digits.substring(0, 3)}-${digits.substring(3, 5)}-${digits.substring(5, digits.length > 10 ? 10 : digits.length)}';
-  }
 
   // 회원가입 버튼 눌렀을 때
   Future<void> _handleRegister() async {
@@ -103,7 +81,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _showError('전화번호를 입력해 주세요');
       return;
     }
-    // 업체/주관사는 사업자등록번호 필수
+    // 협력업체/주관사는 사업자등록번호 필수
     if (_isBusinessRole && _businessNumberController.text.trim().isEmpty) {
       _showError('사업자등록번호를 입력해 주세요');
       return;
@@ -132,7 +110,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final isApproved = user?['isApproved'] ?? true;
 
       if (!isApproved) {
-        // 업체/주관사 → 승인 대기 안내 후 로그인 화면으로
+        // 협력업체/주관사 → 승인 대기 안내 후 로그인 화면으로
         _showApprovalPendingDialog();
       } else if (_selectedRole == AppConstants.roleOrganizer) {
         // 주관사 (승인된 경우) → 바로 주관사 홈으로
@@ -219,7 +197,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               const SizedBox(height: 24),
 
-              // 이메일
+              // ──────── 1. 가입 유형 (맨 위) ────────
+              const _SectionLabel(text: '가입 유형'),
+              const SizedBox(height: 8),
+              _buildRoleSelector(),
+              const SizedBox(height: 20),
+
+              // ──────── 2. 이메일 ────────
               const _SectionLabel(text: '이메일'),
               const SizedBox(height: 8),
               TextField(
@@ -229,7 +213,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 비밀번호
+              // ──────── 3. 비밀번호 ────────
               const _SectionLabel(text: '비밀번호'),
               const SizedBox(height: 8),
               TextField(
@@ -245,13 +229,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 역할 선택 (먼저 보여줘서 아래 필드가 바뀌도록)
-              const _SectionLabel(text: '가입 유형'),
-              const SizedBox(height: 8),
-              _buildRoleSelector(),
-              const SizedBox(height: 20),
-
-              // 이름 또는 업체명 (역할에 따라 라벨 변경)
+              // ──────── 4. 이름 또는 업체명 ────────
               _SectionLabel(text: _isBusinessRole ? '업체명' : '이름'),
               const SizedBox(height: 8),
               TextField(
@@ -262,56 +240,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 전화번호 (010-0000-0000 형식 자동 포맷팅)
+              // ──────── 5. 전화번호 (010-0000-0000) ────────
               const _SectionLabel(text: '전화번호'),
               const SizedBox(height: 8),
               TextField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,  // 숫자만 입력
-                  LengthLimitingTextInputFormatter(11),    // 최대 11자리
-                ],
+                inputFormatters: [_PhoneNumberFormatter()],
                 decoration: const InputDecoration(hintText: '010-0000-0000'),
-                onChanged: (value) {
-                  // 포맷팅된 값으로 교체
-                  final formatted = _formatPhoneNumber(value);
-                  if (formatted != _phoneController.text) {
-                    _phoneController.value = TextEditingValue(
-                      text: formatted,
-                      selection: TextSelection.collapsed(offset: formatted.length),
-                    );
-                  }
-                },
               ),
               const SizedBox(height: 20),
 
-              // 사업자등록번호 (업체/주관사만 표시, 000-00-00000 형식)
+              // ──────── 6. 사업자등록번호 (협력업체/주관사만) ────────
               if (_isBusinessRole) ...[
                 const _SectionLabel(text: '사업자등록번호'),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _businessNumberController,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,  // 숫자만 입력
-                    LengthLimitingTextInputFormatter(10),    // 최대 10자리
-                  ],
+                  inputFormatters: [_BusinessNumberFormatter()],
                   decoration: const InputDecoration(hintText: '000-00-00000'),
-                  onChanged: (value) {
-                    final formatted = _formatBusinessNumber(value);
-                    if (formatted != _businessNumberController.text) {
-                      _businessNumberController.value = TextEditingValue(
-                        text: formatted,
-                        selection: TextSelection.collapsed(offset: formatted.length),
-                      );
-                    }
-                  },
                 ),
                 const SizedBox(height: 20),
 
-                // 사업자등록증 이미지 첨부 (추후 업로드 기능 연동)
-                const _SectionLabel(text: '사업자등록증'),
+                // ──────── 7. 사업자등록증 첨부 (협력업체/주관사만) ────────
+                const _SectionLabel(text: '사업자등록증 첨부'),
                 const SizedBox(height: 8),
                 _buildImageUploadArea(),
                 const SizedBox(height: 20),
@@ -326,7 +279,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 isLoading: _isLoading,
               ),
 
-              // 업체/주관사일 때 승인 안내 문구
+              // 협력업체/주관사일 때 승인 안내 문구
               if (_isBusinessRole)
                 const Padding(
                   padding: EdgeInsets.only(top: 12),
@@ -387,7 +340,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // 사업자등록증 이미지 업로드 영역 (파일 스토리지 연동 시 활성화)
+  // 사업자등록증 이미지 업로드 영역
   Widget _buildImageUploadArea() {
     return GestureDetector(
       onTap: () {
@@ -424,7 +377,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 }
 
-// 섹션 라벨 (작은 위젯 - "이메일", "비밀번호" 같은 제목)
+// ============================================
+// 전화번호 자동 포맷터 (010-0000-0000)
+// 숫자만 입력받고 하이픈을 자동 삽입
+// ============================================
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // 숫자만 남기기
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // 최대 11자리
+    final limited = digits.length > 11 ? digits.substring(0, 11) : digits;
+
+    // 하이픈 삽입 (010-0000-0000 형식)
+    String formatted;
+    if (limited.length <= 3) {
+      formatted = limited;
+    } else if (limited.length <= 7) {
+      formatted = '${limited.substring(0, 3)}-${limited.substring(3)}';
+    } else {
+      formatted = '${limited.substring(0, 3)}-${limited.substring(3, 7)}-${limited.substring(7)}';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+// ============================================
+// 사업자등록번호 자동 포맷터 (000-00-00000)
+// 숫자만 입력받고 하이픈을 자동 삽입
+// ============================================
+class _BusinessNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // 숫자만 남기기
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // 최대 10자리
+    final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
+
+    // 하이픈 삽입 (000-00-00000 형식)
+    String formatted;
+    if (limited.length <= 3) {
+      formatted = limited;
+    } else if (limited.length <= 5) {
+      formatted = '${limited.substring(0, 3)}-${limited.substring(3)}';
+    } else {
+      formatted = '${limited.substring(0, 3)}-${limited.substring(3, 5)}-${limited.substring(5)}';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+// 섹션 라벨 ("이메일", "비밀번호" 같은 제목)
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel({required this.text});
