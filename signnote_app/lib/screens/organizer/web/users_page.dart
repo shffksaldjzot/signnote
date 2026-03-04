@@ -178,6 +178,81 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
+  // ---- 비밀번호 초기화 (관리자 전용) ----
+  Future<void> _resetUserPassword(dynamic user) async {
+    // 확인 다이얼로그
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('비밀번호 초기화'),
+        content: Text('${user['name']}의 비밀번호를 무작위로 초기화하시겠습니까?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.blue),
+            child: const Text('초기화'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final result = await _userService.resetPassword(user['id']);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      // 새 비밀번호를 보여주는 다이얼로그
+      final newPassword = result['newPassword'] ?? '';
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('비밀번호 초기화 완료'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${user['name']}의 새 비밀번호:'),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  newPassword,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '이 비밀번호를 해당 사용자에게 전달해 주세요.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '비밀번호 초기화에 실패했습니다')),
+      );
+    }
+  }
+
   // ---- 사용자 상세 보기 다이얼로그 ----
   void _showUserDetail(dynamic user) {
     final role = user['role'] ?? 'CUSTOMER';
@@ -270,31 +345,45 @@ class _UsersPageState extends State<UsersPage> {
                       ? _dateFormat.format(DateTime.parse(user['createdAt']))
                       : '-'),
 
-              // 승인/거부 버튼 (관리자 + 미승인 사용자만)
-              if (_isAdmin && !isApproved) ...[
+              // 관리자 전용 버튼들
+              if (_isAdmin) ...[
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    OutlinedButton(
+                    // 비밀번호 초기화 버튼 (관리자 전용)
+                    OutlinedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        _rejectUser(user);
+                        _resetUserPassword(user);
                       },
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                      child: const Text('거부'),
+                      icon: const Icon(Icons.lock_reset, size: 18),
+                      label: const Text('비밀번호 초기화'),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
                     ),
                     const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _approveUser(user);
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                      child: const Text('승인', style: TextStyle(color: Colors.white)),
-                    ),
+                    // 미승인 사용자만 승인/거부 버튼 표시
+                    if (!isApproved) ...[
+                      OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _rejectUser(user);
+                        },
+                        style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('거부'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _approveUser(user);
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                        child: const Text('승인', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
                   ],
                 ),
               ],

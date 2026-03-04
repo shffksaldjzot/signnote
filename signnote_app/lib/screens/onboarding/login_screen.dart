@@ -85,9 +85,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (isOrganizerOrAdmin && isPcScreen) {
         // PC 웹 대시보드로 이동
         context.go(AppRoutes.organizerDashboard);
-      } else if (role == AppConstants.roleOrganizer) {
-        // 주관사 (모바일) → 바로 주관사 홈으로 (행사코드 건너뜀)
-        // 주관사는 행사를 만드는 쪽이라 참여코드 입력이 필요 없음
+      } else if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
+        // 주관사/관리자 (모바일) → 바로 주관사 홈으로 (행사코드 건너뜀)
+        // 주관사/관리자는 행사를 관리하는 쪽이라 참여코드 입력이 필요 없음
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const OrganizerHomeScreen()),
           (route) => false,

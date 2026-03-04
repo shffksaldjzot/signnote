@@ -67,6 +67,23 @@ class UserService {
     }
   }
 
+  // ---- 비밀번호 초기화 (관리자 전용) ----
+  // 무작위 비밀번호로 변경 후 새 비밀번호를 반환
+  Future<Map<String, dynamic>> resetPassword(String userId) async {
+    try {
+      final response = await _api.patch('/users/$userId/reset-password');
+      return {
+        'success': true,
+        'newPassword': response.data['newPassword'],
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '비밀번호 초기화에 실패했습니다',
+      };
+    }
+  }
+
   // ---- 사용자 거부 (관리자 전용) ----
   // 업체/주관사 가입 신청을 거부 (계정 삭제)
   Future<Map<String, dynamic>> rejectUser(String userId) async {

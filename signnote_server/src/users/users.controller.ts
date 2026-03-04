@@ -83,4 +83,13 @@ export class UsersController {
   async rejectUser(@Param('id') id: string) {
     return this.usersService.rejectUser(id);
   }
+
+  // ---- 비밀번호 초기화 (관리자 전용) ----
+  // 무작위 비밀번호로 변경 후 새 비밀번호를 반환
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Patch(':id/reset-password')
+  async resetPassword(@Param('id') id: string) {
+    return this.usersService.resetPassword(id);
+  }
 }

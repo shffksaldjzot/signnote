@@ -74,8 +74,8 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (isOrganizerOrAdmin && isPcScreen) {
         context.go(AppRoutes.organizerDashboard);
-      } else if (role == AppConstants.roleOrganizer) {
-        // 주관사 (모바일) → 바로 주관사 홈 (행사코드 건너뜀)
+      } else if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
+        // 주관사/관리자 (모바일) → 바로 주관사 홈 (행사코드 건너뜀)
         context.go(AppRoutes.organizerHome);
       } else {
         // 고객/업체 → 참여코드 입장 화면 (역할 정보 전달)

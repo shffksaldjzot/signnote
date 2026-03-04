@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/theme.dart';
-import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/event_service.dart';
@@ -50,8 +49,9 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   DateTime? _cancelDeadlineStart;
   DateTime? _cancelDeadlineEnd;
 
-  // 평형 타입 선택
-  late Set<String> _selectedTypes;
+  // 평형 타입 (자유 입력 방식 — 아파트 단지마다 타입이 다를 수 있으므로)
+  late List<String> _selectedTypes;
+  final TextEditingController _typeInputController = TextEditingController();
 
   // 계약 방식
   String _contractMethod = 'online';  // 'online' 또는 'offline'
@@ -68,8 +68,8 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     _unitCountController = TextEditingController(
       text: widget.event?['unitCount']?.toString() ?? '',
     );
-    _selectedTypes = Set<String>.from(
-      widget.event?['housingTypes'] ?? AppConstants.defaultHousingTypes,
+    _selectedTypes = List<String>.from(
+      widget.event?['housingTypes'] ?? [],
     );
 
     // 수정 모드일 때 기존 날짜 채우기
@@ -87,17 +87,18 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     _titleController.dispose();
     _siteNameController.dispose();
     _unitCountController.dispose();
+    _typeInputController.dispose();
     super.dispose();
   }
 
   // 날짜 선택 다이얼로그
+  // (한국어 설정은 main.dart에서 전체 적용됨)
   Future<DateTime?> _pickDate(DateTime? initialDate) async {
     return showDatePicker(
       context: context,
       initialDate: initialDate ?? DateTime.now(),
       firstDate: DateTime(2024),
       lastDate: DateTime(2030),
-      locale: const Locale('ko'),
     );
   }
 
@@ -356,10 +357,10 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 평형 타입
+              // 평형 타입 (자유 입력)
               _buildLabel('평형 타입'),
               const SizedBox(height: 8),
-              _buildTypeCheckboxes(),
+              _buildTypeInput(),
               const SizedBox(height: 20),
 
               // 계약 방식
@@ -489,39 +490,99 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     );
   }
 
-  // 타입 체크박스
-  Widget _buildTypeCheckboxes() {
-    return Wrap(
-      spacing: 8,
-      children: AppConstants.defaultHousingTypes.map((type) {
-        final isSelected = _selectedTypes.contains(type);
-        return FilterChip(
-          label: Text('$type타입'),
-          selected: isSelected,
-          onSelected: (selected) {
-            setState(() {
-              if (selected) {
-                _selectedTypes.add(type);
-              } else {
-                _selectedTypes.remove(type);
-              }
-            });
-          },
-          selectedColor: AppColors.primary.withValues(alpha: 0.15),
-          checkmarkColor: AppColors.primary,
-          labelStyle: TextStyle(
-            color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(
-              color: isSelected ? AppColors.primary : AppColors.border,
+  // 평형 타입 자유 입력 + 추가 버튼
+  // (아파트 단지마다 타입이 다를 수 있으므로 직접 입력)
+  Widget _buildTypeInput() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 입력 필드 + 추가 버튼
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _typeInputController,
+                decoration: InputDecoration(
+                  hintText: '예: 84A, 59B 등',
+                  hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+                onSubmitted: (_) => _addType(),  // 엔터 키로도 추가 가능
+              ),
             ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _addType,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('추가', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // 추가된 타입 목록 (칩 형태, X 버튼으로 삭제 가능)
+        if (_selectedTypes.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _selectedTypes.map((type) {
+              return Chip(
+                label: Text('$type타입'),
+                deleteIcon: const Icon(Icons.close, size: 16),
+                onDeleted: () {
+                  setState(() => _selectedTypes.remove(type));
+                },
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                labelStyle: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: AppColors.primary),
+                ),
+              );
+            }).toList(),
+          )
+        else
+          Text(
+            '아직 추가된 타입이 없습니다',
+            style: TextStyle(fontSize: 13, color: Colors.grey[500]),
           ),
-        );
-      }).toList(),
+      ],
     );
+  }
+
+  // 타입 추가 처리
+  void _addType() {
+    final text = _typeInputController.text.trim();
+    if (text.isEmpty) return;
+    if (_selectedTypes.contains(text)) {
+      // 이미 있는 타입이면 안내
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('\'$text\' 타입이 이미 추가되어 있습니다')),
+      );
+      return;
+    }
+    setState(() {
+      _selectedTypes.add(text);
+      _typeInputController.clear();
+    });
   }
 
   // 계약 방식 선택 (라디오 버튼)

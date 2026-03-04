@@ -103,6 +103,35 @@ export class UsersService {
     return userWithoutPassword;
   }
 
+  // ---- 비밀번호 초기화 (관리자 전용) ----
+  // 무작위 8자리 비밀번호를 생성하여 해당 사용자의 비밀번호를 변경
+  async resetPassword(userId: string) {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다');
+    }
+
+    // 무작위 비밀번호 생성 (영문+숫자+특수문자 8자리)
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const special = '!@#$%';
+    let newPassword = '';
+    for (let i = 0; i < 7; i++) {
+      newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    // 특수문자 1개 추가
+    newPassword += special.charAt(Math.floor(Math.random() * special.length));
+
+    // 비밀번호 암호화 후 DB 저장
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    // 초기화된 비밀번호를 반환 (관리자에게 보여주기 위해)
+    return { newPassword };
+  }
+
   // ---- 사용자 가입 거부 (관리자 전용) ----
   // 승인 거부 시 해당 계정 삭제
   async rejectUser(userId: string) {
