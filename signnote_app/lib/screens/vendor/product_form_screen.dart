@@ -317,7 +317,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
   Widget _buildImagePlaceholder() {
     return GestureDetector(
       onTap: () {
-        // TODO: 이미지 선택 기능 구현
+        // 이미지 선택 (파일 스토리지 연동 시 활성화)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('이미지 업로드 기능은 추후 추가됩니다')),
         );

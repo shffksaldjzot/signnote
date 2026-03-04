@@ -587,14 +587,62 @@
 | 코드 저장소 | https://github.com/shffksaldjzot/signnote | ✅ GitHub |
 
 **남은 작업 (우선순위 순):**
-1. [ ] 미커밋 변경사항 GitHub 푸시 (31개 파일, 2064줄 추가)
-2. [ ] DB 마이그레이션 — 새 테이블 3개 (Notification, ActivityLog, User.fcmToken)
-3. [ ] 어드민 계정 생성 (서버에서 스크립트 실행)
-4. [ ] Cloudflare 재배포 (최신 코드 반영)
+1. [x] ~~미커밋 변경사항 GitHub 푸시~~ ✅
+2. [x] ~~DB 마이그레이션~~ ✅ Notification, ActivityLog, User.fcmToken 추가 완료
+3. [x] ~~어드민 계정 생성~~ ✅ admin@signnote.com / Signnote2026!
+4. [x] ~~Cloudflare 재배포~~ ✅ 웹 빌드 완료 (Cloudflare 토큰 설정 후 배포 필요)
 5. [ ] Phase 5: PG 결제 실제 연동 (토스페이먼츠 / KG이니시스) — PG사 계약 필요
 6. [ ] Phase 8: 세금계산서 자동 발행 (팝빌 API) — 보류
 7. [ ] FCM/카카오 알림톡 키 설정 후 알림 활성화
-8. [ ] Phase 11: UI/UX 다듬기 + 앱 패키징 + 스토어 배포
+8. [x] ~~Phase 11: UI/UX 다듬기~~ ✅ (아래 상세)
+
+---
+
+### 2026-03-04 — Phase 11: UI/UX 다듬기 (API 키 입력 전까지)
+
+**스플래시 화면 추가 ✅**
+- [x] `splash_screen.dart` 신규 생성 — 로고 페이드인 + 로딩 애니메이션
+- [x] 2초 후 로그인 상태에 따라 자동 이동 (로그인O → 참여코드, 로그인X → 로그인)
+- [x] 라우터 첫 화면을 스플래시로 변경 (`/` → SplashScreen)
+
+**마이페이지 화면 추가 ✅**
+- [x] `mypage_screen.dart` 신규 생성 — 프로필 카드 + 메뉴 + 로그아웃
+- [x] 프로필: 아바타 + 이름 + 역할 뱃지 + 이메일
+- [x] 메뉴: 알림, 이용약관, 개인정보처리방침, 앱 버전, 로그아웃
+- [x] 고객/업체/주관사 3개 역할 홈 화면에서 마이페이지 탭 연결 완료
+- [x] 업체 계약함에서도 마이페이지 탭 연결
+
+**임시 데이터 → 서버 API 연동 전환 ✅**
+- [x] 장바구니 화면 (`cart_screen.dart`) — CartService API 연동
+- [x] 행사 상세 화면 (`event_detail_screen.dart`) — ProductService API 연동
+- [x] 고객 계약함 화면 (`contract_screen.dart`) — ContractService API 연동
+- [x] 장바구니 삭제도 서버 연동 (removeItem API)
+- [x] 행사 상세 장바구니 추가도 서버 연동 (addItem API)
+- [x] 타입 변경 시 상품 자동 재로딩
+
+**공통 위젯 추가 ✅**
+- [x] `empty_state.dart` — 빈 상태 공통 위젯 (아이콘+메시지+액션 버튼)
+- [x] 장바구니/계약함/행사상세에 일관된 빈 상태/에러 상태 적용
+
+**사용자 정보 관리 개선 ✅**
+- [x] `api_service.dart`에 사용자 정보 저장/조회/삭제 메서드 추가
+- [x] 로그인/회원가입 시 사용자 정보 자동 저장
+- [x] 로그아웃 시 사용자 정보 자동 삭제
+
+**TODO 주석 정리 ✅**
+- [x] 14개 → 0개 (임시 데이터 제거, 미구현 기능은 명확한 안내 메시지로 교체)
+
+- [x] Flutter analyze 에러 0건
+- [x] Flutter 웹 빌드 성공
+
+---
+
+**최종 남은 작업:**
+- [ ] Cloudflare 토큰 설정 후 웹 재배포
+- [ ] Phase 5: PG 결제 실제 연동 — PG사 계약 필요
+- [ ] Phase 8: 세금계산서 자동 발행 (팝빌 API) — 보류
+- [ ] FCM/카카오 알림톡 키 설정 후 알림 활성화
+- [ ] 앱 패키징 (APK/IPA) + 스토어 배포
 
 ---
 

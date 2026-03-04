@@ -5,6 +5,8 @@ import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
+import '../../widgets/common/empty_state.dart';
+import '../../services/cart_service.dart';
 import '../../services/contract_service.dart';
 import 'payment_screen.dart';
 
@@ -13,11 +15,9 @@ import 'payment_screen.dart';
 //
 // 디자인 참고: 7.고객용-장바구니.jpg
 // - 상단: ← "장바구니" 헤더
-// - 장바구니 항목 리스트
-//   - 각 항목: 체크박스 + 상품 이미지 + 업체명 + 상품명 + 가격 + 삭제(X)
-// - 할인/합계 요약 바 (어두운 카드)
-//   - 품목가: xxx원, 할인금액: -xxx원, 합계: xxx원
-// - 하단: "계약하기" 버튼 (선택한 상품 계약)
+// - 장바구니 항목 리스트 (서버에서 불러옴)
+// - 할인/합계 요약 바
+// - 하단: "계약하기" 버튼
 // ============================================
 
 class CartScreen extends StatefulWidget {
@@ -35,49 +35,59 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  final CartService _cartService = CartService();
   final ContractService _contractService = ContractService();
 
-  // 선택된 항목들 (체크박스)
+  // 장바구니 항목 목록 (서버에서 불러옴)
+  List<Map<String, dynamic>> _cartItems = [];
   final Set<String> _selectedIds = {};
   bool _selectAll = true;
-  bool _isContractLoading = false;  // 계약 생성 중
-
-  // TODO: API에서 장바구니 목록 가져오기 (현재 임시 데이터)
-  final List<Map<String, dynamic>> _cartItems = [
-    {
-      'id': 'cart1',
-      'productId': '1',
-      'vendorName': '앤드 디자인',
-      'productName': '줄눈 A 패키지',
-      'description': '욕실2바닥+현관+안방샤워부스 벽면1곳\n+다용도실',
-      'price': 700000,
-      'imageUrl': null,
-    },
-    {
-      'id': 'cart2',
-      'productId': '2',
-      'vendorName': '앤드 디자인',
-      'productName': '줄눈 B 패키지',
-      'description': 'A패키지 + 욕실 전체벽',
-      'price': 1400000,
-      'imageUrl': null,
-    },
-    {
-      'id': 'cart3',
-      'productId': '3',
-      'vendorName': '워터바이',
-      'productName': '나노코팅 A 패키지',
-      'description': '(욕실)거울2+세면대2+변기2+샤워부스1',
-      'price': 700000,
-      'imageUrl': null,
-    },
-  ];
+  bool _isLoading = true;
+  bool _isContractLoading = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    // 처음엔 모두 선택
-    _selectedIds.addAll(_cartItems.map((e) => e['id'] as String));
+    _loadCartItems();
+  }
+
+  // 서버에서 장바구니 목록 불러오기
+  Future<void> _loadCartItems() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final result = await _cartService.getCartItems(eventId: widget.eventId);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final items = List<Map<String, dynamic>>.from(result['items'] ?? []);
+      setState(() {
+        _cartItems = items.map((item) {
+          return {
+            'id': item['id']?.toString() ?? '',
+            'productId': item['productId']?.toString() ?? '',
+            'vendorName': item['product']?['vendorName'] ?? '업체명 없음',
+            'productName': item['product']?['name'] ?? '상품명 없음',
+            'description': item['product']?['description'] ?? '',
+            'price': item['product']?['price'] ?? 0,
+            'imageUrl': item['product']?['image'],
+          };
+        }).toList();
+        // 처음엔 모두 선택
+        _selectedIds.addAll(_cartItems.map((e) => e['id'] as String));
+        _selectAll = true;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _error = result['error'] ?? '장바구니를 불러올 수 없습니다';
+        _isLoading = false;
+      });
+    }
   }
 
   // 선택된 상품들의 합계 계산
@@ -121,14 +131,16 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  // 항목 삭제
-  void _removeItem(String id) {
+  // 항목 삭제 (서버 + 로컬)
+  Future<void> _removeItem(String id) async {
+    // 로컬 먼저 반영 (빠른 응답)
     setState(() {
       _cartItems.removeWhere((item) => item['id'] == id);
       _selectedIds.remove(id);
       _selectAll = _selectedIds.length == _cartItems.length && _cartItems.isNotEmpty;
     });
-    // TODO: API 호출로 서버에서도 삭제
+    // 서버에서도 삭제
+    await _cartService.removeItem(id);
   }
 
   // 계약하기 → 계약 API 호출 → 결제 화면으로 이동
@@ -196,7 +208,6 @@ class _CartScreenState extends State<CartScreen> {
 
   // 계약 API 호출 후 결제 화면으로 이동
   Future<void> _createContractAndPay() async {
-    // 선택된 상품들로 계약 생성 요청 데이터 만들기
     final selectedItems = _cartItems
         .where((item) => _selectedIds.contains(item['id']))
         .map((item) => {
@@ -207,7 +218,6 @@ class _CartScreenState extends State<CartScreen> {
 
     setState(() => _isContractLoading = true);
 
-    // 계약 API 호출
     final result = await _contractService.createContracts(
       items: selectedItems,
     );
@@ -217,7 +227,6 @@ class _CartScreenState extends State<CartScreen> {
     if (!mounted) return;
 
     if (result['success']) {
-      // 계약 생성 성공 → 결제 화면으로 이동
       final contracts = List<Map<String, dynamic>>.from(result['contracts']);
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -229,7 +238,6 @@ class _CartScreenState extends State<CartScreen> {
         ),
       );
     } else {
-      // 계약 생성 실패
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['error'] ?? '계약 생성에 실패했습니다')),
       );
@@ -241,54 +249,76 @@ class _CartScreenState extends State<CartScreen> {
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppHeader(title: '장바구니'),
-      body: _cartItems.isEmpty
-          ? _buildEmptyState()
-          : Column(
-              children: [
-                // 전체 선택 체크박스
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _selectAll,
-                        onChanged: _toggleSelectAll,
-                        activeColor: AppColors.primary,
-                      ),
-                      Text(
-                        '전체 선택 (${_selectedIds.length}/${_cartItems.length})',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                // 장바구니 항목 리스트
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                    itemCount: _cartItems.length,
-                    separatorBuilder: (_, __) => const Divider(height: 16),
-                    itemBuilder: (context, index) {
-                      final item = _cartItems[index];
-                      return _buildCartItem(item);
-                    },
-                  ),
-                ),
-                // 합계 요약 바
-                _buildSummaryBar(),
-                // 계약하기 버튼
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                  child: AppButton(
-                    text: '계약하기',
-                    enabled: _selectedIds.isNotEmpty,
-                    isLoading: _isContractLoading,
-                    onPressed: _handleContract,
-                  ),
-                ),
-              ],
-            ),
+      body: _buildBody(),
+    );
+  }
+
+  // 본문: 로딩 / 에러 / 비어있음 / 목록
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return EmptyState(
+        icon: Icons.error_outline,
+        message: _error!,
+        actionLabel: '다시 시도',
+        onAction: _loadCartItems,
+      );
+    }
+    if (_cartItems.isEmpty) {
+      return const EmptyState(
+        icon: Icons.shopping_cart_outlined,
+        message: '장바구니가 비어있습니다',
+        subMessage: '품목 리스트에서 상품을 담아보세요',
+      );
+    }
+
+    return Column(
+      children: [
+        // 전체 선택 체크박스
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+          child: Row(
+            children: [
+              Checkbox(
+                value: _selectAll,
+                onChanged: _toggleSelectAll,
+                activeColor: AppColors.primary,
+              ),
+              Text(
+                '전체 선택 (${_selectedIds.length}/${_cartItems.length})',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        // 장바구니 항목 리스트
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            itemCount: _cartItems.length,
+            separatorBuilder: (_, __) => const Divider(height: 16),
+            itemBuilder: (context, index) {
+              final item = _cartItems[index];
+              return _buildCartItem(item);
+            },
+          ),
+        ),
+        // 합계 요약 바
+        _buildSummaryBar(),
+        // 계약하기 버튼
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: AppButton(
+            text: '계약하기',
+            enabled: _selectedIds.isNotEmpty,
+            isLoading: _isContractLoading,
+            onPressed: _handleContract,
+          ),
+        ),
+      ],
     );
   }
 
@@ -299,7 +329,6 @@ class _CartScreenState extends State<CartScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 체크박스
         Checkbox(
           value: isSelected,
           onChanged: (_) => _toggleItem(item['id']),
@@ -323,19 +352,16 @@ class _CartScreenState extends State<CartScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 업체명
               Text(
                 item['vendorName'],
                 style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 2),
-              // 상품명
               Text(
                 item['productName'],
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
-              // 가격
               Text(
                 '${_formatPrice(item['price'])}원',
                 style: const TextStyle(
@@ -356,32 +382,30 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  // 합계 요약 바 (어두운 카드)
+  // 합계 요약 바
   Widget _buildSummaryBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: AppCard.dark(
         padding: const EdgeInsets.all(16),
         child: Column(
-        children: [
-          _buildSummaryRow('품목가', '${_formatPrice(_totalPrice)}원'),
-          const SizedBox(height: 6),
-          _buildSummaryRow('할인금액', '0원'),  // TODO: 할인 로직 추가
-          const Divider(height: 16, color: Colors.white24),
-          _buildSummaryRow('합계', '${_formatPrice(_totalPrice)}원', isBold: true),
-          const SizedBox(height: 4),
-          _buildSummaryRow(
-            '계약금(30%)',
-            '${_formatPrice(_depositAmount)}원',
-            valueColor: AppColors.priceRed,
-          ),
-        ],
-      ),
+          children: [
+            _buildSummaryRow('품목가', '${_formatPrice(_totalPrice)}원'),
+            const Divider(height: 16, color: Colors.white24),
+            _buildSummaryRow('합계', '${_formatPrice(_totalPrice)}원', isBold: true),
+            const SizedBox(height: 4),
+            _buildSummaryRow(
+              '계약금(30%)',
+              '${_formatPrice(_depositAmount)}원',
+              valueColor: AppColors.priceRed,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // 요약 행 (왼쪽 라벨 + 오른쪽 값)
+  // 요약 행
   Widget _buildSummaryRow(String label, String value, {
     bool isBold = false,
     Color valueColor = Colors.white,
@@ -406,28 +430,6 @@ class _CartScreenState extends State<CartScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // 장바구니가 비었을 때
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.shopping_cart_outlined, size: 48, color: AppColors.textHint),
-          SizedBox(height: 12),
-          Text(
-            '장바구니가 비어있습니다',
-            style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
-          ),
-          SizedBox(height: 4),
-          Text(
-            '품목 리스트에서 상품을 담아보세요',
-            style: TextStyle(fontSize: 13, color: AppColors.textHint),
-          ),
-        ],
-      ),
     );
   }
 }

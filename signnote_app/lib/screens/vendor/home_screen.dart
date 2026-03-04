@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
@@ -171,10 +173,8 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
           MaterialPageRoute(builder: (_) => const VendorContractScreen()),
         );
         break;
-      case 2: // 마이페이지 (아직 없음)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('마이페이지는 준비 중입니다')),
-        );
+      case 2: // 마이페이지
+        context.push(AppRoutes.mypage, extra: 'VENDOR');
         break;
     }
   }

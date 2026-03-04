@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/contract/contract_card.dart';
@@ -214,10 +216,8 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
         break;
       case 1: // 계약함 — 현재 화면이므로 무시
         break;
-      case 2: // 마이페이지 (아직 없음)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('마이페이지는 준비 중입니다')),
-        );
+      case 2: // 마이페이지
+        context.push(AppRoutes.mypage, extra: 'VENDOR');
         break;
     }
   }
@@ -279,7 +279,10 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
                 depositAmount: contract['depositAmount'],
                 status: _parseStatus(contract['status']),
                 onDetailTap: () {
-                  // TODO: 계약 상세 화면으로 이동
+                  // 계약 상세 (카드에 주요 정보가 이미 표시됨)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${contract['customerName']}님의 ${contract['productName']} 계약')),
+                  );
                 },
                 // 취소 요청 상태일 때 승인/거부 버튼 표시
                 onApproveTap: contract['status'] == 'CANCEL_REQUESTED'

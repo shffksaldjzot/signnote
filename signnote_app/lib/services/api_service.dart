@@ -111,6 +111,37 @@ class ApiService {
     return token != null;
   }
 
+  // 사용자 정보 저장 (로그인 성공 시 호출)
+  Future<void> saveUserInfo(Map<String, dynamic> user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_name', user['name'] ?? '');
+    await prefs.setString('user_email', user['email'] ?? '');
+    await prefs.setString('user_role', user['role'] ?? '');
+    await prefs.setString('user_phone', user['phone'] ?? '');
+  }
+
+  // 저장된 사용자 정보 가져오기
+  Future<Map<String, String>?> getUserInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('user_name');
+    if (name == null) return null;
+    return {
+      'name': name,
+      'email': prefs.getString('user_email') ?? '',
+      'role': prefs.getString('user_role') ?? '',
+      'phone': prefs.getString('user_phone') ?? '',
+    };
+  }
+
+  // 사용자 정보 삭제 (로그아웃 시)
+  Future<void> clearUserInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_name');
+    await prefs.remove('user_email');
+    await prefs.remove('user_role');
+    await prefs.remove('user_phone');
+  }
+
   // ---- HTTP 요청 메서드 ----
 
   // GET 요청 (데이터 조회)

@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/contract/contract_card.dart';
+import '../../widgets/common/empty_state.dart';
 import '../../services/contract_service.dart';
+import 'home_screen.dart';
 
 // ============================================
 // 고객용 계약함 화면
 //
 // 디자인 참고: 8.고객용-계약함.jpg
 // - 상단: ← "계약함" 헤더
-// - 계약 카드 목록
-//   - 각 카드: 상태 뱃지 + 업체명 + 상품명 + 설명 + 가격/계약금/잔금
-//   - 상태: 계약금 결제 완료(검정), 취소 요청(빨강), 취소 완료(회색)
-// - 하단 요약 바: 총 계약 금액 + 총 계약금 + 총 잔금
-// - 하단: 4탭 네비게이션
+// - 계약 카드 목록 (서버에서 불러옴)
+// - 하단 합계 요약 바 + 4탭 네비게이션
 // ============================================
 
 class CustomerContractScreen extends StatefulWidget {
@@ -25,43 +26,57 @@ class CustomerContractScreen extends StatefulWidget {
 }
 
 class _CustomerContractScreenState extends State<CustomerContractScreen> {
-  int _currentTabIndex = 2;  // 계약함 탭이 선택된 상태
+  final int _currentTabIndex = 2; // 계약함 탭이 선택된 상태
 
-  // TODO: API에서 계약 목록 가져오기 (현재 임시 데이터)
-  final List<Map<String, dynamic>> _contracts = [
-    {
-      'id': '1',
-      'vendorName': '앤드 디자인',
-      'productName': '줄눈 B 패키지',
-      'description': 'A패키지 + 욕실 전체벽',
-      'price': 1400000,
-      'depositAmount': 420000,
-      'status': 'CONFIRMED',
-    },
-    {
-      'id': '2',
-      'vendorName': '워터바이',
-      'productName': '나노코팅 A 패키지',
-      'description': '(욕실)거울2+세면대2+변기2+샤워부스1\n(주방)싱크대 상판',
-      'price': 700000,
-      'depositAmount': 210000,
-      'status': 'CONFIRMED',
-    },
-    {
-      'id': '3',
-      'vendorName': '앤드 디자인',
-      'productName': '줄눈 A 패키지',
-      'description': '욕실2바닥+현관+안방샤워부스 벽면1곳\n+다용도실',
-      'price': 700000,
-      'depositAmount': 210000,
-      'status': 'CANCELLED',
-    },
-  ];
+  // 서버에서 불러온 계약 목록
+  List<Map<String, dynamic>> _contracts = [];
+  bool _isLoading = true;
+  String? _error;
 
   final ContractService _contractService = ContractService();
 
+  @override
+  void initState() {
+    super.initState();
+    _loadContracts();
+  }
+
+  // 서버에서 내 계약 목록 불러오기
+  Future<void> _loadContracts() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final result = await _contractService.getMyContracts();
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final contracts = List<Map<String, dynamic>>.from(result['contracts'] ?? []);
+      setState(() {
+        _contracts = contracts.map((c) {
+          return {
+            'id': c['id']?.toString() ?? '',
+            'vendorName': c['product']?['vendorName'] ?? c['vendorName'] ?? '업체명 없음',
+            'productName': c['product']?['name'] ?? c['productName'] ?? '상품명 없음',
+            'description': c['product']?['description'] ?? '',
+            'price': c['finalPrice'] ?? c['originalPrice'] ?? 0,
+            'depositAmount': c['depositAmount'] ?? ((c['finalPrice'] ?? 0) * 0.3).round(),
+            'status': c['status'] ?? 'PENDING',
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _error = result['error'] ?? '계약 목록을 불러올 수 없습니다';
+        _isLoading = false;
+      });
+    }
+  }
+
   // 상태 문자열 → ContractCardStatus 변환
-  // PENDING = 결제 대기, CONFIRMED = 결제 완료, CANCEL_REQUESTED = 취소 요청, CANCELLED = 취소
   ContractCardStatus _parseStatus(String status) {
     switch (status) {
       case 'CONFIRMED':
@@ -81,6 +96,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('취소 요청'),
         content: Text(
           '\'${contract['productName']}\' 계약을 취소 요청하시겠습니까?\n\n'
@@ -110,7 +126,6 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     if (!mounted) return;
 
     if (result['success']) {
-      // 로컬 상태 업데이트 (서버 재조회 없이 바로 반영)
       setState(() {
         contract['status'] = 'CANCEL_REQUESTED';
       });
@@ -146,53 +161,92 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     );
   }
 
+  // 탭 클릭 시 화면 이동
+  void _onTabChanged(int index) {
+    if (index == _currentTabIndex) return;
+
+    switch (index) {
+      case 0: // 홈
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const CustomerHomeScreen()),
+        );
+        break;
+      case 1: // 장바구니
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('행사를 선택한 후 장바구니를 이용해 주세요')),
+        );
+        break;
+      case 2: // 계약함 — 현재 화면
+        break;
+      case 3: // 마이페이지
+        context.push(AppRoutes.mypage, extra: 'CUSTOMER');
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: const AppHeader(title: '계약함'),
-      body: _contracts.isEmpty
-          ? _buildEmptyState()
-          : Column(
-              children: [
-                // 계약 카드 목록
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(24),
-                    itemCount: _contracts.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final contract = _contracts[index];
-                      return ContractCard.customer(
-                        vendorName: contract['vendorName'],
-                        productName: contract['productName'],
-                        productDescription: contract['description'],
-                        price: contract['price'],
-                        depositAmount: contract['depositAmount'],
-                        status: _parseStatus(contract['status']),
-                        onDetailTap: () {
-                          // TODO: 계약 상세 화면으로 이동
-                        },
-                        // 확정 상태일 때만 취소 요청 가능
-                        onCancelTap: contract['status'] == 'CONFIRMED'
-                            ? () => _showCancelRequestDialog(contract)
-                            : null,
-                      );
-                    },
-                  ),
-                ),
-                // 하단 합계 요약 바
-                _buildSummaryBar(),
-              ],
-            ),
+      body: _buildBody(),
       // 하단 탭바
       bottomNavigationBar: AppTabBar.customer(
         currentIndex: _currentTabIndex,
-        onTap: (index) {
-          setState(() => _currentTabIndex = index);
-          // TODO: 탭별 화면 이동
-        },
+        onTap: _onTabChanged,
       ),
+    );
+  }
+
+  // 본문: 로딩 / 에러 / 비어있음 / 목록
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return EmptyState(
+        icon: Icons.error_outline,
+        message: _error!,
+        actionLabel: '다시 시도',
+        onAction: _loadContracts,
+      );
+    }
+    if (_contracts.isEmpty) {
+      return const EmptyState(
+        icon: Icons.description_outlined,
+        message: '계약 내역이 없습니다',
+        subMessage: '행사에서 품목을 선택하고 계약해보세요',
+      );
+    }
+
+    return Column(
+      children: [
+        // 계약 카드 목록
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(24),
+            itemCount: _contracts.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final contract = _contracts[index];
+              return ContractCard.customer(
+                vendorName: contract['vendorName'],
+                productName: contract['productName'],
+                productDescription: contract['description'],
+                price: contract['price'],
+                depositAmount: contract['depositAmount'],
+                status: _parseStatus(contract['status']),
+                // 확정 상태일 때만 취소 요청 가능
+                onCancelTap: contract['status'] == 'CONFIRMED'
+                    ? () => _showCancelRequestDialog(contract)
+                    : null,
+              );
+            },
+          ),
+        ),
+        // 하단 합계 요약 바
+        if (_contracts.isNotEmpty) _buildSummaryBar(),
+      ],
     );
   }
 
@@ -238,23 +292,6 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // 빈 상태
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.description_outlined, size: 48, color: AppColors.textHint),
-          SizedBox(height: 12),
-          Text(
-            '계약 내역이 없습니다',
-            style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
-          ),
-        ],
-      ),
     );
   }
 }

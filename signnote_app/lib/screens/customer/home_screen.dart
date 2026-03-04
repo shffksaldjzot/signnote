@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
+import '../../config/routes.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
@@ -179,10 +181,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           MaterialPageRoute(builder: (_) => const CustomerContractScreen()),
         );
         break;
-      case 3: // 마이페이지 (아직 없음)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('마이페이지는 준비 중입니다')),
-        );
+      case 3: // 마이페이지
+        context.push(AppRoutes.mypage, extra: widget.role);
         break;
     }
   }

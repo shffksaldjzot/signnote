@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'routes.dart';
+import '../screens/splash/splash_screen.dart';
 import '../screens/onboarding/login_screen.dart';
 import '../screens/onboarding/register_screen.dart';
 import '../screens/onboarding/entry_code_screen.dart';
+import '../screens/common/mypage_screen.dart';
+import '../screens/common/notification_screen.dart';
 import '../screens/organizer/web/web_shell.dart';
 import '../screens/organizer/web/dashboard_page.dart';
 import '../screens/organizer/web/events_page.dart';
@@ -11,7 +14,6 @@ import '../screens/organizer/web/event_detail_page.dart';
 import '../screens/organizer/web/contracts_page.dart';
 import '../screens/organizer/web/products_page.dart';
 import '../screens/organizer/web/users_page.dart';
-import '../screens/common/notification_screen.dart';
 import '../screens/organizer/web/settlements_page.dart';
 import '../screens/organizer/web/logs_page.dart';
 
@@ -31,8 +33,13 @@ final _shellNavigatorKey = GlobalKey<NavigatorState>();
 /// GoRouter 인스턴스 (앱 전체에서 사용)
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: AppRoutes.login,  // 첫 화면: 로그인
+  initialLocation: '/',  // 첫 화면: 스플래시
   routes: [
+    // ── 스플래시 화면 (앱 시작) ──
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const SplashScreen(),
+    ),
     // ── 인증 관련 (로그인, 회원가입, 참여코드) ──
     GoRoute(
       path: AppRoutes.login,
@@ -55,6 +62,15 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.notifications,
       builder: (context, state) => const NotificationScreen(),
+    ),
+
+    // ── 마이페이지 (공통) ──
+    GoRoute(
+      path: AppRoutes.mypage,
+      builder: (context, state) {
+        final role = state.extra as String? ?? 'CUSTOMER';
+        return MypageScreen(role: role);
+      },
     ),
 
     // ── 주관사 PC 웹 대시보드 (사이드바 레이아웃) ──

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
@@ -90,10 +92,8 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           const SnackBar(content: Text('주관사 계약함은 준비 중입니다')),
         );
         break;
-      case 2: // 마이페이지 (아직 없음)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('마이페이지는 준비 중입니다')),
-        );
+      case 2: // 마이페이지
+        context.push(AppRoutes.mypage, extra: 'ORGANIZER');
         break;
     }
   }

@@ -26,6 +26,10 @@ class AuthService {
 
       // 토큰 저장 (다음 요청부터 자동으로 사용됨)
       await _api.saveTokens(data['accessToken'], data['refreshToken']);
+      // 사용자 정보도 저장 (마이페이지 등에서 사용)
+      if (data['user'] != null) {
+        await _api.saveUserInfo(Map<String, dynamic>.from(data['user']));
+      }
 
       return {'success': true, 'user': data['user']};
     } on DioException catch (e) {
@@ -59,6 +63,10 @@ class AuthService {
 
       // 토큰 저장
       await _api.saveTokens(data['accessToken'], data['refreshToken']);
+      // 사용자 정보도 저장
+      if (data['user'] != null) {
+        await _api.saveUserInfo(Map<String, dynamic>.from(data['user']));
+      }
 
       return {'success': true, 'user': data['user']};
     } on DioException catch (e) {
@@ -85,9 +93,10 @@ class AuthService {
     }
   }
 
-  // 로그아웃
+  // 로그아웃 (토큰 + 사용자 정보 모두 삭제)
   Future<void> logout() async {
     await _api.clearTokens();
+    await _api.clearUserInfo();
   }
 
   // 로그인 상태 확인

@@ -220,7 +220,10 @@ class _OrganizerEventManageScreenState
                   price: product['price'],
                   imageUrl: product['imageUrl'],
                   onEditTap: () {
-                    // TODO: 상품 수정 화면으로 이동
+                    // 주관사는 상품 수정 불가 (업체 전용 기능)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('상품 수정은 해당 업체만 가능합니다')),
+                    );
                   },
                 )),
             const Divider(height: 24),
