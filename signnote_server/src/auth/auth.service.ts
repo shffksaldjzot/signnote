@@ -96,7 +96,8 @@ export class AuthService {
   }
 
   // ---- 행사 입장 (참여 코드) ----
-  async enterEvent(dto: EnterEventDto) {
+  // userId가 있으면 EventParticipant에 참여 기록 저장
+  async enterEvent(dto: EnterEventDto, userId?: string) {
     // 참여 코드로 행사 찾기
     const event = await this.prisma.event.findUnique({
       where: { entryCode: dto.entryCode },
@@ -104,6 +105,23 @@ export class AuthService {
 
     if (!event) {
       throw new NotFoundException('유효하지 않은 참여 코드입니다');
+    }
+
+    // 로그인한 사용자가 있으면 참여 기록 저장 (중복 시 무시)
+    if (userId) {
+      await this.prisma.eventParticipant.upsert({
+        where: {
+          eventId_userId: {
+            eventId: event.id,
+            userId: userId,
+          },
+        },
+        create: {
+          eventId: event.id,
+          userId: userId,
+        },
+        update: {},  // 이미 있으면 아무것도 안 함
+      });
     }
 
     return {

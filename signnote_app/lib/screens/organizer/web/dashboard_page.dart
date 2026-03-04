@@ -5,6 +5,7 @@ import '../../../config/theme.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../services/event_service.dart';
 import '../../../services/contract_service.dart';
+import '../event_form_screen.dart';
 
 // ============================================
 // 대시보드 메인 페이지 (Dashboard)
@@ -136,14 +137,36 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── 페이지 제목 ──
-          const Text(
-            '대시보드',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
+          // ── 페이지 제목 + 행사 등록 버튼 ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '대시보드',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  // 행사 등록 화면으로 이동, 등록 완료 시 데이터 새로고침
+                  final result = await Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const OrganizerEventFormScreen()),
+                  );
+                  if (result == true) _loadData();
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('행사 등록'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
 

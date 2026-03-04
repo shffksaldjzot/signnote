@@ -9,11 +9,12 @@
 //   POST /api/v1/auth/enter     → 참여코드 입장
 // ============================================
 
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { EnterEventDto } from './dto/enter-event.dto';
+import { JwtAuthGuard } from './roles.guard';
 
 @Controller('auth')  // /api/v1/auth 경로
 export class AuthController {
@@ -37,9 +38,11 @@ export class AuthController {
     return this.authService.refreshToken(refreshToken);
   }
 
-  // 참여 코드로 행사 입장
+  // 참여 코드로 행사 입장 (로그인한 사용자면 참여 기록 저장)
+  @UseGuards(JwtAuthGuard)
   @Post('enter')
-  async enterEvent(@Body() dto: EnterEventDto) {
-    return this.authService.enterEvent(dto);
+  async enterEvent(@Body() dto: EnterEventDto, @Request() req: any) {
+    const userId = req.user?.id;
+    return this.authService.enterEvent(dto, userId);
   }
 }

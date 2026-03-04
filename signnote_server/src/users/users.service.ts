@@ -51,6 +51,50 @@ export class UsersService {
     return users;
   }
 
+  // 주관사의 행사에 참여한 업체(VENDOR)만 조회
+  // EventParticipant 테이블에서 주관사의 행사에 입장한 VENDOR를 찾음
+  async findVendorsByOrganizer(organizerId: string) {
+    // 1. 주관사가 만든 행사 ID 목록 가져오기
+    const events = await this.prisma.event.findMany({
+      where: { organizerId },
+      select: { id: true },
+    });
+    const eventIds = events.map(e => e.id);
+
+    if (eventIds.length === 0) return [];
+
+    // 2. 해당 행사에 참여한 VENDOR 사용자 조회 (중복 제거)
+    const participants = await this.prisma.eventParticipant.findMany({
+      where: {
+        eventId: { in: eventIds },
+        user: { role: 'VENDOR' },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            role: true,
+            businessNumber: true,
+            businessLicenseImage: true,
+            isApproved: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    // 중복 사용자 제거 (여러 행사에 참여한 경우)
+    const uniqueUsers = new Map();
+    for (const p of participants) {
+      uniqueUsers.set(p.user.id, p.user);
+    }
+
+    return Array.from(uniqueUsers.values());
+  }
+
   // 새 사용자 생성 (회원가입)
   async create(dto: CreateUserDto) {
     // 이미 같은 이메일이 있는지 확인

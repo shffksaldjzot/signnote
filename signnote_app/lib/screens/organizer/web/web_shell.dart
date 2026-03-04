@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../config/theme.dart';
 import '../../../config/routes.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/api_service.dart';
 
 // ============================================
 // PC용 전체 레이아웃 셸 (WebShell)
@@ -49,98 +50,89 @@ class WebShell extends StatelessWidget {
   }
 }
 
-/// 사이드바 위젯
-class _Sidebar extends StatelessWidget {
-  // 메뉴 항목 정의
-  static const _menuItems = [
-    _MenuItem(
-      icon: Icons.dashboard_outlined,
-      activeIcon: Icons.dashboard,
-      label: '대시보드',
-      path: AppRoutes.organizerDashboard,
-    ),
-    _MenuItem(
-      icon: Icons.event_outlined,
-      activeIcon: Icons.event,
-      label: '행사 관리',
-      path: AppRoutes.organizerWebEvents,
-    ),
-    _MenuItem(
-      icon: Icons.description_outlined,
-      activeIcon: Icons.description,
-      label: '계약 현황',
-      path: AppRoutes.organizerWebContracts,
-    ),
-    _MenuItem(
-      icon: Icons.inventory_2_outlined,
-      activeIcon: Icons.inventory_2,
-      label: '품목 관리',
-      path: AppRoutes.organizerWebProducts,
-    ),
-    _MenuItem(
-      icon: Icons.people_outline,
-      activeIcon: Icons.people,
-      label: '사용자 관리',
-      path: AppRoutes.organizerWebUsers,
-    ),
-    _MenuItem(
-      icon: Icons.account_balance_wallet_outlined,
-      activeIcon: Icons.account_balance_wallet,
-      label: '정산 관리',
-      path: AppRoutes.organizerWebSettlements,
-    ),
-    _MenuItem(
-      icon: Icons.history_outlined,
-      activeIcon: Icons.history,
-      label: '활동 로그',
-      path: AppRoutes.organizerWebLogs,
-    ),
+/// 사이드바 위젯 — 역할에 따라 뱃지/메뉴 동적 표시
+class _Sidebar extends StatefulWidget {
+  @override
+  State<_Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<_Sidebar> {
+  String _currentRole = '';  // 현재 로그인한 사용자 역할
+
+  // 전체 메뉴 항목 (어드민은 전부 표시, 주관사는 일부 제한)
+  static const _allMenuItems = [
+    _MenuItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: '대시보드', path: AppRoutes.organizerDashboard, adminOnly: false),
+    _MenuItem(icon: Icons.event_outlined, activeIcon: Icons.event, label: '행사 관리', path: AppRoutes.organizerWebEvents, adminOnly: false),
+    _MenuItem(icon: Icons.description_outlined, activeIcon: Icons.description, label: '계약 현황', path: AppRoutes.organizerWebContracts, adminOnly: false),
+    _MenuItem(icon: Icons.inventory_2_outlined, activeIcon: Icons.inventory_2, label: '품목 관리', path: AppRoutes.organizerWebProducts, adminOnly: false),
+    _MenuItem(icon: Icons.people_outline, activeIcon: Icons.people, label: '파트너 관리', path: AppRoutes.organizerWebUsers, adminOnly: false),
+    _MenuItem(icon: Icons.account_balance_wallet_outlined, activeIcon: Icons.account_balance_wallet, label: '정산 관리', path: AppRoutes.organizerWebSettlements, adminOnly: false),
+    _MenuItem(icon: Icons.history_outlined, activeIcon: Icons.history, label: '활동 로그', path: AppRoutes.organizerWebLogs, adminOnly: true),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  // 현재 로그인한 사용자의 역할 불러오기
+  Future<void> _loadRole() async {
+    final userInfo = await ApiService().getUserInfo();
+    if (userInfo != null && mounted) {
+      setState(() => _currentRole = userInfo['role'] ?? '');
+    }
+  }
+
+  bool get _isAdmin => _currentRole == 'ADMIN';
+
+  // 역할에 따른 뱃지 정보
+  String get _badgeText => _isAdmin ? '관리자' : '주관사';
+  Color get _badgeColor => _isAdmin ? Colors.red : AppColors.primary;
+
+  // 역할에 따라 표시할 메뉴 필터링
+  List<_MenuItem> get _menuItems {
+    if (_isAdmin) return _allMenuItems;
+    // 주관사는 adminOnly가 아닌 메뉴만 표시
+    return _allMenuItems.where((m) => !m.adminOnly).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 현재 URL 경로 가져오기
     final currentPath = GoRouterState.of(context).uri.toString();
 
     return Container(
       width: 240,
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(
-          right: BorderSide(color: AppColors.border, width: 1),  // 오른쪽 테두리선
-        ),
+        border: Border(right: BorderSide(color: AppColors.border, width: 1)),
       ),
       child: Column(
         children: [
           const SizedBox(height: 24),
 
-          // ── 로고 + 뱃지 ──
+          // ── 로고 + 역할 뱃지 ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Signnote 로고 이미지
-                Image.asset(
-                  'assets/images/logo.png',
-                  height: 28,
-                  fit: BoxFit.contain,
+                // 로고 (클릭 시 대시보드 이동)
+                InkWell(
+                  onTap: () => context.go(AppRoutes.organizerDashboard),
+                  child: Image.asset('assets/images/logo.png', height: 28, fit: BoxFit.contain),
                 ),
                 const SizedBox(height: 8),
-                // [주관사] 역할 뱃지
+                // 역할 뱃지 (어드민=빨간색, 주관사=파란색)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
+                    color: _badgeColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text(
-                    '주관사',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
+                  child: Text(
+                    _badgeText,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _badgeColor),
                   ),
                 ),
               ],
@@ -152,9 +144,7 @@ class _Sidebar extends StatelessWidget {
           // ── 메뉴 항목들 ──
           ...List.generate(_menuItems.length, (index) {
             final item = _menuItems[index];
-            // 현재 페이지인지 확인 (URL 경로 비교)
             final isActive = currentPath.startsWith(item.path);
-
             return _buildMenuItem(
               context: context,
               icon: isActive ? item.activeIcon : item.icon,
@@ -164,15 +154,14 @@ class _Sidebar extends StatelessWidget {
             );
           }),
 
-          const Spacer(),  // 아래쪽으로 밀기
+          const Spacer(),
 
-          // ── 구분선 ──
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
             child: Divider(color: AppColors.border),
           ),
 
-          // ── 로그아웃 버튼 ──
+          // ── 로그아웃 ──
           _buildMenuItem(
             context: context,
             icon: Icons.logout,
@@ -180,9 +169,7 @@ class _Sidebar extends StatelessWidget {
             isActive: false,
             onTap: () async {
               await AuthService().logout();
-              if (context.mounted) {
-                context.go(AppRoutes.login);  // 로그인 화면으로 이동
-              }
+              if (context.mounted) context.go(AppRoutes.login);
             },
           ),
 
@@ -254,11 +241,13 @@ class _MenuItem {
   final IconData activeIcon;  // 선택된 상태 아이콘
   final String label;         // 메뉴 이름
   final String path;          // URL 경로
+  final bool adminOnly;       // 관리자 전용 메뉴 여부
 
   const _MenuItem({
     required this.icon,
     required this.activeIcon,
     required this.label,
     required this.path,
+    this.adminOnly = false,
   });
 }

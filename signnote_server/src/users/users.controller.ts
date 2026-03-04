@@ -38,9 +38,9 @@ export class UsersController {
   async findAll(@Query('role') role: string, @Request() req: any) {
     const currentUser = req.user;
 
-    // 주관사는 VENDOR만 조회 가능 (다른 역할 요청 시 거부)
+    // 주관사는 자기 행사에 참여한 업체(VENDOR)만 조회 가능
     if (currentUser.role === 'ORGANIZER') {
-      return this.usersService.findAll('VENDOR');
+      return this.usersService.findVendorsByOrganizer(currentUser.id);
     }
 
     // 관리자는 모든 역할 조회 가능
