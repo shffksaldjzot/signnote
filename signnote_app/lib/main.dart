@@ -8,6 +8,7 @@ import 'config/app_router.dart';
 // Signnote 앱의 시작점 (진입점)
 // 앱을 실행하면 가장 먼저 이 파일이 실행됩니다
 //
+// PC 웹 브라우저에서도 모바일 사이즈(최대 430px)로 가운데 표시
 // GoRouter를 사용하여 웹 브라우저 주소창으로도 화면 이동 가능
 // ============================================
 
@@ -26,6 +27,33 @@ class SignnoteApp extends StatelessWidget {
       theme: AppTheme.lightTheme,           // 테마 적용 (색상, 글꼴 등)
       debugShowCheckedModeBanner: false,    // 오른쪽 위 DEBUG 띠 숨기기
       routerConfig: appRouter,              // GoRouter 라우터 연결
+
+      // PC 브라우저에서 모바일 사이즈(430px)로 가운데 고정 표시
+      // 모바일에서는 그대로 전체 화면
+      builder: (context, child) {
+        return Container(
+          color: const Color(0xFFF5F5F5),  // 바깥 배경색 (연한 회색)
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),  // 모바일 너비 고정
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  // PC에서 좌우에 살짝 그림자 효과
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 20,
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
 
       // 한국어 날짜 선택기 등이 정상 동작하도록 로컬라이제이션 설정
       locale: const Locale('ko'),

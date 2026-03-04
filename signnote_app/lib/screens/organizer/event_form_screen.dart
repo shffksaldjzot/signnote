@@ -610,14 +610,12 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   }
 
   // 커버 이미지 선택 (갤러리에서 사진 선택 → base64 변환)
+  // PC 웹에서도 파일 선택 다이얼로그가 열림
   Future<void> _pickCoverImage() async {
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1200,
-        maxHeight: 800,
-        imageQuality: 80,
       );
 
       if (picked == null) return;
@@ -635,7 +633,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지 선택에 실패했습니다')),
+          SnackBar(content: Text('이미지 선택 실패: $e')),
         );
       }
     }

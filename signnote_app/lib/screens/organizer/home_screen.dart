@@ -175,8 +175,8 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
       ),
       itemCount: _events.length + 1,
       itemBuilder: (context, index) {
-        // 마지막은 + 추가 카드 (주관사는 행사 생성)
-        if (index == _events.length) {
+        // 맨 앞은 + 추가 카드 (주관사는 행사 생성)
+        if (index == 0) {
           return AddEventCard(
             onTap: () async {
               // 행사 생성 폼으로 이동
@@ -191,7 +191,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           );
         }
 
-        final event = _events[index];
+        final event = _events[index - 1];  // 인덱스 1부터 행사 카드
         return EventCard(
           title: event['title'],
           coverImageUrl: event['coverImageUrl'],

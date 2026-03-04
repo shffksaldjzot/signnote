@@ -152,21 +152,43 @@ class AddEventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: AppColors.background,
-          ),
-          child: const Center(
-            child: Icon(
-              Icons.add,
-              size: 32,
-              color: AppColors.textSecondary,
+      // EventCard와 동일한 구조 (이미지 + 텍스트 영역)로 높이 맞추기
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // + 버튼 영역 (EventCard 커버 이미지와 동일한 정사각형)
+          AspectRatio(
+            aspectRatio: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: AppColors.background,
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_circle_outline, size: 36, color: AppColors.primary),
+                    SizedBox(height: 6),
+                    Text(
+                      '행사 등록',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          // EventCard 아래 텍스트 영역과 높이 맞추기용 빈 공간
+          const SizedBox(height: 8),
+          const Text('', style: TextStyle(fontSize: 14)),
+          const SizedBox(height: 4),
+          const SizedBox(height: 18), // D-day 뱃지 줄 높이
+        ],
       ),
     );
   }
