@@ -81,8 +81,14 @@ class _SplashScreenState extends State<SplashScreen>
           context.go(AppRoutes.entryCode, extra: role);
         }
       } else {
-        // 고객 → 참여코드 입장 화면
-        context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
+        // 고객: 참여한 행사가 있으면 바로 홈, 없으면 행사코드 입장
+        final hasEvents = await _checkHasParticipatingEvents();
+        if (!mounted) return;
+        if (hasEvents) {
+          context.go(AppRoutes.customerHome);
+        } else {
+          context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
+        }
       }
     } else {
       // 로그인 안 되어 있으면 → 로그인 화면

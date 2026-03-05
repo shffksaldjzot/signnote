@@ -94,6 +94,32 @@ class EventService {
     }
   }
 
+  // 행사 삭제 (주관사/관리자만 가능)
+  Future<Map<String, dynamic>> deleteEvent(String eventId) async {
+    try {
+      await _api.delete('/events/$eventId');
+      return {'success': true};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '행사 삭제에 실패했습니다',
+      };
+    }
+  }
+
+  // 행사 참가 취소 (업체/고객)
+  Future<Map<String, dynamic>> leaveEvent(String eventId) async {
+    try {
+      await _api.delete('/events/$eventId/leave');
+      return {'success': true};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '참가 취소에 실패했습니다',
+      };
+    }
+  }
+
   // 행사 수정 (주관사만 가능)
   Future<Map<String, dynamic>> updateEvent(String eventId, Map<String, dynamic> data) async {
     try {

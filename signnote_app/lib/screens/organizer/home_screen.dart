@@ -6,6 +6,7 @@ import '../../config/routes.dart';
 import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_service.dart';
 import 'event_form_screen.dart';
 import 'event_manage_screen.dart';
 
@@ -35,6 +36,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
   String _currentRole = 'ORGANIZER'; // 현재 사용자 역할 (관리자/주관사)
 
   final EventService _eventService = EventService();
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -220,9 +222,193 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
               ),
             );
           },
-          onMoreTap: () {},
+          onMoreTap: () => _showEventMenu(event),
         );
       },
+    );
+  }
+
+  // 행사 카드 3점 메뉴 (편집/삭제)
+  void _showEventMenu(Map<String, dynamic> event) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 행사 편집
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('행사 편집'),
+              onTap: () {
+                Navigator.pop(context);
+                _editEvent(event);
+              },
+            ),
+            // 행사 삭제
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('행사 삭제', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDeleteEvent(event);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 행사 편집 (기존 등록 폼 재활용, 수정 모드)
+  void _editEvent(Map<String, dynamic> event) async {
+    // 행사 상세 정보를 가져와서 편집 폼에 전달
+    final detailResult = await _eventService.getEventDetail(event['id']);
+    if (!mounted) return;
+
+    if (detailResult['success'] == true) {
+      final eventData = detailResult['event'];
+      // 날짜 문자열을 DateTime으로 변환
+      final formData = {
+        'id': eventData['id'],
+        'title': eventData['title'],
+        'siteName': eventData['siteName'],
+        'unitCount': eventData['unitCount'],
+        'housingTypes': eventData['housingTypes'] ?? [],
+        'contractMethod': eventData['contractMethod'],
+        'allowOnlineContract': eventData['allowOnlineContract'] ?? true,
+        'coverImage': eventData['coverImage'],
+        'startDate': eventData['startDate'] != null
+            ? DateTime.tryParse(eventData['startDate'].toString())
+            : null,
+        'endDate': eventData['endDate'] != null
+            ? DateTime.tryParse(eventData['endDate'].toString())
+            : null,
+        'moveInDate': eventData['moveInDate'] != null
+            ? DateTime.tryParse(eventData['moveInDate'].toString())
+            : null,
+      };
+
+      final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => OrganizerEventFormScreen(event: formData),
+        ),
+      );
+      // 수정 성공 시 목록 새로고침
+      if (result == true) _loadEvents();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(detailResult['error'] ?? '행사 정보를 불러올 수 없습니다')),
+      );
+    }
+  }
+
+  // 행사 삭제 확인 팝업 → 비밀번호 입력
+  void _confirmDeleteEvent(Map<String, dynamic> event) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('행사 삭제', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        content: Text(
+          '\'${event['title']}\' 행사를 삭제하시겠습니까?\n\n삭제하면 복구할 수 없습니다.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showDeletePasswordDialog(event);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 행사 삭제용 비밀번호 확인 팝업
+  void _showDeletePasswordDialog(Map<String, dynamic> event) {
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('비밀번호 확인', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '삭제를 위해 본인 계정 비밀번호를 입력해 주세요.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: '비밀번호',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final password = passwordController.text;
+              if (password.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('비밀번호를 입력해 주세요')),
+                );
+                return;
+              }
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(context);
+
+              // 비밀번호 확인
+              final verifyResult = await _authService.verifyPassword(password);
+              if (!mounted) return;
+              if (verifyResult['success'] != true) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text(verifyResult['error'] ?? '비밀번호가 올바르지 않습니다')),
+                );
+                return;
+              }
+
+              // 행사 삭제 API 호출
+              final deleteResult = await _eventService.deleteEvent(event['id']);
+              if (!mounted) return;
+              if (deleteResult['success'] == true) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('행사가 삭제되었습니다')),
+                );
+                _loadEvents(); // 목록 새로고침
+              } else {
+                messenger.showSnackBar(
+                  SnackBar(content: Text(deleteResult['error'] ?? '행사 삭제에 실패했습니다')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
     );
   }
 

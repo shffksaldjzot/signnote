@@ -138,6 +138,50 @@ export class EventsService {
     return updated;
   }
 
+  // 행사 삭제 (주관사/관리자만 가능)
+  async remove(id: string, userId: string) {
+    const event = await this.prisma.event.findUnique({ where: { id } });
+    if (!event) {
+      throw new NotFoundException('행사를 찾을 수 없습니다');
+    }
+
+    // 관련 참여 기록, 상품 등 연쇄 삭제
+    await this.prisma.eventParticipant.deleteMany({ where: { eventId: id } });
+    await this.prisma.event.delete({ where: { id } });
+
+    // 삭제 로그 기록
+    await this.activityLogs.log({
+      userId,
+      action: 'EVENT_DELETE',
+      target: id,
+      detail: `행사 삭제: ${event.title}`,
+    });
+
+    return { message: '행사가 삭제되었습니다' };
+  }
+
+  // 행사 참가 취소 (업체/고객이 자기 참여 기록 삭제)
+  async leaveEvent(eventId: string, userId: string) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) {
+      throw new NotFoundException('행사를 찾을 수 없습니다');
+    }
+
+    await this.prisma.eventParticipant.deleteMany({
+      where: { eventId, userId },
+    });
+
+    // 참가취소 로그 기록
+    await this.activityLogs.log({
+      userId,
+      action: 'EVENT_LEAVE',
+      target: eventId,
+      detail: `행사 참가 취소: ${event.title}`,
+    });
+
+    return { message: '행사 참가가 취소되었습니다' };
+  }
+
   // 참여 코드로 행사 찾기 (입장 시 사용)
   async findByEntryCode(entryCode: string) {
     return this.prisma.event.findUnique({

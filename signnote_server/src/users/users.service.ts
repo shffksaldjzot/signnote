@@ -200,6 +200,22 @@ export class UsersService {
     return { message: '비밀번호가 변경되었습니다' };
   }
 
+  // ---- 회원 강제 탈퇴 (관리자 전용) ----
+  // 승인된 사용자도 관리자가 강제 탈퇴 가능
+  async deleteUser(userId: string) {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다');
+    }
+
+    // 관련 참여 기록 삭제
+    await this.prisma.eventParticipant.deleteMany({ where: { userId } });
+    // 사용자 삭제
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    return { message: `${user.name}이(가) 탈퇴 처리되었습니다` };
+  }
+
   // ---- 사용자 가입 거부 (관리자 전용) ----
   // 승인 거부 시 해당 계정 삭제
   async rejectUser(userId: string) {

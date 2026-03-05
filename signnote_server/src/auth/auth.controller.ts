@@ -45,4 +45,12 @@ export class AuthController {
     const userId = req.user?.id;
     return this.authService.enterEvent(dto, userId);
   }
+
+  // 비밀번호 확인 (본인 비밀번호가 맞는지 검증만 하는 API)
+  // 참가취소, 행사삭제 등 중요 작업 전에 비밀번호 재확인용
+  @UseGuards(JwtAuthGuard)
+  @Post('verify-password')
+  async verifyPassword(@Request() req: any, @Body('password') password: string) {
+    return this.authService.verifyPassword(req.user.id, password);
+  }
 }

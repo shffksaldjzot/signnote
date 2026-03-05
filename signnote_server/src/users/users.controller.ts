@@ -17,6 +17,7 @@ import {
   Controller,
   Get,
   Patch,
+  Delete,
   Param,
   Query,
   Body,
@@ -108,5 +109,14 @@ export class UsersController {
   @Patch(':id/reset-password')
   async resetPassword(@Param('id') id: string) {
     return this.usersService.resetPassword(id);
+  }
+
+  // ---- 회원 강제 탈퇴 (관리자 전용) ----
+  // 승인된 사용자도 관리자가 강제로 탈퇴시킬 수 있음
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Delete(':id')
+  async deleteUser(@Param('id') id: string) {
+    return this.usersService.deleteUser(id);
   }
 }

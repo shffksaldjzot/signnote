@@ -97,6 +97,21 @@ class AuthService {
     }
   }
 
+  // 비밀번호 확인 (중요 작업 전 본인 인증)
+  Future<Map<String, dynamic>> verifyPassword(String password) async {
+    try {
+      await _api.post('/auth/verify-password', data: {
+        'password': password,
+      });
+      return {'success': true};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '비밀번호가 올바르지 않습니다',
+      };
+    }
+  }
+
   // 로그아웃 (토큰 + 사용자 정보 모두 삭제)
   Future<void> logout() async {
     await _api.clearTokens();

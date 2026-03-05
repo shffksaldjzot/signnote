@@ -89,8 +89,14 @@ class _LoginScreenState extends State<LoginScreen> {
           context.go(AppRoutes.entryCode, extra: role);
         }
       } else {
-        // 고객 → 참여 코드 입력 화면
-        context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
+        // 고객: 참여한 행사가 있으면 바로 홈, 없으면 행사코드 입력
+        final hasEvents = await _checkHasParticipatingEvents();
+        if (!mounted) return;
+        if (hasEvents) {
+          context.go(AppRoutes.customerHome);
+        } else {
+          context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
+        }
       }
     } else {
       // 로그인 실패 → 에러 메시지 표시
@@ -169,7 +175,30 @@ class _LoginScreenState extends State<LoginScreen> {
                   hintText: '비밀번호',
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 8),
+
+              // 비밀번호를 잊으셨나요? 버튼 (기능은 추후 이메일 인증으로 구현 예정)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('비밀번호 찾기 기능은 준비중입니다')),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    '비밀번호를 잊으셨나요?',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
 
               // 로그인 버튼 (파란색)
               AppButton(

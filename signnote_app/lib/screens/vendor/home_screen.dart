@@ -285,9 +285,140 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
               ),
             );
           },
-          onMoreTap: () {},
+          onMoreTap: () => _showEventMenu(event),
         );
       },
+    );
+  }
+
+  // 행사 카드 3점 메뉴 (참가 취소)
+  void _showEventMenu(Map<String, dynamic> event) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.exit_to_app, color: Colors.red),
+              title: const Text('행사 참가 취소', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmCancelParticipation(event);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 참가 취소 확인 팝업 (1단계)
+  void _confirmCancelParticipation(Map<String, dynamic> event) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('참가 취소', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        content: Text(
+          '\'${event['title']}\' 행사 참가를 취소하시겠습니까?\n\n취소하면 이 행사의 모든 데이터에 접근할 수 없습니다.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showPasswordConfirmDialog(event);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('취소하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 비밀번호 확인 팝업 (2단계)
+  void _showPasswordConfirmDialog(Map<String, dynamic> event) {
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('비밀번호 확인', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '참가 취소를 위해 본인 계정 비밀번호를 입력해 주세요.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: '비밀번호',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final password = passwordController.text;
+              if (password.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('비밀번호를 입력해 주세요')),
+                );
+                return;
+              }
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(context);
+
+              // 비밀번호 확인
+              final verifyResult = await _authService.verifyPassword(password);
+              if (!mounted) return;
+              if (verifyResult['success'] != true) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text(verifyResult['error'] ?? '비밀번호가 올바르지 않습니다')),
+                );
+                return;
+              }
+
+              // 참가 취소 API 호출
+              final leaveResult = await _eventService.leaveEvent(event['id']);
+              if (!mounted) return;
+              if (leaveResult['success'] == true) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('행사 참가가 취소되었습니다')),
+                );
+                _loadEvents(); // 목록 새로고침
+              } else {
+                messenger.showSnackBar(
+                  SnackBar(content: Text(leaveResult['error'] ?? '참가 취소에 실패했습니다')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
     );
   }
 

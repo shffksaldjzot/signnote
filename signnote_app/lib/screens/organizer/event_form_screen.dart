@@ -361,7 +361,25 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 행사 기간
+              // 평형 타입 (자유 입력)
+              _buildLabel('평형 타입'),
+              const SizedBox(height: 8),
+              _buildTypeInput(),
+              const SizedBox(height: 20),
+
+              // 계약 방식
+              _buildLabel('계약 방식'),
+              const SizedBox(height: 8),
+              _buildContractMethodSelector(),
+              const SizedBox(height: 20),
+
+              // 커버 이미지 (행사 카드 배경으로 사용)
+              _buildLabel('커버 이미지 (선택)'),
+              const SizedBox(height: 8),
+              _buildCoverImagePicker(),
+              const SizedBox(height: 20),
+
+              // 행사 기간 (취소 가능 기간 바로 위에 배치)
               _buildLabel('행사 기간'),
               const SizedBox(height: 8),
               Row(
@@ -390,24 +408,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-
-              // 평형 타입 (자유 입력)
-              _buildLabel('평형 타입'),
-              const SizedBox(height: 8),
-              _buildTypeInput(),
-              const SizedBox(height: 20),
-
-              // 계약 방식
-              _buildLabel('계약 방식'),
-              const SizedBox(height: 8),
-              _buildContractMethodSelector(),
-              const SizedBox(height: 20),
-
-              // 커버 이미지 (행사 카드 배경으로 사용)
-              _buildLabel('커버 이미지 (선택)'),
-              const SizedBox(height: 8),
-              _buildCoverImagePicker(),
               const SizedBox(height: 20),
 
               // 취소 가능 기간

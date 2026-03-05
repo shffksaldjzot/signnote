@@ -65,7 +65,7 @@ class _SidebarState extends State<_Sidebar> {
     _MenuItem(icon: Icons.event_outlined, activeIcon: Icons.event, label: '행사 관리', path: AppRoutes.organizerWebEvents, adminOnly: false),
     _MenuItem(icon: Icons.description_outlined, activeIcon: Icons.description, label: '계약 현황', path: AppRoutes.organizerWebContracts, adminOnly: false),
     _MenuItem(icon: Icons.inventory_2_outlined, activeIcon: Icons.inventory_2, label: '품목 관리', path: AppRoutes.organizerWebProducts, adminOnly: false),
-    _MenuItem(icon: Icons.people_outline, activeIcon: Icons.people, label: '파트너 관리', path: AppRoutes.organizerWebUsers, adminOnly: false),
+    _MenuItem(icon: Icons.people_outline, activeIcon: Icons.people, label: '사용자 관리', path: AppRoutes.organizerWebUsers, adminOnly: false),
     _MenuItem(icon: Icons.account_balance_wallet_outlined, activeIcon: Icons.account_balance_wallet, label: '정산 관리', path: AppRoutes.organizerWebSettlements, adminOnly: false),
     _MenuItem(icon: Icons.history_outlined, activeIcon: Icons.history, label: '활동 로그', path: AppRoutes.organizerWebLogs, adminOnly: true),
     _MenuItem(icon: Icons.person_outline, activeIcon: Icons.person, label: '마이페이지', path: AppRoutes.organizerWebMypage, adminOnly: false),

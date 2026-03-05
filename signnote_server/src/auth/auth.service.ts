@@ -166,6 +166,21 @@ export class AuthService {
     };
   }
 
+  // ---- 비밀번호 확인 (중요 작업 전 본인 인증) ----
+  async verifyPassword(userId: string, password: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다');
+    }
+
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      throw new UnauthorizedException('비밀번호가 올바르지 않습니다');
+    }
+
+    return { verified: true };
+  }
+
   // ---- 토큰 생성 (내부용) ----
   // Access Token: 짧은 유효기간 (1시간) - 매 요청에 사용
   // Refresh Token: 긴 유효기간 (7일) - Access Token 갱신용

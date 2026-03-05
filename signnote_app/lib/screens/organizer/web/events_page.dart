@@ -85,6 +85,10 @@ class _EventsPageState extends State<EventsPage> {
           return aDate.compareTo(bDate);
         case 'name': // 이름순 (가나다)
           return (a['title'] ?? '').compareTo(b['title'] ?? '');
+        case 'organizer': // 주관사순 (가나다)
+          final aOrg = (a['organizer']?['name'] ?? '').toString();
+          final bOrg = (b['organizer']?['name'] ?? '').toString();
+          return aOrg.compareTo(bOrg);
         case 'newest': // 최신순 (기본)
         default:
           final aDate = a['startDate']?.toString() ?? '';
@@ -254,6 +258,7 @@ class _EventsPageState extends State<EventsPage> {
                       DropdownMenuItem(value: 'newest', child: Text('최신순')),
                       DropdownMenuItem(value: 'oldest', child: Text('오래된순')),
                       DropdownMenuItem(value: 'name', child: Text('이름순')),
+                      DropdownMenuItem(value: 'organizer', child: Text('주관사순')),
                     ],
                     onChanged: (value) {
                       if (value != null) {

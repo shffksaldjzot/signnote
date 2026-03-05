@@ -13,6 +13,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -54,5 +55,20 @@ export class EventsController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: Partial<CreateEventDto>) {
     return this.eventsService.update(id, dto);
+  }
+
+  // 행사 삭제 (주관사/관리자만 가능)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ORGANIZER', 'ADMIN')
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Request() req: any) {
+    return this.eventsService.remove(id, req.user.id);
+  }
+
+  // 행사 참가 취소 (업체/고객이 자기 참여 기록 삭제)
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id/leave')
+  async leave(@Param('id') id: string, @Request() req: any) {
+    return this.eventsService.leaveEvent(id, req.user.id);
   }
 }

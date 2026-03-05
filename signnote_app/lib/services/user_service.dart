@@ -107,6 +107,20 @@ class UserService {
     }
   }
 
+  // ---- 회원 강제 탈퇴 (관리자 전용) ----
+  // 승인된 사용자도 관리자가 강제로 탈퇴시킬 수 있음
+  Future<Map<String, dynamic>> deleteUser(String userId) async {
+    try {
+      await _api.delete('/users/$userId');
+      return {'success': true};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '탈퇴 처리에 실패했습니다',
+      };
+    }
+  }
+
   // ---- 사용자 거부 (관리자 전용) ----
   // 업체/주관사 가입 신청을 거부 (계정 삭제)
   Future<Map<String, dynamic>> rejectUser(String userId) async {

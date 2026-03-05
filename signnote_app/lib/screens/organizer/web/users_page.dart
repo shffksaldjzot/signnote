@@ -178,6 +178,44 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
+  // ---- 회원 강제 탈퇴 (관리자 전용) ----
+  Future<void> _deleteUser(dynamic user) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('회원 탈퇴'),
+        content: Text(
+          '${user['name']}을(를) 강제 탈퇴시키겠습니까?\n\n'
+          '탈퇴하면 해당 사용자의 모든 데이터가 삭제되며 복구할 수 없습니다.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('탈퇴'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final result = await _userService.deleteUser(user['id']);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${user['name']}이(가) 탈퇴 처리되었습니다')),
+      );
+      _loadUsers(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '탈퇴 처리에 실패했습니다')),
+      );
+    }
+  }
+
   // ---- 비밀번호 초기화 (관리자 전용) ----
   Future<void> _resetUserPassword(dynamic user) async {
     // 확인 다이얼로그
@@ -353,6 +391,17 @@ class _UsersPageState extends State<UsersPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    // 회원 강제 탈퇴 버튼 (관리자 전용)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deleteUser(user);
+                      },
+                      icon: const Icon(Icons.person_remove, size: 18),
+                      label: const Text('회원 탈퇴'),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                    ),
+                    const SizedBox(width: 8),
                     // 비밀번호 초기화 버튼 (관리자 전용)
                     OutlinedButton.icon(
                       onPressed: () {
