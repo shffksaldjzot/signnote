@@ -203,6 +203,22 @@ class ProductService {
     }
   }
 
+  // 주관사용 업체 참가 취소 (품목에서 업체 해제)
+  Future<Map<String, dynamic>> unclaimProduct(String productId) async {
+    try {
+      final response = await _api.post('/products/$productId/unclaim', data: {});
+      return {
+        'success': true,
+        'product': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '참가 취소에 실패했습니다',
+      };
+    }
+  }
+
   // 업체용 품목 선점
   Future<Map<String, dynamic>> claimProduct({
     required String productId,

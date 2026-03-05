@@ -100,6 +100,17 @@ export class ProductsController {
     return this.productsService.claimProduct(id, req.user.id, body.vendorName);
   }
 
+  // 업체 참가 취소 (주관사/관리자가 품목에서 업체 해제)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ORGANIZER', 'ADMIN')
+  @Post('products/:id/unclaim')
+  async unclaimProduct(
+    @Request() req: any,
+    @Param('id') id: string,
+  ) {
+    return this.productsService.unclaimProduct(id, req.user.id);
+  }
+
   // 상품 수정 (업체/주관사만)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('VENDOR', 'ORGANIZER', 'ADMIN')

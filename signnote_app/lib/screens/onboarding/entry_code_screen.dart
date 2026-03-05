@@ -6,10 +6,7 @@ import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
-import '../customer/home_screen.dart';
-import '../vendor/home_screen.dart';
 import '../vendor/product_select_screen.dart';
-import '../organizer/home_screen.dart';
 
 // ============================================
 // 참여 코드 입장 화면 (Entry Code Screen)
@@ -101,11 +98,8 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
 
         if (!mounted) return;
 
-        // 품목 선택 완료 또는 취소 후 홈으로 이동
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const VendorHomeScreen()),
-          (route) => false,
-        );
+        // 품목 선택 완료 또는 취소 후 홈으로 이동 (GoRouter)
+        context.go(AppRoutes.vendorHome);
         return;
       }
 
@@ -113,21 +107,12 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
         const SnackBar(content: Text('행사에 입장합니다!')),
       );
 
-      // 역할별 홈 화면으로 이동 (기존 화면 스택 모두 제거)
-      Widget homeScreen;
-      switch (widget.role) {
-        case AppConstants.roleOrganizer:
-          homeScreen = const OrganizerHomeScreen();
-          break;
-        default: // CUSTOMER
-          homeScreen = const CustomerHomeScreen();
-          break;
+      // 역할별 홈 화면으로 이동 (GoRouter)
+      if (widget.role == AppConstants.roleOrganizer) {
+        context.go(AppRoutes.organizerHome);
+      } else {
+        context.go(AppRoutes.customerHome);
       }
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => homeScreen),
-        (route) => false, // 모든 이전 화면 제거
-      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['error'] ?? '유효하지 않은 참여 코드입니다')),

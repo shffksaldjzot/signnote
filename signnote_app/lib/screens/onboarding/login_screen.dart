@@ -5,6 +5,7 @@ import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
+import '../../services/event_service.dart';
 import 'register_screen.dart';
 
 // ============================================
@@ -78,8 +79,17 @@ class _LoginScreenState extends State<LoginScreen> {
         context.go(AppRoutes.organizerDashboard);
       } else if (role == AppConstants.roleOrganizer) {
         context.go(AppRoutes.organizerHome);
+      } else if (role == AppConstants.roleVendor) {
+        // 협력업체: 참여한 행사가 있으면 바로 홈, 없으면 행사코드 입력
+        final hasEvents = await _checkHasParticipatingEvents();
+        if (!mounted) return;
+        if (hasEvents) {
+          context.go(AppRoutes.vendorHome);
+        } else {
+          context.go(AppRoutes.entryCode, extra: role);
+        }
       } else {
-        // 고객/업체 → 참여 코드 입력 화면 (GoRouter로 이동)
+        // 고객 → 참여 코드 입력 화면
         context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
       }
     } else {
@@ -88,6 +98,18 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text(result['error'] ?? '로그인에 실패했습니다')),
       );
     }
+  }
+
+  // 협력업체가 참여한 행사가 있는지 확인
+  Future<bool> _checkHasParticipatingEvents() async {
+    try {
+      final result = await EventService().getEvents();
+      if (result['success'] == true) {
+        final events = result['events'] as List? ?? [];
+        return events.isNotEmpty;
+      }
+    } catch (_) {}
+    return false;
   }
 
   // 회원가입 버튼 눌렀을 때 → 회원가입 화면으로 이동

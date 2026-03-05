@@ -112,6 +112,57 @@ class _OrganizerEventManageScreenState
     }
   }
 
+  // 업체 참가 취소 확인 다이얼로그
+  void _showUnclaimConfirmDialog(Map<String, dynamic> product) {
+    final productName = product['name'] ?? '품목';
+    final vendorName = product['vendorName'] ?? '업체';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('참가 취소', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text(
+          '"$productName" 품목에서\n"$vendorName" 업체의 참가를 취소하시겠습니까?\n\n취소하면 해당 품목은 다시 미배정 상태가 됩니다.',
+          style: const TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('아니오'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _unclaimProduct(product);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('참가 취소'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 업체 참가 취소 API 호출
+  Future<void> _unclaimProduct(Map<String, dynamic> product) async {
+    final productId = product['id'].toString();
+    final result = await _productService.unclaimProduct(productId);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('업체 참가가 취소되었습니다')),
+      );
+      _loadProducts(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '참가 취소에 실패했습니다')),
+      );
+    }
+  }
+
   // 참여 코드를 클립보드에 복사
   void _copyEntryCode() {
     if (widget.entryCode != null) {
@@ -332,6 +383,26 @@ class _OrganizerEventManageScreenState
               ),
             ],
           ),
+          // 업체가 배정된 경우에만 "참가 취소" 버튼 표시
+          if (hasVendor) ...[
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showUnclaimConfirmDialog(product),
+                icon: const Icon(Icons.person_remove, size: 18),
+                label: const Text('참가 취소'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

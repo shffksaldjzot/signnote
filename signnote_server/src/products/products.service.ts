@@ -172,6 +172,19 @@ export class ProductsService {
       throw new BadRequestException('이미 다른 업체가 선점한 품목입니다');
     }
 
+    // 1행사 1품목 제한: 같은 행사에서 이미 품목을 선점한 업체는 추가 선점 불가
+    const existingClaim = await this.prisma.product.findFirst({
+      where: {
+        eventId: product.eventId,
+        vendorId,
+      },
+    });
+    if (existingClaim) {
+      throw new BadRequestException(
+        `이미 이 행사에서 "${existingClaim.name}" 품목으로 참여 중입니다. 한 행사에 하나의 품목만 참여할 수 있습니다.`,
+      );
+    }
+
     const updated = await this.prisma.product.update({
       where: { id: productId },
       data: {
@@ -186,6 +199,41 @@ export class ProductsService {
       action: 'PRODUCT_CREATE',
       target: productId,
       detail: `품목 선점: ${product.name} (업체: ${vendorName})`,
+    });
+
+    return updated;
+  }
+
+  // ── 주관사용: 업체 참가 취소 (품목에서 업체 해제) ──
+  async unclaimProduct(productId: string, organizerId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException('품목을 찾을 수 없습니다');
+    }
+
+    if (!product.vendorId) {
+      throw new BadRequestException('이미 업체가 배정되어 있지 않은 품목입니다');
+    }
+
+    const vendorName = product.vendorName || '알 수 없음';
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        vendorId: null,
+        vendorName: null,
+      },
+    });
+
+    // 참가 취소 로그
+    await this.activityLogs.log({
+      userId: organizerId,
+      action: 'PRODUCT_UPDATE',
+      target: productId,
+      detail: `업체 참가 취소: ${product.name} (업체: ${vendorName})`,
     });
 
     return updated;

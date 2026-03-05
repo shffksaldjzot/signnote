@@ -8,6 +8,8 @@ import '../screens/onboarding/entry_code_screen.dart';
 import '../screens/common/mypage_screen.dart';
 import '../screens/common/notification_screen.dart';
 import '../screens/organizer/home_screen.dart';
+import '../screens/vendor/home_screen.dart';
+import '../screens/customer/home_screen.dart';
 // 관리자 PC 웹 대시보드 페이지들
 import '../screens/organizer/web/web_shell.dart';
 import '../screens/organizer/web/dashboard_page.dart';
@@ -74,6 +76,18 @@ final GoRouter appRouter = GoRouter(
         final role = state.extra as String? ?? 'CUSTOMER';
         return MypageScreen(role: role);
       },
+    ),
+
+    // ── 업체 모바일 홈 (VENDOR 전용) ──
+    GoRoute(
+      path: AppRoutes.vendorHome,
+      builder: (context, state) => const VendorHomeScreen(),
+    ),
+
+    // ── 고객 모바일 홈 (CUSTOMER 전용) ──
+    GoRoute(
+      path: AppRoutes.customerHome,
+      builder: (context, state) => const CustomerHomeScreen(),
     ),
 
     // ── 주관사 모바일 홈 (ORGANIZER 전용) ──

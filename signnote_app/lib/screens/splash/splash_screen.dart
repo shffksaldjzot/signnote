@@ -5,6 +5,7 @@ import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
+import '../../services/event_service.dart';
 
 // ============================================
 // 스플래시 화면 (앱 시작 시 로고 표시)
@@ -70,14 +71,35 @@ class _SplashScreenState extends State<SplashScreen>
         context.go(AppRoutes.organizerDashboard);
       } else if (role == AppConstants.roleOrganizer) {
         context.go(AppRoutes.organizerHome);
+      } else if (role == AppConstants.roleVendor) {
+        // 협력업체: 참여한 행사가 있으면 바로 홈, 없으면 행사코드 입력
+        final hasEvents = await _checkHasParticipatingEvents();
+        if (!mounted) return;
+        if (hasEvents) {
+          context.go(AppRoutes.vendorHome);
+        } else {
+          context.go(AppRoutes.entryCode, extra: role);
+        }
       } else {
-        // 고객/업체 → 참여코드 입장 화면 (역할 정보 전달)
+        // 고객 → 참여코드 입장 화면
         context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
       }
     } else {
       // 로그인 안 되어 있으면 → 로그인 화면
       context.go(AppRoutes.login);
     }
+  }
+
+  // 협력업체가 참여한 행사가 있는지 확인
+  Future<bool> _checkHasParticipatingEvents() async {
+    try {
+      final result = await EventService().getEvents();
+      if (result['success'] == true) {
+        final events = result['events'] as List? ?? [];
+        return events.isNotEmpty;
+      }
+    } catch (_) {}
+    return false;
   }
 
   @override
