@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
-import '../../widgets/product/product_card.dart';
+import 'package:intl/intl.dart';
 import '../../services/product_service.dart';
 import 'product_add_screen.dart';
 
@@ -76,6 +78,8 @@ class _OrganizerEventManageScreenState
             'description': p['description'] ?? '',
             'price': p['price'] ?? 0,
             'imageUrl': p['image'],
+            'participationFee': p['participationFee'] ?? 0,
+            'commissionRate': p['commissionRate'] ?? 0,
           };
         }).toList();
         _isLoading = false;
@@ -97,6 +101,24 @@ class _OrganizerEventManageScreenState
       grouped[category]!.add(product);
     }
     return grouped;
+  }
+
+  // 탭 클릭 시 화면 이동
+  void _onTabChanged(int index) {
+    if (index == _currentTabIndex) return;
+    switch (index) {
+      case 0: // 홈 → 주관사 홈으로 돌아가기
+        Navigator.of(context).pop();
+        break;
+      case 1: // 계약함 (아직 주관사 모바일 계약 화면 없음)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('계약함은 준비 중입니다')),
+        );
+        break;
+      case 2: // 마이페이지
+        context.push(AppRoutes.mypage, extra: 'ORGANIZER');
+        break;
+    }
   }
 
   // 참여 코드를 클립보드에 복사
@@ -183,7 +205,7 @@ class _OrganizerEventManageScreenState
       // 하단 탭바
       bottomNavigationBar: AppTabBar.organizer(
         currentIndex: _currentTabIndex,
-        onTap: (index) => setState(() => _currentTabIndex = index),
+        onTap: _onTabChanged,
       ),
     );
   }
@@ -245,25 +267,100 @@ class _OrganizerEventManageScreenState
                     size: 16, color: AppColors.textSecondary),
               ],
             ),
-            // 상품 카드들 (주관사는 수정 가능)
-            ...products.map((product) => ProductCard(
-                  vendorName: product['vendorName'],
-                  productName: product['name'],
-                  description: product['description'],
-                  price: product['price'],
-                  imageUrl: product['imageUrl'],
-                  onEditTap: () {
-                    // 주관사는 상품 수정 불가 (업체 전용 기능)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('상품 수정은 해당 업체만 가능합니다')),
-                    );
-                  },
-                )),
+            // 주관사용 품목 카드 (이미지 + 품목명 + 참가비 + 수수료)
+            ...products.map((product) => _buildOrganizerProductCard(product)),
             const Divider(height: 24),
           ],
         );
       }).toList(),
     );
+  }
+
+  // 주관사용 품목 카드 (이미지 + 품목명 + 참가비 + 수수료 + 수정아이콘)
+  Widget _buildOrganizerProductCard(Map<String, dynamic> product) {
+    final fee = product['participationFee'] as int? ?? 0;
+    final rate = product['commissionRate'];
+    final ratePercent = rate is num ? (rate * 100).toStringAsFixed(0) : '0';
+    final formattedFee = NumberFormat('#,###').format(fee);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 왼쪽: 썸네일 이미지
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 80,
+              height: 80,
+              color: AppColors.background,
+              child: product['imageUrl'] != null
+                  ? Image.network(product['imageUrl'], fit: BoxFit.cover)
+                  : const Icon(Icons.image_outlined, color: AppColors.textHint),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // 오른쪽: 품목 정보
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 품목명
+                Text(
+                  product['name'] ?? '',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // 참가비
+                Text(
+                  '참가비 : $formattedFee원',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                // 수수료
+                Text(
+                  '수수료 : $ratePercent%',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 수정 아이콘
+          GestureDetector(
+            onTap: () => _editProduct(product),
+            child: const Icon(
+              Icons.edit_outlined,
+              size: 20,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 품목 수정 (주관사가 품목명/참가비/수수료 수정)
+  void _editProduct(Map<String, dynamic> product) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => OrganizerProductAddScreen(
+          eventId: widget.eventId,
+          product: product, // 기존 데이터 전달 (수정 모드)
+        ),
+      ),
+    );
+    if (result == true) _loadProducts();
   }
 
   // 참여 코드 표시 카드

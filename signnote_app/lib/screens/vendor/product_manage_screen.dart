@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
-import '../../widgets/product/product_card.dart';
-import '../../widgets/product/housing_type_selector.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/product_service.dart';
 import 'product_form_screen.dart';
+import 'contract_screen.dart';
 
 // ============================================
 // 업체용 품목 관리 화면
 //
-// 디자인 참고: 8.업체용-품목 관리.jpg
+// 디자인 참고: 3.업체용-품목 상세.jpg
 // - 상단: ← 행사명 헤더
-// - "내 품목 리스트 >" + 타입 뱃지
-// - 카테고리별 내 상품 목록
-// - 상품 카드에 수정(연필) 아이콘
-// - 하단: "상품 추가" 버튼 + 3탭 네비게이션
+// - "판매 품목 리스트 >"
+// - 업체 자신의 상세 품목만 표시
+// - 처음엔 빈 상태 + "품목 추가하기" 버튼
+// - 하단: 3탭 네비게이션 (홈/계약함/마이페이지)
 // ============================================
 
 class VendorProductManageScreen extends StatefulWidget {
@@ -35,10 +37,9 @@ class VendorProductManageScreen extends StatefulWidget {
 }
 
 class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
-  int _currentTabIndex = 0;
-  final String _selectedType = '84A';
+  final int _currentTabIndex = 0;
 
-  // API에서 가져온 내 상품 목록
+  // API에서 가져온 내 상세 품목 목록
   List<Map<String, dynamic>> _myProducts = [];
   bool _isLoading = true;
   String? _error;
@@ -48,10 +49,10 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProducts(); // 화면 열릴 때 상품 목록 불러오기
+    _loadProducts(); // 화면 열릴 때 내 상품 목록 불러오기
   }
 
-  // 서버에서 내 상품 목록 가져오기
+  // 서버에서 내 상품 목록 가져오기 (업체 자신의 상세 품목만)
   Future<void> _loadProducts() async {
     setState(() {
       _isLoading = true;
@@ -89,15 +90,22 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
     }
   }
 
-  // 카테고리별로 상품 그룹핑
-  Map<String, List<Map<String, dynamic>>> get _groupedProducts {
-    final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final product in _myProducts) {
-      final category = product['category'] as String;
-      grouped.putIfAbsent(category, () => []);
-      grouped[category]!.add(product);
+  // 탭 클릭 시 화면 이동
+  void _onTabChanged(int index) {
+    if (index == _currentTabIndex) return;
+    switch (index) {
+      case 0: // 홈 → 업체 홈으로 돌아가기
+        Navigator.of(context).pop();
+        break;
+      case 1: // 계약함
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const VendorContractScreen()),
+        );
+        break;
+      case 2: // 마이페이지
+        context.push(AppRoutes.mypage, extra: 'VENDOR');
+        break;
     }
-    return grouped;
   }
 
   @override
@@ -107,41 +115,34 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
       appBar: AppHeader(title: widget.eventTitle),
       body: Column(
         children: [
-          // "내 품목 리스트 >" + 타입 뱃지
+          // "판매 품목 리스트 >"
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      '내 품목 리스트',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right, size: 20),
-                  ],
+                const Text(
+                  '판매 품목 리스트',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
-                // 타입 뱃지
-                HousingTypeBadge(type: _selectedType),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, size: 20),
               ],
             ),
           ),
-          // 상품 목록 (카테고리별)
+          // 상품 목록
           Expanded(child: _buildBody()),
         ],
       ),
-      // 하단: "상품 추가" 버튼 + 탭바
+      // 하단: "품목 추가하기" 버튼 + 탭바
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
             child: AppButton.black(
-              text: '상품 추가',
+              text: '품목 추가하기',
               onPressed: () async {
-                // 상품 추가 화면으로 이동 (빈 폼)
+                // 상세 품목 추가 화면으로 이동
                 final result = await Navigator.of(context).push<bool>(
                   MaterialPageRoute(
                     builder: (_) => VendorProductFormScreen(
@@ -156,7 +157,7 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
           ),
           AppTabBar.vendor(
             currentIndex: _currentTabIndex,
-            onTap: (index) => setState(() => _currentTabIndex = index),
+            onTap: _onTabChanged,
           ),
         ],
       ),
@@ -186,45 +187,98 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      children: _groupedProducts.entries.map((entry) {
-        final category = entry.key;
-        final products = entry.value;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            // 카테고리 헤더
-            Text(
-              category,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+      children: _myProducts.map((product) {
+        final formattedPrice = NumberFormat('#,###').format(product['price']);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 왼쪽: 썸네일 이미지
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  color: AppColors.background,
+                  child: product['imageUrl'] != null
+                      ? Image.network(product['imageUrl'], fit: BoxFit.cover)
+                      : const Icon(Icons.image_outlined, color: AppColors.textHint),
+                ),
               ),
-            ),
-            // 카테고리 내 상품들 (수정 아이콘 표시)
-            ...products.map((product) => ProductCard(
-              vendorName: product['vendorName'],
-              productName: product['name'],
-              description: product['description'],
-              price: product['price'],
-              imageUrl: product['imageUrl'],
-              onEditTap: () async {
-                // 상품 수정 화면으로 이동
-                final result = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) => VendorProductFormScreen(
-                      eventId: widget.eventId,
-                      product: product,  // 기존 상품 데이터 전달
+              const SizedBox(width: 12),
+              // 오른쪽: 상품 정보
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 업체명
+                    if (product['vendorName'] != null && (product['vendorName'] as String).isNotEmpty)
+                      Text(
+                        product['vendorName'],
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    const SizedBox(height: 2),
+                    // 상품명
+                    Text(
+                      product['name'],
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                );
-                // 수정 성공 시 목록 새로고침
-                if (result == true) _loadProducts();
-              },
-            )),
-            const Divider(height: 24),
-          ],
+                    // 설명
+                    if (product['description'] != null && (product['description'] as String).isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        product['description'],
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    // 가격 + 수정 아이콘
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        RichText(
+                          text: TextSpan(
+                            children: [
+                              const TextSpan(
+                                text: '가격 : ',
+                                style: TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                              ),
+                              TextSpan(
+                                text: '$formattedPrice원',
+                                style: const TextStyle(fontSize: 14, color: AppColors.priceRed, fontWeight: FontWeight.w700),
+                              ),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () async {
+                            // 상품 수정 화면으로 이동
+                            final result = await Navigator.of(context).push<bool>(
+                              MaterialPageRoute(
+                                builder: (_) => VendorProductFormScreen(
+                                  eventId: widget.eventId,
+                                  product: product,
+                                ),
+                              ),
+                            );
+                            if (result == true) _loadProducts();
+                          },
+                          child: const Icon(Icons.edit_outlined, size: 20, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       }).toList(),
     );
@@ -239,12 +293,12 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
           Icon(Icons.inventory_2_outlined, size: 48, color: AppColors.textHint),
           SizedBox(height: 12),
           Text(
-            '등록된 상품이 없습니다',
+            '등록된 상세 품목이 없습니다',
             style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
           ),
           SizedBox(height: 4),
           Text(
-            '아래 버튼을 눌러 상품을 추가해 보세요',
+            '아래 버튼을 눌러 상세 품목을 추가해 보세요',
             style: TextStyle(fontSize: 13, color: AppColors.textHint),
           ),
         ],

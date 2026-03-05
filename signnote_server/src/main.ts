@@ -5,11 +5,16 @@
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   // 서버 생성
   const app = await NestFactory.create(AppModule);
+
+  // 요청 본문 크기 제한 늘리기 (이미지 base64 전송 등 대용량 데이터 허용)
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
 
   // API 주소 앞에 /api/v1 붙이기 (예: /api/v1/events)
   app.setGlobalPrefix('api/v1');

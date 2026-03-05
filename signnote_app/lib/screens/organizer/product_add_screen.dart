@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/product_service.dart';
+import '../../utils/number_formatter.dart';
 
 // ============================================
 // 주관사용 품목 추가 화면
@@ -21,10 +23,12 @@ import '../../services/product_service.dart';
 
 class OrganizerProductAddScreen extends StatefulWidget {
   final String eventId; // 품목을 추가할 행사 ID
+  final Map<String, dynamic>? product; // 수정 시 기존 데이터 (null이면 새 등록)
 
   const OrganizerProductAddScreen({
     super.key,
     required this.eventId,
+    this.product,
   });
 
   @override
@@ -33,13 +37,33 @@ class OrganizerProductAddScreen extends StatefulWidget {
 }
 
 class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
-  final _nameController = TextEditingController();         // 품목명
-  final _feeController = TextEditingController();          // 참가비
-  final _commissionController = TextEditingController();   // 수수료
+  late final TextEditingController _nameController;        // 품목명
+  late final TextEditingController _feeController;         // 참가비
+  late final TextEditingController _commissionController;  // 수수료
   String? _imageBase64;   // 품목 설명 이미지 (base64)
   bool _isSubmitting = false;
 
+  // 수정 모드인지 여부
+  bool get _isEditMode => widget.product != null;
+
   final ProductService _productService = ProductService();
+
+  @override
+  void initState() {
+    super.initState();
+    // 수정 모드면 기존 데이터로 채우기
+    _nameController = TextEditingController(
+      text: widget.product?['name'] ?? '',
+    );
+    final fee = widget.product?['participationFee'] as int? ?? 0;
+    _feeController = TextEditingController(
+      text: fee > 0 ? formatWithComma(fee) : '',
+    );
+    final rate = widget.product?['commissionRate'];
+    final ratePercent = rate is num ? (rate * 100).toStringAsFixed(0) : '';
+    _commissionController = TextEditingController(text: ratePercent);
+    _imageBase64 = widget.product?['imageUrl'];
+  }
 
   @override
   void dispose() {
@@ -66,7 +90,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
     }
   }
 
-  // 품목 등록 API 호출
+  // 품목 등록/수정 API 호출
   Future<void> _submit() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -78,16 +102,31 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
 
     setState(() => _isSubmitting = true);
 
-    final fee = int.tryParse(_feeController.text.trim()) ?? 0;
+    final fee = parseCommaNumber(_feeController.text.trim());
     final commission = double.tryParse(_commissionController.text.trim()) ?? 0;
 
-    final result = await _productService.createProductByOrganizer(
-      eventId: widget.eventId,
-      name: name,
-      participationFee: fee,
-      commissionRate: commission / 100, // % → 소수 (예: 20 → 0.2)
-      image: _imageBase64,
-    );
+    Map<String, dynamic> result;
+
+    if (_isEditMode) {
+      // 수정 모드: updateProduct API 호출
+      result = await _productService.updateProduct(
+        widget.product!['id'].toString(),
+        {
+          'name': name,
+          'participationFee': fee,
+          'commissionRate': commission / 100, // % → 소수
+        },
+      );
+    } else {
+      // 등록 모드: createProductByOrganizer API 호출
+      result = await _productService.createProductByOrganizer(
+        eventId: widget.eventId,
+        name: name,
+        participationFee: fee,
+        commissionRate: commission / 100, // % → 소수 (예: 20 → 0.2)
+        image: _imageBase64,
+      );
+    }
 
     if (!mounted) return;
 
@@ -95,12 +134,12 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
 
     if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('품목이 등록되었습니다')),
+        SnackBar(content: Text(_isEditMode ? '품목이 수정되었습니다' : '품목이 등록되었습니다')),
       );
       Navigator.of(context).pop(true); // 성공 결과 전달
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['error'] ?? '등록에 실패했습니다')),
+        SnackBar(content: Text(result['error'] ?? '처리에 실패했습니다')),
       );
     }
   }
@@ -109,7 +148,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: const AppHeader(title: '품목 추가하기'),
+      appBar: AppHeader(title: _isEditMode ? '품목 수정하기' : '품목 추가하기'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -137,6 +176,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
+              textAlign: TextAlign.right,  // 오른쪽 정렬
               decoration: InputDecoration(
                 hintText: '예시 : 줄눈 / 나노코팅 등',
                 hintStyle: const TextStyle(color: AppColors.textHint),
@@ -158,7 +198,12 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _feeController,
+              textAlign: TextAlign.right,  // 오른쪽 정렬
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                CommaFormatter(),  // 천 단위 콤마 자동 삽입
+              ],
               decoration: InputDecoration(
                 suffixText: '원',
                 suffixStyle: const TextStyle(color: AppColors.textSecondary),
@@ -180,6 +225,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _commissionController,
+              textAlign: TextAlign.right,  // 오른쪽 정렬
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 suffixText: '%',
@@ -234,7 +280,9 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
         child: AppButton(
-          text: _isSubmitting ? '등록 중...' : '추가하기',
+          text: _isSubmitting
+              ? '처리 중...'
+              : _isEditMode ? '수정하기' : '추가하기',
           onPressed: _isSubmitting ? null : _submit,
         ),
       ),

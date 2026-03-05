@@ -6,6 +6,7 @@ import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/event_service.dart';
+import '../../utils/number_formatter.dart';
 
 // ============================================
 // 주관사용 행사 생성/수정 폼 화면
@@ -159,7 +160,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           if (_siteNameController.text.isNotEmpty)
             'siteName': _siteNameController.text,
           if (_unitCountController.text.isNotEmpty)
-            'unitCount': int.parse(_unitCountController.text),
+            'unitCount': parseCommaNumber(_unitCountController.text),
           if (_moveInDate != null)
             'moveInDate': _toIsoDate(_moveInDate!),
           'housingTypes': _selectedTypes.toList(),
@@ -183,7 +184,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
             ? _siteNameController.text
             : null,
         unitCount: _unitCountController.text.isNotEmpty
-            ? int.parse(_unitCountController.text)
+            ? parseCommaNumber(_unitCountController.text)
             : null,
         moveInDate: _moveInDate != null ? _toIsoDate(_moveInDate!) : null,
         housingTypes: _selectedTypes.toList(),
@@ -341,7 +342,10 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                 controller: _unitCountController,
                 hint: '예: 500',
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  CommaFormatter(),  // 천 단위 콤마 자동 삽입
+                ],
               ),
               const SizedBox(height: 20),
 

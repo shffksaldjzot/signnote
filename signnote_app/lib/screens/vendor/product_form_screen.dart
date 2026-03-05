@@ -5,6 +5,8 @@ import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/product_service.dart';
+import '../../services/event_service.dart';
+import '../../utils/number_formatter.dart';
 
 // ============================================
 // 업체용 상품 추가/수정 폼 화면
@@ -47,14 +49,19 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
 
   // 적용 타입 선택 (여러 개 선택 가능)
   late Set<String> _selectedTypes;
+  // 행사에서 설정된 타입 목록 (서버에서 가져옴)
+  List<String> _eventHousingTypes = [];
   bool _isLoading = false;
 
   // 수정 모드인지 여부
   bool get _isEditMode => widget.product != null;
 
+  final EventService _eventService = EventService();
+
   @override
   void initState() {
     super.initState();
+    _loadEventTypes(); // 행사별 타입 목록 가져오기
     // 수정 모드면 기존 데이터로 채우기
     _categoryController = TextEditingController(
       text: widget.product?['category'] ?? '',
@@ -66,7 +73,9 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
       text: widget.product?['description'] ?? '',
     );
     _priceController = TextEditingController(
-      text: widget.product?['price']?.toString() ?? '',
+      text: widget.product?['price'] != null
+          ? formatWithComma(widget.product!['price'] as int)
+          : '',
     );
     _selectedTypes = Set<String>.from(
       widget.product?['housingTypes'] ?? ['84A'],
@@ -80,6 +89,27 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     _descriptionController.dispose();
     _priceController.dispose();
     super.dispose();
+  }
+
+  // 행사에서 설정된 타입 목록 가져오기
+  Future<void> _loadEventTypes() async {
+    final result = await _eventService.getEventDetail(widget.eventId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      final event = result['event'] as Map<String, dynamic>? ?? {};
+      final types = event['housingTypes'];
+      if (types is List && types.isNotEmpty) {
+        setState(() {
+          _eventHousingTypes = List<String>.from(types);
+        });
+      }
+    }
+    // 서버에서 못 가져오면 기본 타입 사용
+    if (_eventHousingTypes.isEmpty) {
+      setState(() {
+        _eventHousingTypes = List<String>.from(AppConstants.defaultHousingTypes);
+      });
+    }
   }
 
   // 폼 제출 (등록 또는 수정) — 실제 API 호출
@@ -104,7 +134,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
           'category': _categoryController.text,
           'name': _nameController.text,
           'description': _descriptionController.text,
-          'price': int.parse(_priceController.text),
+          'price': parseCommaNumber(_priceController.text),
           'housingTypes': _selectedTypes.toList(),
         },
       );
@@ -116,7 +146,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         category: _categoryController.text,
         vendorName: '', // 서버에서 로그인 사용자 정보로 자동 처리
         housingTypes: _selectedTypes.toList(),
-        price: int.parse(_priceController.text),
+        price: parseCommaNumber(_priceController.text),
         description: _descriptionController.text.isNotEmpty
             ? _descriptionController.text
             : null,
@@ -190,12 +220,15 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
               const SizedBox(height: 8),
               _buildTextField(
                 controller: _priceController,
-                hint: '예: 700000',
+                hint: '예: 700,000',
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  CommaFormatter(),  // 천 단위 콤마 자동 삽입
+                ],
                 validator: (v) {
                   if (v == null || v.isEmpty) return '가격을 입력해 주세요';
-                  if (int.tryParse(v) == null) return '올바른 숫자를 입력해 주세요';
+                  if (parseCommaNumber(v) <= 0) return '올바른 숫자를 입력해 주세요';
                   return null;
                 },
               ),
@@ -280,9 +313,12 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
 
   // 타입 체크박스 (여러 개 선택 가능)
   Widget _buildTypeCheckboxes() {
+    if (_eventHousingTypes.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Wrap(
       spacing: 8,
-      children: AppConstants.defaultHousingTypes.map((type) {
+      children: _eventHousingTypes.map((type) {
         final isSelected = _selectedTypes.contains(type);
         return FilterChip(
           label: Text('$type타입'),
