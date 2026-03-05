@@ -21,6 +21,7 @@ import '../common/badge_icon.dart';
 
 class EventCard extends StatelessWidget {
   final String title;             // 행사명
+  final String? organizerName;    // 주관사명 (누가 개최했는지)
   final String? coverImageUrl;    // 커버 이미지 URL (없으면 기본 이미지)
   final DateTime? startDate;      // 시작일 (null 가능)
   final DateTime? endDate;        // 종료일 (null 가능)
@@ -30,6 +31,7 @@ class EventCard extends StatelessWidget {
   const EventCard({
     super.key,
     required this.title,
+    this.organizerName,
     this.coverImageUrl,
     this.startDate,
     this.endDate,
@@ -93,6 +95,19 @@ class EventCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,  // 길면 ... 처리
           ),
+          // 주관사명 (있을 때만 표시)
+          if (organizerName != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              organizerName!,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
           const SizedBox(height: 4),
           // D-day 뱃지 + 날짜 + ⋮ 더보기
           Row(

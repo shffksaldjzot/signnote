@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
+import '../../config/routes.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
-import 'entry_code_screen.dart';
-import '../organizer/home_screen.dart';
 
 // ============================================
 // 로그인 화면 (Login Screen)
@@ -73,19 +73,14 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = result['user'];
       final role = user['role'] ?? AppConstants.roleCustomer;
 
-      // 주관사/관리자 → 바로 주관사 홈으로 (PC/모바일 동일한 화면)
-      if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const OrganizerHomeScreen()),
-          (route) => false,
-        );
+      // 관리자 → PC 웹 대시보드 / 주관사 → 모바일 홈
+      if (role == AppConstants.roleAdmin) {
+        context.go(AppRoutes.organizerDashboard);
+      } else if (role == AppConstants.roleOrganizer) {
+        context.go(AppRoutes.organizerHome);
       } else {
-        // 고객/업체 → 참여 코드 입력 화면
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => EntryCodeScreen(role: role),
-          ),
-        );
+        // 고객/업체 → 참여 코드 입력 화면 (GoRouter로 이동)
+        context.go(AppRoutes.entryCode, extra: role.isNotEmpty ? role : 'CUSTOMER');
       }
     } else {
       // 로그인 실패 → 에러 메시지 표시

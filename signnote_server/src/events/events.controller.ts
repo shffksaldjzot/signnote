@@ -26,11 +26,11 @@ import { JwtAuthGuard, RolesGuard, Roles } from '../auth/roles.guard';
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
-  // 행사 목록 조회 (로그인 필요)
+  // 행사 목록 조회 (로그인 필요, 역할별 필터링)
   @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll() {
-    return this.eventsService.findAll();
+  async findAll(@Request() req: any) {
+    return this.eventsService.findAll(req.user.id, req.user.role);
   }
 
   // 행사 상세 조회 (로그인 필요)

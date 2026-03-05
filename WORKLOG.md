@@ -941,3 +941,50 @@
 - [x] 운영 DB에 EventParticipant 테이블 반영 (prisma db push)
 - [x] Flutter analyze: 에러/경고 0건 / TypeScript 빌드 에러 0건
 
+---
+
+## 2026-03-05 — 관리자/주관사 홈 화면 빈 화면 버그 수정
+
+> **문제:** 관리자/주관사 로그인 후 홈 화면이 텅 비어있고 "마이페이지" 아이콘만 보임
+
+### 원인 분석
+1. **네비게이션 충돌 (핵심):** 로그인 화면에서 `Navigator.pushAndRemoveUntil()` 사용 → 앱은 GoRouter 기반이라 충돌 발생, 화면 렌더링 실패
+2. **에러 처리 부족:** EventService에서 DioException만 catch → 다른 에러 발생 시 화면 크래시
+3. **관리자 뱃지 오류:** ADMIN 로그인해도 "주관사" 뱃지 표시
+
+### 수정 내용
+
+| # | 파일 | 수정 내용 |
+|---|------|----------|
+| 1 | `login_screen.dart` | `Navigator.pushAndRemoveUntil()` → `context.go()` (GoRouter) 변경. 고객/업체도 동일하게 GoRouter 이동으로 통일 |
+| 2 | `event_service.dart` | `getEvents()`에 일반 `catch(e)` 추가 — DioException 외 에러도 안전 처리 |
+| 3 | `home_screen.dart` | 사용자 역할 조회 후 ADMIN이면 빨간 "관리자" 뱃지, ORGANIZER면 검정 "주관사" 뱃지 표시. 마이페이지 이동 시에도 실제 역할 전달 |
+| 4 | `home_screen.dart` | bottomNavigationBar `Align` 무한 확장 버그 수정 (`heightFactor: 1.0` 추가) — 빈 화면의 진짜 원인 |
+
+- [x] Flutter analyze 에러 0건
+
+---
+
+### 2026-03-05 — 역할별 화면 타입 분리 (관리자=PC 대시보드 / 나머지=모바일)
+
+> **사용자 확정 규칙:**
+> - 관리자(ADMIN): PC 웹 대시보드 (좌측 사이드바 + 전체 너비)
+> - 주관사(ORGANIZER): 모바일 화면 (430px) — PC에서 웹으로 사용
+> - 협력업체(VENDOR): 모바일 화면 — 실제 스마트폰
+> - 고객(CUSTOMER): 모바일 화면 — 실제 스마트폰
+
+**수정 내용:**
+
+| # | 파일 | 수정 내용 |
+|---|------|----------|
+| 1 | `app_router.dart` | ShellRoute로 WebShell(사이드바) 안에 관리자 대시보드 9개 페이지 등록. 기존 /organizer/* 리다이렉트 제거 |
+| 2 | `main.dart` | 관리자 대시보드 경로는 430px 제한 해제 (전체 너비 사용). 나머지는 모바일 430px 유지 |
+| 3 | `login_screen.dart` | ADMIN → 대시보드(`/organizer/dashboard`), ORGANIZER → 모바일 홈(`/organizer/home`) |
+| 4 | `splash_screen.dart` | 자동로그인도 동일하게 ADMIN/ORGANIZER 분기 |
+
+**관리자 대시보드 페이지 (기존 구현, 이번에 라우트 연결):**
+- 대시보드, 행사 관리, 행사 상세, 계약 현황, 품목 관리, 파트너 관리, 정산 관리, 활동 로그, 마이페이지
+
+- [x] Flutter analyze 에러 0건
+- [x] Cloudflare Pages 배포 완료
+

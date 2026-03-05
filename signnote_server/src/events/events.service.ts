@@ -11,9 +11,33 @@ import { CreateEventDto } from './dto/create-event.dto';
 export class EventsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 행사 목록 조회
-  async findAll() {
+  // 행사 목록 조회 (역할별 필터링)
+  // - ADMIN: 전체 행사 조회
+  // - ORGANIZER: 본인이 만든 행사만
+  // - VENDOR/CUSTOMER: 참여 코드로 입장한 행사만
+  async findAll(userId: string, role: string) {
+    let where: any = {};
+
+    if (role === 'ORGANIZER') {
+      // 주관사는 본인이 만든 행사만 조회
+      where = { organizerId: userId };
+    } else if (role === 'VENDOR' || role === 'CUSTOMER') {
+      // 업체/고객은 참여한 행사만 조회 (EventParticipant 테이블 기준)
+      where = {
+        participants: {
+          some: { userId },
+        },
+      };
+    }
+    // ADMIN은 where 없음 → 전체 조회
+
     return this.prisma.event.findMany({
+      where,
+      include: {
+        organizer: {
+          select: { id: true, name: true },  // 주관사명 포함
+        },
+      },
       orderBy: { startDate: 'desc' },  // 최신순 정렬
     });
   }

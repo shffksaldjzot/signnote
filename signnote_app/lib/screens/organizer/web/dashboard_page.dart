@@ -187,7 +187,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return GestureDetector(
       onTap: () {
         final eventId = event['id'] ?? '';
-        context.go('/organizer/events/$eventId');
+        context.go('/admin/events/$eventId');
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

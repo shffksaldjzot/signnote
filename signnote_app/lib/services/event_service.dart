@@ -26,6 +26,12 @@ class EventService {
         'success': false,
         'error': e.response?.data['message'] ?? '행사 목록을 불러올 수 없습니다',
       };
+    } catch (e) {
+      // DioException 외 예상치 못한 에러도 안전하게 처리
+      return {
+        'success': false,
+        'error': '행사 목록을 불러올 수 없습니다',
+      };
     }
   }
 

@@ -65,8 +65,10 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (!mounted) return;
 
-      // 주관사/관리자 → 바로 주관사 홈 (PC/모바일 동일한 화면)
-      if (role == AppConstants.roleOrganizer || role == AppConstants.roleAdmin) {
+      // 관리자 → PC 웹 대시보드 / 주관사 → 모바일 홈
+      if (role == AppConstants.roleAdmin) {
+        context.go(AppRoutes.organizerDashboard);
+      } else if (role == AppConstants.roleOrganizer) {
         context.go(AppRoutes.organizerHome);
       } else {
         // 고객/업체 → 참여코드 입장 화면 (역할 정보 전달)

@@ -40,14 +40,14 @@ class AppRoutes {
   static const String mypage = '/mypage';              // 마이페이지
   static const String notifications = '/notifications'; // 알림
 
-  // 주관사 PC 웹 대시보드
-  static const String organizerDashboard = '/organizer/dashboard';       // 대시보드 메인
-  static const String organizerWebEvents = '/organizer/events';          // 행사 관리
-  static const String organizerWebEventDetail = '/organizer/events/:id'; // 행사 상세
-  static const String organizerWebContracts = '/organizer/contracts';    // 계약 현황
-  static const String organizerWebProducts = '/organizer/products';    // 품목 관리
-  static const String organizerWebUsers = '/organizer/users';          // 사용자 관리
-  static const String organizerWebSettlements = '/organizer/settlements'; // 정산 관리
-  static const String organizerWebLogs = '/organizer/logs';             // 활동 로그
-  static const String organizerWebMypage = '/organizer/mypage';         // 마이페이지 (웹)
+  // 관리자(ADMIN) PC 웹 대시보드 — /admin/ 경로
+  static const String organizerDashboard = '/admin/dashboard';       // 대시보드 메인
+  static const String organizerWebEvents = '/admin/events';          // 행사 관리
+  static const String organizerWebEventDetail = '/admin/events/:id'; // 행사 상세
+  static const String organizerWebContracts = '/admin/contracts';    // 계약 현황
+  static const String organizerWebProducts = '/admin/products';      // 품목 관리
+  static const String organizerWebUsers = '/admin/users';            // 사용자 관리
+  static const String organizerWebSettlements = '/admin/settlements'; // 정산 관리
+  static const String organizerWebLogs = '/admin/logs';              // 활동 로그
+  static const String organizerWebMypage = '/admin/mypage';          // 마이페이지 (웹)
 }
