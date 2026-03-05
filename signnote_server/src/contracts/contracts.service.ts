@@ -64,7 +64,7 @@ export class ContractsService {
           customerAddress: dto.customerAddress,
           productId: item.productId,
           eventId: item.eventId,
-          vendorId: product.vendorId,
+          vendorId: product.vendorId ?? '',
           originalPrice: product.price,
           depositAmount,
           remainAmount,
@@ -84,7 +84,7 @@ export class ContractsService {
         userId: contract.vendorId,
         type: NotificationType.CONTRACT_CREATED,
         title: '새 계약이 들어왔습니다',
-        body: `${user.name}님이 '${contract.product?.name}'을(를) 계약했습니다.`,
+        body: `${user.name}님이 '${(contract as any).product?.name}'을(를) 계약했습니다.`,
         data: { contractId: contract.id, eventId: contract.eventId },
       });
     }

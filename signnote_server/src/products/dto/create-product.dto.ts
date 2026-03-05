@@ -26,9 +26,9 @@ export class CreateProductDto {
   @IsNotEmpty()
   eventId: string;                        // 소속 행사 ID
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  vendorName: string;                     // 업체명
+  vendorName?: string;                    // 업체명 (업체 등록 시)
 
   @IsArray()
   @IsString({ each: true })

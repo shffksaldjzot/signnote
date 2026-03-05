@@ -2,11 +2,14 @@
 // 상품 컨트롤러 (Products Controller)
 //
 // API 목록:
-//   GET    /api/v1/events/:eventId/products    → 행사별 상품 목록
-//   GET    /api/v1/products/:id                → 상품 상세
-//   POST   /api/v1/products                    → 상품 등록 (업체)
-//   PUT    /api/v1/products/:id                → 상품 수정 (업체)
-//   GET    /api/v1/products/vendor/mine        → 내가 등록한 상품 목록 (업체)
+//   GET    /api/v1/events/:eventId/products          → 행사별 상품 목록
+//   GET    /api/v1/events/:eventId/products/available → 가용 품목 목록 (업체용)
+//   GET    /api/v1/products/:id                      → 상품 상세
+//   POST   /api/v1/products                          → 상품 등록 (업체)
+//   POST   /api/v1/products/organizer                → 품목 등록 (주관사)
+//   POST   /api/v1/products/:id/claim                → 품목 선점 (업체)
+//   PUT    /api/v1/products/:id                      → 상품 수정
+//   GET    /api/v1/products/vendor/mine              → 내가 등록한 상품 목록 (업체)
 // ============================================
 
 import {
@@ -22,6 +25,7 @@ import {
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { CreateProductOrganizerDto } from './dto/create-product-organizer.dto';
 import { JwtAuthGuard, RolesGuard, Roles } from '../auth/roles.guard';
 
 @Controller()
@@ -51,6 +55,13 @@ export class ProductsController {
     return this.productsService.findByEvent(eventId, housingType);
   }
 
+  // 가용 품목 목록 (업체 선점 전 빈 품목들)
+  @UseGuards(JwtAuthGuard)
+  @Get('events/:eventId/products/available')
+  async findAvailable(@Param('eventId') eventId: string) {
+    return this.productsService.findAvailable(eventId);
+  }
+
   // 상품 상세 조회
   @UseGuards(JwtAuthGuard)
   @Get('products/:id')
@@ -58,12 +69,35 @@ export class ProductsController {
     return this.productsService.findOne(id);
   }
 
-  // 상품 등록 (업체/주관사만)
+  // 품목 등록 (주관사용 — vendorId 없이 품목만 등록)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ORGANIZER', 'ADMIN')
+  @Post('products/organizer')
+  async createByOrganizer(
+    @Request() req: any,
+    @Body() dto: CreateProductOrganizerDto,
+  ) {
+    return this.productsService.createByOrganizer(req.user.id, dto);
+  }
+
+  // 상품 등록 (업체)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('VENDOR', 'ORGANIZER', 'ADMIN')
   @Post('products')
   async create(@Request() req: any, @Body() dto: CreateProductDto) {
     return this.productsService.create(req.user.id, dto);
+  }
+
+  // 품목 선점 (업체가 품목 선택)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('VENDOR')
+  @Post('products/:id/claim')
+  async claimProduct(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: { vendorName: string },
+  ) {
+    return this.productsService.claimProduct(id, req.user.id, body.vendorName);
   }
 
   // 상품 수정 (업체/주관사만)

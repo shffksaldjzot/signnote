@@ -126,19 +126,19 @@ model Event {
 // ============================================
 model Product {
   id            String   @id @default(uuid())
-  name          String                              // 상품명 (예: "줄눈 A 패키지")
+  name          String                              // 품목명 (예: "줄눈", "나노코팅")
   category      String                              // 품목 카테고리 (예: "줄눈", "나노코팅")
   eventId       String                              // 소속 행사 ID
   event         Event    @relation(fields: [eventId], references: [id])
-  vendorId      String                              // 소속 업체 ID
-  vendor        User     @relation(fields: [vendorId], references: [id])
-  vendorName    String                              // 업체명 (예: "앤드 디자인")
+  vendorId      String?                             // 선점한 업체 ID (null = 아직 비어있음)
+  vendor        User?    @relation(fields: [vendorId], references: [id])
+  vendorName    String?                             // 업체명 (업체 선점 후 채워짐)
   housingTypes  String[]                            // 적용 주거 타입 ["84A","84B"]
-  image         String?                             // 상품 이미지 URL
-  description   String?                             // 상품 설명 (예: "욕실2바닥+현관+안방...")
-  price         Int                                 // 가격 (원)
-  commissionRate Float   @default(0)                // 수수료율 (주관사용, 예: 0.2 = 20%)
-  participationFee Int   @default(0)                // 참가비 (주관사용)
+  image         String?                             // 품목 설명 이미지 URL
+  description   String?                             // 품목 설명
+  price         Int      @default(0)                // 가격 (원) - 업체가 설정
+  commissionRate Float   @default(0)                // 수수료율 (주관사 설정, 예: 0.2 = 20%)
+  participationFee Int   @default(0)                // 참가비 (주관사 설정)
   createdAt     DateTime @default(now())
 
   // 관계 설정

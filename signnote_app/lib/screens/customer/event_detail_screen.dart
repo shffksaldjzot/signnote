@@ -3,19 +3,20 @@ import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/product/product_card.dart';
-import '../../widgets/product/housing_type_selector.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_modal.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../services/product_service.dart';
 import '../../services/cart_service.dart';
+import '../../services/event_service.dart';
 import 'cart_screen.dart';
 
 // ============================================
 // 행사 상세 화면 (구매 품목 리스트)
 //
 // 디자인 참고: 5.고객용-행사 상세.jpg, 6.고객용-품목 상세.jpg
-// - 상단: ← 행사명 헤더 + 타입 뱃지(84A타입)
+// - 상단: ← 행사명 헤더
+// - 타입 드롭다운 (주관사가 설정한 타입 목록)
 // - "구매 품목 리스트 >"
 // - 카테고리별 상품 목록 (서버에서 불러옴)
 // - 상품 카드: 이미지 + 업체명 + 상품명 + 설명 + 가격 + 장바구니(+)
@@ -38,7 +39,8 @@ class EventDetailScreen extends StatefulWidget {
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
   int _currentTabIndex = 0;
-  String _selectedType = '84A'; // 현재 선택된 평형 타입
+  String? _selectedType; // 현재 선택된 평형 타입 (서버에서 타입 목록 로드 후 첫번째로 설정)
+  List<String> _housingTypes = []; // 주관사가 설정한 타입 목록 (서버에서 가져옴)
   final Set<String> _cartProductIds = {}; // 장바구니에 담긴 상품 ID들
 
   // 서버에서 불러온 상품 목록
@@ -48,11 +50,37 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   final ProductService _productService = ProductService();
   final CartService _cartService = CartService();
+  final EventService _eventService = EventService();
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    _loadEventInfo(); // 행사 정보에서 타입 목록 가져오기
+  }
+
+  // 행사 정보에서 타입 목록 가져오기
+  Future<void> _loadEventInfo() async {
+    final result = await _eventService.getEventDetail(widget.eventId);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final event = result['event'] as Map<String, dynamic>;
+      final types = List<String>.from(event['housingTypes'] ?? []);
+      setState(() {
+        _housingTypes = types;
+        // 첫 번째 타입을 기본 선택
+        if (types.isNotEmpty) {
+          _selectedType = types.first;
+        }
+      });
+      _loadProducts(); // 타입 목록 로드 후 상품 불러오기
+    } else {
+      setState(() {
+        _error = result['error'] ?? '행사 정보를 불러올 수 없습니다';
+        _isLoading = false;
+      });
+    }
   }
 
   // 서버에서 상품 목록 불러오기
@@ -217,26 +245,25 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       appBar: AppHeader(title: widget.eventTitle),
       body: Column(
         children: [
-          // "구매 품목 리스트 >" + 타입 뱃지
+          // 타입 드롭다운 + "구매 품목 리스트 >"
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
-                const Row(
+                // 타입 드롭다운 (주관사가 설정한 타입 목록에서 선택)
+                if (_housingTypes.isNotEmpty)
+                  _buildTypeDropdown(),
+                const SizedBox(height: 12),
+                // "구매 품목 리스트 >"
+                Row(
                   children: [
-                    Text(
+                    const Text(
                       '구매 품목 리스트',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                     ),
-                    SizedBox(width: 4),
-                    Icon(Icons.chevron_right, size: 20),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right, size: 20),
                   ],
-                ),
-                // 타입 뱃지 (누르면 타입 선택 모달)
-                GestureDetector(
-                  onTap: () => _showTypeSelector(),
-                  child: HousingTypeBadge(type: _selectedType),
                 ),
               ],
             ),
@@ -272,6 +299,44 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             onTap: (index) => setState(() => _currentTabIndex = index),
           ),
         ],
+      ),
+    );
+  }
+
+  // 타입 드롭다운 (주관사가 행사 생성 시 설정한 타입들)
+  Widget _buildTypeDropdown() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedType,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+          hint: const Text('타입을 선택해 주세요'),
+          items: _housingTypes.map((type) {
+            return DropdownMenuItem(
+              value: type,
+              child: Text('$type타입'),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _selectedType = value);
+              _loadProducts(); // 타입 변경 시 상품 다시 불러오기
+            }
+          },
+        ),
       ),
     );
   }
@@ -336,32 +401,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ],
         );
       }).toList(),
-    );
-  }
-
-  // 타입 선택 모달
-  void _showTypeSelector() {
-    AppModal.show(
-      context,
-      title: '타입을 선택해 주세요.',
-      child: Column(
-        children: [
-          HousingTypeRadio(
-            types: const ['74A', '74B', '84A', '84B'],
-            selectedType: _selectedType,
-            onSelected: (type) {
-              setState(() => _selectedType = type);
-              Navigator.of(context).pop();
-              _loadProducts(); // 타입 변경 시 상품 다시 불러오기
-            },
-          ),
-          const SizedBox(height: 16),
-          AppButton(
-            text: '완료',
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
     );
   }
 }

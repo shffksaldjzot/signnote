@@ -6,10 +6,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+  ) {}
 
   // 행사 목록 조회 (역할별 필터링)
   // - ADMIN: 전체 행사 조회
@@ -66,7 +70,7 @@ export class EventsService {
     // 참여 코드 자동 생성 (숫자 6자리)
     const entryCode = await this.generateUniqueEntryCode();
 
-    return this.prisma.event.create({
+    const event = await this.prisma.event.create({
       data: {
         title: dto.title,
         organizerId,
@@ -86,6 +90,16 @@ export class EventsService {
         entryCode,
       },
     });
+
+    // 행사 생성 로그 기록
+    await this.activityLogs.log({
+      userId: organizerId,
+      action: 'EVENT_CREATE',
+      target: event.id,
+      detail: `행사 생성: ${dto.title}`,
+    });
+
+    return event;
   }
 
   // 행사 수정
@@ -95,7 +109,7 @@ export class EventsService {
       throw new NotFoundException('행사를 찾을 수 없습니다');
     }
 
-    return this.prisma.event.update({
+    const updated = await this.prisma.event.update({
       where: { id },
       data: {
         ...(dto.title && { title: dto.title }),
@@ -112,6 +126,16 @@ export class EventsService {
         ...(dto.allowOnlineContract !== undefined && { allowOnlineContract: dto.allowOnlineContract }),
       },
     });
+
+    // 행사 수정 로그 기록
+    await this.activityLogs.log({
+      userId: event.organizerId,
+      action: 'EVENT_UPDATE',
+      target: id,
+      detail: `행사 수정: ${updated.title}`,
+    });
+
+    return updated;
   }
 
   // 참여 코드로 행사 찾기 (입장 시 사용)

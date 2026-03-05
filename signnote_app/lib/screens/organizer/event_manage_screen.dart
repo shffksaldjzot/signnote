@@ -4,8 +4,8 @@ import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/product/product_card.dart';
-import '../../widgets/product/housing_type_selector.dart';
 import '../../services/product_service.dart';
+import 'product_add_screen.dart';
 
 // ============================================
 // 주관사용 행사 관리 화면
@@ -40,8 +40,6 @@ class OrganizerEventManageScreen extends StatefulWidget {
 class _OrganizerEventManageScreenState
     extends State<OrganizerEventManageScreen> {
   int _currentTabIndex = 0;
-  final String _selectedType = '84A';
-
   // API에서 가져온 전체 상품 목록
   List<Map<String, dynamic>> _products = [];
   bool _isLoading = true;
@@ -121,24 +119,59 @@ class _OrganizerEventManageScreenState
           // 참여 코드 카드
           if (widget.entryCode != null) _buildEntryCodeCard(),
 
-          // "전체 품목 리스트 >" + 타입 뱃지
+          // "전체 품목 리스트 >" + 품목 추가 버튼
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const Text(
+                    Text(
                       '전체 품목 리스트',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                     ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right, size: 20),
+                    SizedBox(width: 4),
+                    Icon(Icons.chevron_right, size: 20),
                   ],
                 ),
-                HousingTypeBadge(type: _selectedType),
+                // 품목 추가 버튼
+                GestureDetector(
+                  onTap: () async {
+                    final result = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) => OrganizerProductAddScreen(
+                          eventId: widget.eventId,
+                        ),
+                      ),
+                    );
+                    // 품목 추가 성공 시 목록 새로고침
+                    if (result == true) _loadProducts();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add, color: AppColors.white, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          '품목 추가',
+                          style: TextStyle(
+                            color: AppColors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

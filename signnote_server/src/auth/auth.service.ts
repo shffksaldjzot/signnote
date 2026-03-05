@@ -22,6 +22,7 @@ import { PrismaService } from '../common/prisma.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { EnterEventDto } from './dto/enter-event.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
 export class AuthService {
@@ -29,6 +30,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
   ) {}
 
   // ---- 회원가입 ----
@@ -38,6 +40,13 @@ export class AuthService {
 
     // 업체/주관사는 승인 대기 → 토큰은 발급하되 isApproved 상태 알려주기
     const tokens = await this.generateTokens(user.id, user.role);
+
+    // 회원가입 로그 기록
+    await this.activityLogs.log({
+      userId: user.id,
+      action: 'REGISTER',
+      detail: `${user.name} (${user.role}) 회원가입`,
+    });
 
     return {
       user,
@@ -66,6 +75,13 @@ export class AuthService {
 
     // 토큰 발급
     const tokens = await this.generateTokens(user.id, user.role);
+
+    // 로그인 로그 기록
+    await this.activityLogs.log({
+      userId: user.id,
+      action: 'LOGIN',
+      detail: `${user.name} (${user.role}) 로그인`,
+    });
 
     // 비밀번호 빼고 반환
     const { password: _, ...userWithoutPassword } = user;
@@ -128,6 +144,16 @@ export class AuthService {
         // 참여 기록 저장 실패해도 행사 입장은 진행
         console.error('EventParticipant 저장 실패:', e.message);
       }
+    }
+
+    // 행사 입장 로그 기록
+    if (userId) {
+      await this.activityLogs.log({
+        userId,
+        action: 'EVENT_ENTER',
+        target: event.id,
+        detail: `행사 입장: ${event.title} (코드: ${dto.entryCode})`,
+      });
     }
 
     return {

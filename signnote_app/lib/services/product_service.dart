@@ -158,4 +158,69 @@ class ProductService {
       };
     }
   }
+
+  // 주관사용 품목 등록 (vendorId 없이)
+  Future<Map<String, dynamic>> createProductByOrganizer({
+    required String eventId,
+    required String name,
+    int? participationFee,
+    double? commissionRate,
+    String? image,
+  }) async {
+    try {
+      final response = await _api.post('/products/organizer', data: {
+        'eventId': eventId,
+        'name': name,
+        if (participationFee != null) 'participationFee': participationFee,
+        if (commissionRate != null) 'commissionRate': commissionRate,
+        if (image != null) 'image': image,
+      });
+      return {
+        'success': true,
+        'product': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '품목 등록에 실패했습니다',
+      };
+    }
+  }
+
+  // 가용 품목 목록 (아직 업체가 선점하지 않은 품목)
+  Future<Map<String, dynamic>> getAvailableProducts(String eventId) async {
+    try {
+      final response = await _api.get('/events/$eventId/products/available');
+      return {
+        'success': true,
+        'products': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '가용 품목을 불러올 수 없습니다',
+      };
+    }
+  }
+
+  // 업체용 품목 선점
+  Future<Map<String, dynamic>> claimProduct({
+    required String productId,
+    required String vendorName,
+  }) async {
+    try {
+      final response = await _api.post('/products/$productId/claim', data: {
+        'vendorName': vendorName,
+      });
+      return {
+        'success': true,
+        'product': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '품목 선점에 실패했습니다',
+      };
+    }
+  }
 }

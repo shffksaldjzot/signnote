@@ -3,13 +3,18 @@
 // 상품(품목) 데이터를 DB에서 조회/생성/수정하는 로직
 // ============================================
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { CreateProductOrganizerDto } from './dto/create-product-organizer.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+  ) {}
 
   // 행사별 상품 목록 조회 (카테고리별 그룹핑)
   async findByEvent(eventId: string, housingType?: string) {
@@ -113,5 +118,76 @@ export class ProductsService {
       where,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // ── 주관사용: 품목 등록 (vendorId 없이) ──
+  async createByOrganizer(organizerId: string, dto: CreateProductOrganizerDto) {
+    const product = await this.prisma.product.create({
+      data: {
+        name: dto.name,
+        category: dto.name,  // 품목명 = 카테고리 (주관사가 등록하는 품목은 카테고리 자체)
+        eventId: dto.eventId,
+        // vendorId는 null (아직 업체가 선점하지 않음)
+        participationFee: dto.participationFee ?? 0,
+        commissionRate: dto.commissionRate ?? 0,
+        image: dto.image,
+      },
+    });
+
+    // 품목 등록 로그
+    await this.activityLogs.log({
+      userId: organizerId,
+      action: 'PRODUCT_CREATE',
+      target: product.id,
+      detail: `품목 등록: ${dto.name}`,
+    });
+
+    return product;
+  }
+
+  // ── 업체용: 가용 품목 목록 (아직 선점 안 된 품목들) ──
+  async findAvailable(eventId: string) {
+    return this.prisma.product.findMany({
+      where: {
+        eventId,
+        vendorId: null,  // 아직 업체가 없는 품목만
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  // ── 업체용: 품목 선점 ──
+  // 업체가 품목을 선택하면 vendorId를 채워서 선점 처리
+  async claimProduct(productId: string, vendorId: string, vendorName: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException('품목을 찾을 수 없습니다');
+    }
+
+    // 이미 다른 업체가 선점했으면 에러
+    if (product.vendorId) {
+      throw new BadRequestException('이미 다른 업체가 선점한 품목입니다');
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        vendorId,
+        vendorName,
+      },
+    });
+
+    // 품목 선점 로그
+    await this.activityLogs.log({
+      userId: vendorId,
+      action: 'PRODUCT_CREATE',
+      target: productId,
+      detail: `품목 선점: ${product.name} (업체: ${vendorName})`,
+    });
+
+    return updated;
   }
 }

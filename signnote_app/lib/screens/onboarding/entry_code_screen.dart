@@ -8,6 +8,7 @@ import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
 import '../customer/home_screen.dart';
 import '../vendor/home_screen.dart';
+import '../vendor/product_select_screen.dart';
 import '../organizer/home_screen.dart';
 
 // ============================================
@@ -83,6 +84,31 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
+      final event = result['event'] as Map<String, dynamic>? ?? {};
+      final eventId = event['eventId']?.toString() ?? '';
+      final eventTitle = event['title']?.toString() ?? '행사';
+
+      // 업체: 품목 선택 화면을 먼저 거침
+      if (widget.role == AppConstants.roleVendor && eventId.isNotEmpty) {
+        await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => VendorProductSelectScreen(
+              eventId: eventId,
+              eventTitle: eventTitle,
+            ),
+          ),
+        );
+
+        if (!mounted) return;
+
+        // 품목 선택 완료 또는 취소 후 홈으로 이동
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const VendorHomeScreen()),
+          (route) => false,
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('행사에 입장합니다!')),
       );
@@ -90,9 +116,6 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
       // 역할별 홈 화면으로 이동 (기존 화면 스택 모두 제거)
       Widget homeScreen;
       switch (widget.role) {
-        case AppConstants.roleVendor:
-          homeScreen = const VendorHomeScreen();
-          break;
         case AppConstants.roleOrganizer:
           homeScreen = const OrganizerHomeScreen();
           break;
