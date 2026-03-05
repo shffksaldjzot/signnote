@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
-import 'package:intl/intl.dart';
+import '../../widgets/common/app_button.dart';
 import '../../services/product_service.dart';
+import '../../utils/number_formatter.dart';
 import 'product_add_screen.dart';
 
 // ============================================
 // 주관사용 행사 관리 화면
 //
-// 디자인 참고: 14.주관사용-행사 상세.jpg
+// 디자인 참고: 4.주관사용-품목 상세.jpg
 // - 상단: ← 행사명 헤더
 // - 참여 코드 표시 + 복사 버튼
-// - "전체 품목 리스트 >" + 타입 뱃지
-// - 카테고리별 상품 목록 (수정 아이콘 포함)
-// - 하단: 3탭 네비게이션
-//
-// ⚠️ 사용자 요청: 참여 코드 생성/관리 기능 포함
+// - "판매 품목 리스트 >" + "총 N 품목"
+// - 아코디언(접기/펼치기) 품목 목록
+//   - 펼치면: 협력 업체 / 수수료 / 참가비 / 단가표
+//   - 각 필드 옆 연필아이콘 → 인라인 수정
+// - 하단: "품목 추가하기" 버튼 + 3탭 네비게이션
 // ============================================
 
 class OrganizerEventManageScreen extends StatefulWidget {
@@ -41,7 +43,7 @@ class OrganizerEventManageScreen extends StatefulWidget {
 
 class _OrganizerEventManageScreenState
     extends State<OrganizerEventManageScreen> {
-  int _currentTabIndex = 0;
+  final int _currentTabIndex = 0;
   // API에서 가져온 전체 상품 목록
   List<Map<String, dynamic>> _products = [];
   bool _isLoading = true;
@@ -52,7 +54,7 @@ class _OrganizerEventManageScreenState
   @override
   void initState() {
     super.initState();
-    _loadProducts(); // 화면 열릴 때 상품 목록 불러오기
+    _loadProducts();
   }
 
   // 서버에서 행사별 상품 목록 가져오기
@@ -90,17 +92,6 @@ class _OrganizerEventManageScreenState
         _isLoading = false;
       });
     }
-  }
-
-  // 카테고리별로 그룹핑
-  Map<String, List<Map<String, dynamic>>> get _groupedProducts {
-    final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final product in _products) {
-      final category = product['category'] as String;
-      grouped.putIfAbsent(category, () => []);
-      grouped[category]!.add(product);
-    }
-    return grouped;
   }
 
   // 탭 클릭 시 화면 이동
@@ -141,7 +132,7 @@ class _OrganizerEventManageScreenState
           // 참여 코드 카드
           if (widget.entryCode != null) _buildEntryCodeCard(),
 
-          // "전체 품목 리스트 >" + 품목 추가 버튼
+          // "판매 품목 리스트 >" + "총 N 품목"
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
             child: Row(
@@ -150,67 +141,59 @@ class _OrganizerEventManageScreenState
                 const Row(
                   children: [
                     Text(
-                      '전체 품목 리스트',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      '판매 품목 리스트',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                     ),
                     SizedBox(width: 4),
                     Icon(Icons.chevron_right, size: 20),
                   ],
                 ),
-                // 품목 추가 버튼
-                GestureDetector(
-                  onTap: () async {
-                    final result = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute(
-                        builder: (_) => OrganizerProductAddScreen(
-                          eventId: widget.eventId,
-                        ),
-                      ),
-                    );
-                    // 품목 추가 성공 시 목록 새로고침
-                    if (result == true) _loadProducts();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, color: AppColors.white, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          '품목 추가',
-                          style: TextStyle(
-                            color: AppColors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+                // 총 품목 수
+                Text(
+                  '총 ${_products.length} 품목',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
 
-          // 상품 목록 (카테고리별)
+          // 아코디언 품목 목록
           Expanded(child: _buildBody()),
         ],
       ),
-      // 하단 탭바
-      bottomNavigationBar: AppTabBar.organizer(
-        currentIndex: _currentTabIndex,
-        onTap: _onTabChanged,
+      // 하단: "품목 추가하기" 버튼 + 탭바
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: AppButton.black(
+              text: '품목 추가하기',
+              onPressed: () async {
+                final result = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => OrganizerProductAddScreen(
+                      eventId: widget.eventId,
+                    ),
+                  ),
+                );
+                if (result == true) _loadProducts();
+              },
+            ),
+          ),
+          AppTabBar.organizer(
+            currentIndex: _currentTabIndex,
+            onTap: _onTabChanged,
+          ),
+        ],
       ),
     );
   }
 
-  // 본문: 로딩 / 에러 / 상품 목록 분기
+  // 본문: 로딩 / 에러 / 아코디언 품목 목록
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -236,131 +219,248 @@ class _OrganizerEventManageScreenState
           children: [
             Icon(Icons.inventory_2_outlined, size: 48, color: AppColors.textHint),
             SizedBox(height: 12),
-            Text('등록된 품목이 없습니다', style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+            Text('등록된 품목이 없습니다',
+                style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
           ],
         ),
       );
     }
 
+    // 아코디언(ExpansionTile) 형태로 품목 표시
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      children: _groupedProducts.entries.map((entry) {
-        final category = entry.key;
-        final products = entry.value;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            // 카테고리 헤더
-            Row(
-              children: [
-                Text(
-                  category,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.help_outline,
-                    size: 16, color: AppColors.textSecondary),
-              ],
-            ),
-            // 주관사용 품목 카드 (이미지 + 품목명 + 참가비 + 수수료)
-            ...products.map((product) => _buildOrganizerProductCard(product)),
-            const Divider(height: 24),
-          ],
-        );
-      }).toList(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: _products.map((product) => _buildAccordionItem(product)).toList(),
     );
   }
 
-  // 주관사용 품목 카드 (이미지 + 품목명 + 참가비 + 수수료 + 수정아이콘)
-  Widget _buildOrganizerProductCard(Map<String, dynamic> product) {
+  // 아코디언 품목 아이템 (디자인 가이드 4.주관사용-품목 상세)
+  Widget _buildAccordionItem(Map<String, dynamic> product) {
+    final name = product['name'] ?? '';
+    final vendorName = product['vendorName'] as String? ?? '';
     final fee = product['participationFee'] as int? ?? 0;
     final rate = product['commissionRate'];
     final ratePercent = rate is num ? (rate * 100).toStringAsFixed(0) : '0';
     final formattedFee = NumberFormat('#,###').format(fee);
+    // 협력업체가 선점했는지 여부
+    final hasVendor = vendorName.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: ExpansionTile(
+        // 품목명 + ? 아이콘
+        title: Row(
+          children: [
+            Text(
+              name,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.help_outline, size: 16, color: AppColors.textSecondary),
+          ],
+        ),
+        // 접힌 상태에서도 협력업체명 표시
+        subtitle: hasVendor
+            ? Text(
+                vendorName,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              )
+            : const Text(
+                '업체 미배정',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textHint,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
-          // 왼쪽: 썸네일 이미지
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: 80,
-              height: 80,
-              color: AppColors.background,
-              child: product['imageUrl'] != null
-                  ? Image.network(product['imageUrl'], fit: BoxFit.cover)
-                  : const Icon(Icons.image_outlined, color: AppColors.textHint),
-            ),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          // 협력 업체
+          _buildDetailRow(
+            label: '협력 업체',
+            value: hasVendor ? vendorName : '미배정',
+            onEdit: () => _editField(product, '협력 업체', 'vendorName', vendorName),
           ),
-          const SizedBox(width: 12),
-          // 오른쪽: 품목 정보
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 품목명
-                Text(
-                  product['name'] ?? '',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // 참가비
-                Text(
-                  '참가비 : $formattedFee원',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                // 수수료
-                Text(
-                  '수수료 : $ratePercent%',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 10),
+          // 수수료
+          _buildDetailRow(
+            label: '수수료',
+            value: '$ratePercent%',
+            onEdit: () => _editField(product, '수수료', 'commissionRate', ratePercent),
           ),
-          // 수정 아이콘
-          GestureDetector(
-            onTap: () => _editProduct(product),
-            child: const Icon(
-              Icons.edit_outlined,
-              size: 20,
-              color: AppColors.textSecondary,
-            ),
+          const SizedBox(height: 10),
+          // 참가비
+          _buildDetailRow(
+            label: '참가비',
+            value: '$formattedFee원',
+            onEdit: () => _editField(product, '참가비', 'participationFee', fee.toString()),
+          ),
+          const SizedBox(height: 10),
+          // 단가표 상세보기
+          Row(
+            children: [
+              const SizedBox(width: 80, child: Text('단가표', style: TextStyle(fontSize: 14, color: AppColors.textPrimary))),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: () {
+                  // 단가표 상세보기 (추후 구현)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('단가표 상세보기는 준비 중입니다')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.textPrimary,
+                  foregroundColor: AppColors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+                child: const Text('상세보기', style: TextStyle(fontSize: 13)),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // 품목 수정 (주관사가 품목명/참가비/수수료 수정)
-  void _editProduct(Map<String, dynamic> product) async {
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => OrganizerProductAddScreen(
-          eventId: widget.eventId,
-          product: product, // 기존 데이터 전달 (수정 모드)
+  // 상세 정보 한 줄 (라벨 + 값 + 연필 아이콘)
+  Widget _buildDetailRow({
+    required String label,
+    required String value,
+    required VoidCallback onEdit,
+  }) {
+    return Row(
+      children: [
+        // 라벨 (고정 너비)
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+          ),
         ),
+        const SizedBox(width: 12),
+        // 값 (회색 배경 박스)
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // 연필 아이콘
+        GestureDetector(
+          onTap: onEdit,
+          child: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  // 필드 인라인 수정 다이얼로그
+  void _editField(
+    Map<String, dynamic> product,
+    String fieldLabel,
+    String fieldKey,
+    String currentValue,
+  ) {
+    final controller = TextEditingController(text: currentValue);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('$fieldLabel 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textAlign: TextAlign.right,
+          keyboardType: fieldKey == 'vendorName'
+              ? TextInputType.text
+              : TextInputType.number,
+          decoration: InputDecoration(
+            hintText: '$fieldLabel 입력',
+            suffixText: fieldKey == 'commissionRate'
+                ? '%'
+                : fieldKey == 'participationFee'
+                    ? '원'
+                    : null,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _updateProductField(product, fieldKey, controller.text);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            child: const Text('저장'),
+          ),
+        ],
       ),
     );
-    if (result == true) _loadProducts();
+  }
+
+  // 서버에 필드 업데이트 요청
+  Future<void> _updateProductField(
+    Map<String, dynamic> product,
+    String fieldKey,
+    String newValue,
+  ) async {
+    final productId = product['id'].toString();
+    Map<String, dynamic> updateData = {};
+
+    if (fieldKey == 'vendorName') {
+      updateData['vendorName'] = newValue;
+    } else if (fieldKey == 'commissionRate') {
+      // % → 소수 변환 (예: 20 → 0.2)
+      final percent = double.tryParse(newValue) ?? 0;
+      updateData['commissionRate'] = percent / 100;
+    } else if (fieldKey == 'participationFee') {
+      updateData['participationFee'] = parseCommaNumber(newValue);
+    }
+
+    final result = await _productService.updateProduct(productId, updateData);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('수정되었습니다')),
+      );
+      _loadProducts(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '수정에 실패했습니다')),
+      );
+    }
   }
 
   // 참여 코드 표시 카드
@@ -393,10 +493,7 @@ class _OrganizerEventManageScreenState
               children: [
                 const Text(
                   '참여 코드',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 2),
                 Text(
