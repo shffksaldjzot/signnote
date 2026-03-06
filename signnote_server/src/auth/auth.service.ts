@@ -124,33 +124,8 @@ export class AuthService {
     }
 
     // 로그인한 사용자가 있으면 참여 기록 저장 (중복 시 무시)
+    // 업체(VENDOR)도 품목 유무와 관계없이 무조건 참가 가능
     if (userId) {
-      // 협력업체(VENDOR)는 가용 품목이 있는지 먼저 확인
-      // 남은 품목이 없으면 참가 차단 (행사 참여 기록도 생성하지 않음)
-      const user = await this.usersService.findById(userId);
-      if (user?.role === 'VENDOR') {
-        // 이미 참여 중인 경우는 재입장이므로 허용
-        const existingParticipant = await this.prisma.eventParticipant.findUnique({
-          where: { eventId_userId: { eventId: event.id, userId } },
-        });
-
-        if (!existingParticipant) {
-          // 신규 참여 — 가용 품목 수 체크
-          const availableProducts = await this.prisma.product.count({
-            where: {
-              eventId: event.id,
-              vendorId: null,  // 아직 선점되지 않은 품목
-            },
-          });
-
-          if (availableProducts === 0) {
-            throw new ForbiddenException(
-              '참여 가능한 품목이 없습니다. 모든 품목이 다른 업체에 의해 선점되었습니다.',
-            );
-          }
-        }
-      }
-
       try {
         await this.prisma.eventParticipant.upsert({
           where: {

@@ -27,6 +27,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -60,13 +61,16 @@ export class ProductsController {
   }
 
   // 행사별 품목 목록 (2뎁스 포함)
+  // 업체(VENDOR)가 조회하면 다른 업체의 참가비/수수료/가격 숨김
   @UseGuards(JwtAuthGuard)
   @Get('events/:eventId/products')
   async findByEvent(
+    @Request() req: any,
     @Param('eventId') eventId: string,
     @Query('housingType') housingType?: string,
   ) {
-    return this.productsService.findByEvent(eventId, housingType);
+    const vendorId = req.user.role === 'VENDOR' ? req.user.id : undefined;
+    return this.productsService.findByEvent(eventId, housingType, vendorId);
   }
 
   // 가용 품목 목록 (업체 미배정)
@@ -147,6 +151,17 @@ export class ProductsController {
     @Param('id') id: string,
   ) {
     return this.productsService.unclaimProduct(id, req.user.id);
+  }
+
+  // 품목 순서 변경 (주관사용)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ORGANIZER', 'ADMIN')
+  @Patch('events/:eventId/products/reorder')
+  async reorderProducts(
+    @Param('eventId') eventId: string,
+    @Body() body: { productIds: string[] },
+  ) {
+    return this.productsService.reorderProducts(eventId, body.productIds);
   }
 
   // 품목 수정

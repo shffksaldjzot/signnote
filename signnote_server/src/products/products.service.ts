@@ -22,7 +22,8 @@ export class ProductsService {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   // 행사별 품목 목록 조회 (2뎁스 포함)
-  async findByEvent(eventId: string, housingType?: string) {
+  // vendorId가 전달되면 다른 업체의 참가비/수수료/가격 숨김
+  async findByEvent(eventId: string, housingType?: string, vendorId?: string) {
     const products = await this.prisma.product.findMany({
       where: { eventId },
       include: {
@@ -30,18 +31,35 @@ export class ProductsService {
           orderBy: { createdAt: 'asc' },
         },
       },
-      orderBy: { category: 'asc' },
+      orderBy: { sortOrder: 'asc' },
     });
 
     // housingType 필터가 있으면 해당 타입 포함된 아이템만
+    let filtered = products;
     if (housingType) {
-      return products.map(p => ({
+      filtered = products.map(p => ({
         ...p,
         items: p.items.filter(item => item.housingTypes.includes(housingType)),
       }));
     }
 
-    return products;
+    // 업체(VENDOR)가 조회할 때: 다른 업체의 참가비/수수료/가격 숨김
+    if (vendorId) {
+      return filtered.map(p => {
+        if (p.vendorId === vendorId) return p; // 내 품목은 그대로 표시
+        return {
+          ...p,
+          participationFee: 0,   // 다른 업체의 참가비 숨김
+          commissionRate: 0,     // 다른 업체의 수수료 숨김
+          items: p.items.map(item => ({
+            ...item,
+            price: 0,            // 다른 업체의 상세품목 가격 숨김
+          })),
+        };
+      });
+    }
+
+    return filtered;
   }
 
   // 품목 상세 조회 (2뎁스 포함)
@@ -118,7 +136,7 @@ export class ProductsService {
           orderBy: { createdAt: 'asc' },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { sortOrder: 'asc' },
     });
   }
 
@@ -258,6 +276,11 @@ export class ProductsService {
 
     const vendorName = product.vendorName || '알 수 없음';
 
+    // 업체가 등록한 상세 품목(2뎁스) 전부 삭제
+    await this.prisma.productItem.deleteMany({
+      where: { productId },
+    });
+
     const updated = await this.prisma.product.update({
       where: { id: productId },
       data: {
@@ -270,10 +293,24 @@ export class ProductsService {
       userId: organizerId,
       action: 'PRODUCT_UPDATE',
       target: productId,
-      detail: `업체 참가 취소: ${product.name} (업체: ${vendorName})`,
+      detail: `업체 참가 취소: ${product.name} (업체: ${vendorName}) — 상세 품목 초기화`,
     });
 
     return updated;
+  }
+
+  // ── 품목 순서 변경 (주관사용) ──
+  async reorderProducts(eventId: string, productIds: string[]) {
+    // productIds 배열 순서대로 sortOrder를 0, 1, 2, ... 로 업데이트
+    const updates = productIds.map((id, index) =>
+      this.prisma.product.update({
+        where: { id },
+        data: { sortOrder: index },
+      }),
+    );
+
+    await this.prisma.$transaction(updates);
+    return { success: true };
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

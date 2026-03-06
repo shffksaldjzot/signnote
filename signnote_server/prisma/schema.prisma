@@ -139,6 +139,7 @@ model Product {
   image           String?                             // 품목 대표 이미지 URL
   commissionRate  Float    @default(0)                // 수수료율 (주관사 설정, 예: 0.2 = 20%)
   participationFee Int     @default(0)                // 참가비 (주관사 설정)
+  sortOrder       Int      @default(0)                // 정렬 순서 (주관사가 드래그로 변경)
   createdAt       DateTime @default(now())
 
   // 관계 설정
