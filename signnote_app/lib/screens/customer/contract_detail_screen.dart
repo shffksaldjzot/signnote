@@ -1,0 +1,219 @@
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:intl/intl.dart';
+import '../../config/theme.dart';
+import '../../utils/image_download.dart';
+
+// ============================================
+// 고객용 계약 상세보기 화면
+//
+// 디자인 참고: 8.고객용-계약 상세보기.jpg
+// - 업체 정보 / 계약 내용 / 계약 금액 / 환불 안내
+// - 하단 "다운로드" 버튼 (이미지 파일로 저장)
+// ============================================
+
+class CustomerContractDetailScreen extends StatelessWidget {
+  final Map<String, dynamic> contract;
+  final String categoryName;
+
+  const CustomerContractDetailScreen({
+    super.key,
+    required this.contract,
+    required this.categoryName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final priceFormat = NumberFormat('#,###');
+    final originalPrice = contract['originalPrice'] ?? contract['price'] ?? 0;
+    final depositAmount = contract['depositAmount'] ?? 0;
+    final remainAmount = contract['remainAmount'] ?? (originalPrice - depositAmount);
+    final status = contract['status'] ?? 'PENDING';
+    final depositLabel = status == 'CONFIRMED' || status == 'CANCEL_REQUESTED'
+        ? '${priceFormat.format(depositAmount)}원 (결제 완료)'
+        : '${priceFormat.format(depositAmount)}원';
+
+    // 캡처할 영역의 키
+    final captureKey = GlobalKey();
+
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          categoryName,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: RepaintBoundary(
+          key: captureKey,
+          child: Container(
+            color: AppColors.white,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Text('계약 내용', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    SizedBox(width: 4),
+                    Icon(Icons.chevron_right, size: 20),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // 업체 정보
+                _buildSection('업체 정보', [
+                  _buildInfoLine('업체명', contract['vendorName'] ?? '-'),
+                  _buildInfoLine('연락처', contract['vendorPhone'] ?? '-'),
+                ]),
+                const SizedBox(height: 16),
+
+                // 계약 내용
+                _buildSection('계약 내용', [
+                  _buildInfoLine('패키지명', contract['productName'] ?? '-'),
+                  if ((contract['description'] as String?)?.isNotEmpty == true)
+                    _buildInfoLine('상세 내용', contract['description']),
+                ]),
+                const SizedBox(height: 16),
+
+                // 계약 금액
+                _buildSection('계약 금액', [
+                  _buildPriceLine('가격', '${priceFormat.format(originalPrice)}원'),
+                  _buildPriceLine('계약금', depositLabel, color: AppColors.priceRed),
+                  _buildPriceLine('잔금', '${priceFormat.format(remainAmount)}원'),
+                ]),
+                const SizedBox(height: 24),
+
+                // 환불 안내
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          const Text(
+                            '계약금 먼저 결제 되며, 취소 환불 조항에 동의합니다.',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '지금 결제 하시면 모두 결제되는 것이 아니라 계약금만 결제되며, 잔금은 해당 업체와 직접 결제하시면 됩니다.\n취소 지정 기간 이후 취소 건은 계약금 환불은 어렵습니다.',
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      // 하단: 다운로드 버튼
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: () => _downloadAsImage(context, captureKey),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            child: const Text('다운로드'),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 위젯을 이미지로 캡처 → 다운로드
+  Future<void> _downloadAsImage(BuildContext context, GlobalKey key) async {
+    try {
+      final boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final bytes = byteData.buffer.asUint8List();
+      final fileName = '계약서_${contract['productName'] ?? '계약'}_${DateTime.now().millisecondsSinceEpoch}.png';
+
+      await downloadImageBytes(bytes, fileName);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('계약서가 다운로드되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('다운로드 실패: $e')),
+        );
+      }
+    }
+  }
+
+  // 섹션 카드
+  Widget _buildSection(String title, List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text('$label : $value', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+    );
+  }
+
+  Widget _buildPriceLine(String label, String value, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 14, color: color ?? AppColors.textPrimary, fontWeight: color != null ? FontWeight.w600 : FontWeight.w400)),
+          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? AppColors.textPrimary)),
+        ],
+      ),
+    );
+  }
+}

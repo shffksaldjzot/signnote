@@ -988,3 +988,412 @@
 - [x] Flutter analyze 에러 0건
 - [x] Cloudflare Pages 배포 완료
 
+---
+
+## 2026-03-05 — 행사 검색/정렬 + 역할별 필터링 + 품목 관리 시스템 (세션 1)
+
+### 1. 행사 목록 검색/정렬 + 주관사명 표시 (`9ece048`)
+
+**프론트엔드:**
+- [x] 주관사 홈: 검색바(행사명) + 정렬 드롭다운(최신순/오래된순/이름순) 추가
+- [x] 관리자 웹 행사관리: 주관사 컬럼 추가 + 검색/정렬 기능
+- [x] EventCard 위젯에 주관사명(organizerName) 표시 기능 추가
+
+**백엔드:**
+- [x] 역할별 행사 필터링 — 주관사: 본인 행사만, 업체/고객: 참여 행사만, 관리자: 전체
+- [x] 관리자 라우트 `/admin/*` 분리, 로그인 라우팅 수정
+
+**수정 파일 (16개):**
+- `app_router.dart`, `routes.dart`, `main.dart`, `login_screen.dart`, `splash_screen.dart`
+- `organizer/home_screen.dart`, `web/events_page.dart`, `web/dashboard_page.dart`
+- `event_card.dart`, `event_service.dart`
+- `events.controller.ts`, `events.service.ts`
+
+### 2. FEEDBACK 4건 처리 (`4b60b94`)
+
+| # | 피드백 | 처리 |
+|---|--------|------|
+| 1 | 주관사 홈 검색바/정렬 드롭다운 불필요 | 주관사 홈에서 검색바/정렬 UI 제거 (관리자 웹에만 유지) |
+| 2 | 고객 타입 선택 UI 불편 | 팝업 방식 → 드롭다운으로 변경, 서버에서 타입 목록 가져옴 |
+| 3 | 활동 로그 기록 안 됨 | 로그인/회원가입/행사생성/수정/입장에 ActivityLog 기록 추가 |
+| 4 | 품목 관리 시스템 전면 구축 | 아래 상세 |
+
+**품목 관리 시스템 신규 구축:**
+- [x] 주관사: 품목 추가 화면 신규 (`product_add_screen.dart`) — 품목명/참가비/수수료/이미지
+- [x] 업체: 참여코드 입장 후 품목 선택 드롭다운 + 선점 (`product_select_screen.dart` 신규)
+- [x] 선점된 품목은 다른 업체에게 안 보임 (1업체 1품목)
+- [x] 남은 품목 없으면 참여 불가 안내
+- [x] DB: `Product.vendorId` nullable로 변경 (prisma db push)
+- [x] 백엔드: `products.controller.ts`에 주관사용 상품 생성/선점 API 추가
+
+**수정 파일 (17개):**
+- `entry_code_screen.dart`, `event_detail_screen.dart`, `event_manage_screen.dart`
+- `organizer/home_screen.dart`, `organizer/product_add_screen.dart` (신규)
+- `vendor/product_select_screen.dart` (신규), `product_service.dart`
+- `prisma/schema.prisma`, `auth.service.ts`, `contracts.service.ts`
+- `events.service.ts`, `products.controller.ts`, `products.service.ts`
+- `dto/create-product-organizer.dto.ts` (신규), `dto/create-product.dto.ts`
+
+### 커밋 & 배포
+
+- [x] 커밋 1: `9ece048` — 행사 목록 검색/정렬 + 주관사명 표시 + 역할별 필터링
+- [x] 커밋 2: `4b60b94` — FEEDBACK 4건 처리
+- [x] Cloudflare Pages 배포 완료
+- [x] GitHub push 완료
+
+---
+
+## 2026-03-05 — 피드백 7건 반영 + 주관사 품목 관리 아코디언 개편 (세션 2)
+
+### 1. FEEDBACK.md 7건 처리
+
+| # | 피드백 내용 | 처리 |
+|---|-----------|------|
+| 1 | 모든 숫자 필드에 천 단위 콤마 적용 | `number_formatter.dart` 유틸 생성, 참가비/가격/세대수에 적용. CLAUDE.md에 절대기준 등록 |
+| 2 | 주관사 품목 추가 입력값 오른쪽 정렬 | `product_add_screen.dart` 모든 TextField에 `textAlign: TextAlign.right` |
+| 3 | 품목 이미지 저장 시 "request entity too large" | 서버 `main.ts`에 `json({ limit: '10mb' })` 추가 |
+| 4 | 주관사 품목 수정 버튼 → "업체만 가능" 에러 | `product_add_screen.dart`에 수정 모드(product 파라미터) 추가 |
+| 5 | 품목 카드에 이미지+이름+참가비+수수료 표시 (가격 제거) | `event_manage_screen.dart` 카드 구성 변경 |
+| 6 | 주관사 하단 내비게이션 작동 안 함 | `_onTabChanged` 메서드 추가 (홈/계약함/마이페이지 이동) |
+| 7 | 업체 품목 화면에 주관사 품목이 보이는 문제 | `product_manage_screen.dart` 전면 리팩토링 — 업체 자신의 상세 품목만 표시 |
+
+### 2. 주관사 품목 관리 화면 아코디언 전면 개편
+
+> 디자인 참고: `4.주관사용-품목 상세.jpg`
+
+- 기존 이미지 카드 리스트 → **ExpansionTile 아코디언** 방식으로 변경
+- 접힌 상태: 품목명 + 협력업체명 (또는 "업체 미배정")
+- 펼친 상태: 협력 업체 / 수수료 / 참가비 / 단가표(상세보기)
+- 각 필드 옆 연필 아이콘 → 팝업 다이얼로그로 인라인 수정
+- 헤더에 "총 N 품목" 표시
+
+### 3. 업체 품목 폼 — 적용 타입 서버 연동
+
+- `VendorProductFormScreen`에서 하드코딩된 타입 목록 제거
+- `EventService.getEventDetail()`로 행사별 설정 타입을 서버에서 가져오도록 변경
+- 서버 응답 없으면 기본값(`AppConstants.defaultHousingTypes`) 폴백
+
+### 수정 파일 목록
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `CLAUDE.md` | 숫자 콤마 포맷 절대기준 추가 |
+| `signnote_server/src/main.ts` | body size limit 10mb |
+| `signnote_app/lib/utils/number_formatter.dart` | **신규** — CommaFormatter, parseCommaNumber, formatWithComma |
+| `signnote_app/lib/screens/organizer/product_add_screen.dart` | 오른쪽 정렬 + 콤마 + 수정 모드 |
+| `signnote_app/lib/screens/organizer/event_manage_screen.dart` | 아코디언 전면 개편 + 인라인 수정 + 업체명 표시 |
+| `signnote_app/lib/screens/organizer/event_form_screen.dart` | 세대수 콤마 포맷 적용 |
+| `signnote_app/lib/screens/vendor/product_manage_screen.dart` | 업체 자기 품목만 표시 + 탭 네비게이션 |
+| `signnote_app/lib/screens/vendor/product_form_screen.dart` | 콤마 포맷 + 서버에서 적용 타입 가져오기 |
+
+### 커밋 & 배포
+
+- [x] 커밋 1: `ee80634` — 피드백 7건 반영
+- [x] 커밋 2: `87a2058` — 주관사 품목 관리 아코디언 개편
+- [x] Flutter analyze 에러 0건
+- [x] Cloudflare Pages 배포 완료
+- [x] GitHub push 완료
+
+---
+
+## 2026-03-05 — 업체 로그인플로우 개선 + 피드백 8건 반영 (세션 2 후반)
+
+### 1. 업체 로그인 플로우 개선 + 1행사1품목 제한 (`a51827d`)
+
+| # | 내용 | 처리 |
+|---|------|------|
+| 1 | 업체 로그인 시 참여 행사 유무 분기 | 참여 행사 있으면 → 바로 업체 홈, 없으면 → 행사코드 입력 화면 |
+| 2 | 1행사 1품목 제한 | 한 행사에 한 품목만 선점 가능, 중복 선점 시 에러 반환 |
+| 3 | 주관사 아코디언에 업체 참가 취소 기능 | 업체 참가 취소 버튼 + 확인 다이얼로그 추가 |
+| 4 | vendor/customer 홈 GoRoute 등록 | `app_router.dart`에 GoRoute 추가 |
+
+**수정 파일 (9개):**
+- `app_router.dart`, `entry_code_screen.dart`, `login_screen.dart`, `splash_screen.dart`
+- `organizer/event_manage_screen.dart`, `product_service.dart`
+- `products.controller.ts`, `products.service.ts`
+
+### 2. 피드백 8건 처리 (`a627574`)
+
+| # | 피드백 | 처리 | 수정 파일 |
+|---|--------|------|-----------|
+| 1 | 업체 행사 참가 취소 기능 | 업체 홈 행사카드 3점 메뉴 → 참가 취소 (확인 팝업 → 비밀번호 인증 → API 호출) | `vendor/home_screen.dart` |
+| 2 | 주관사 행사 편집/삭제 | 주관사 홈 행사카드 3점 메뉴 → 편집(기존 폼 재활용) + 삭제(비밀번호 인증) | `organizer/home_screen.dart` |
+| 3 | 행사 등록 필드 순서 변경 | "행사 기간"을 "취소 가능 기간" 바로 위로 이동 | `event_form_screen.dart` |
+| 4 | 사이드바 메뉴명 변경 | '파트너 관리' → '사용자 관리' | `web_shell.dart` |
+| 5 | 관리자 행사 목록 주관사순 정렬 | 정렬 드롭다운에 '주관사순' 옵션 추가 | `web/events_page.dart` |
+| 6 | 고객 로그인 시 참여 행사 유무 분기 | 고객도 업체와 동일하게 참여 행사 있으면 바로 홈, 없으면 코드 입력 | `login_screen.dart`, `splash_screen.dart` |
+| 7 | 관리자 회원 강제 탈퇴 기능 | 사용자 상세 다이얼로그에 "회원 탈퇴" 버튼 추가 + DELETE API | `users_page.dart`, `users.controller.ts`, `users.service.ts` |
+| 8 | 비밀번호 찾기 버튼 | 로그인 화면 "비밀번호를 잊으셨나요?" 버튼 추가 (준비중 안내) | `login_screen.dart` |
+
+**백엔드 신규 API:**
+- `POST /auth/verify-password` — 비밀번호 확인 (참가 취소/행사 삭제 시 사용)
+- `DELETE /events/:id` — 행사 삭제
+- `DELETE /events/:id/leave` — 행사 참가 취소
+- `DELETE /users/:id` — 회원 강제 탈퇴 (관리자 전용)
+
+**수정 파일 (18개):**
+- `login_screen.dart`, `splash_screen.dart`, `event_form_screen.dart`
+- `organizer/home_screen.dart`, `vendor/home_screen.dart`
+- `web/events_page.dart`, `web/users_page.dart`, `web/web_shell.dart`
+- `auth_service.dart`, `event_service.dart`, `user_service.dart`
+- `auth.controller.ts`, `auth.service.ts`
+- `events.controller.ts`, `events.service.ts`
+- `users.controller.ts`, `users.service.ts`
+
+### 커밋 & 배포
+
+- [x] 커밋 1: `a51827d` — 업체 로그인플로우 + 1행사1품목 + 주관사 참가취소
+- [x] 커밋 2: `a627574` — 피드백 8건 반영
+- [x] Cloudflare Pages 배포 완료
+- [x] GitHub push 완료
+
+---
+
+## 2026-03-05 — 피드백 9건 반영 (세션 3)
+
+> FEEDBACK.md 8건 + 추가 요청 1건 (엔터키 로그인)
+
+### 처리 내용
+
+| # | 피드백 | 처리 | 수정 파일 |
+|---|--------|------|-----------|
+| 1 | 회원 삭제(탈퇴) 기능 오류 (일반회원/업체 모두) | `deleteUser` 메서드 전면 재작성 — cascade 순서: 알림→장바구니→계약(결제→정산→계약)→상품(vendorId null)→참여기록→주관사행사 관련 데이터→사용자 삭제 | `users.service.ts` |
+| 2 | 어드민 사용자 관리 테이블 배지 겹침/이름·이메일 글씨 겹침 | 가로 스크롤 추가 + columnSpacing 24→32 + 이름(140px)/이메일(200px) 고정 너비 + 말줄임(ellipsis) | `users_page.dart` |
+| 3 | 개별계약 "준비중" 표시 + 선택 불가 | 라디오버튼 텍스트에 "(준비중)" 추가 + `onChanged: null`로 비활성화 + 회색 텍스트 | `event_form_screen.dart` |
+| 4 | 관리자가 행사 삭제할 수 있는 기능 | DataTable에 "관리" 컬럼 추가 + 삭제 아이콘(빨간 휴지통) + 확인 다이얼로그 + deleteEvent API 호출 | `events_page.dart` |
+| 5 | 행사명/현장명 길면 "..." 처리 | ConstrainedBox(maxWidth: 180/160) + TextOverflow.ellipsis + Tooltip(마우스 올리면 전체 텍스트 표시) | `events_page.dart` |
+| 6 | 로딩 시 유니코드 깨진 글자 깜빡임 | index.html에 흰색 로딩 스피너 추가 — Flutter 첫 프레임(flutter-first-frame) 이벤트 발생 시 페이드아웃 제거 + 10초 안전장치 | `web/index.html` |
+| 7 | 행사 참여코드 붙여넣기 안 되는 문제 | maxLength 제거 + `_handlePasteOrInput()` 메서드 추가 — 여러 글자 감지 시 6칸에 자동 분배 | `entry_code_screen.dart` |
+| 8 | 갤럭시 뒤로가기 버튼 → 로그인 풀림 | 3개 홈 화면(업체/고객/주관사) Scaffold를 `PopScope(canPop: false)`로 감싸서 뒤로가기 차단 | `vendor/home_screen.dart`, `customer/home_screen.dart`, `organizer/home_screen.dart` |
+| 9 | 비밀번호 입력 후 엔터키로 로그인 | 비밀번호 TextField에 `textInputAction: TextInputAction.done` + `onSubmitted: (_) => _handleLogin()` 추가 | `login_screen.dart` |
+
+### 수정 파일 목록
+
+**백엔드 (1개):**
+- `signnote_server/src/users/users.service.ts` — deleteUser cascade 삭제 전면 재작성
+
+**프론트엔드 (8개):**
+- `signnote_app/lib/screens/onboarding/login_screen.dart` — 엔터키 로그인
+- `signnote_app/lib/screens/onboarding/entry_code_screen.dart` — 붙여넣기 지원
+- `signnote_app/lib/screens/organizer/event_form_screen.dart` — 개별계약 준비중
+- `signnote_app/lib/screens/organizer/home_screen.dart` — PopScope
+- `signnote_app/lib/screens/organizer/web/users_page.dart` — 테이블 레이아웃 개선
+- `signnote_app/lib/screens/organizer/web/events_page.dart` — 행사 삭제 + 말줄임
+- `signnote_app/lib/screens/vendor/home_screen.dart` — PopScope
+- `signnote_app/lib/screens/customer/home_screen.dart` — PopScope
+- `signnote_app/web/index.html` — 로딩 스피너
+
+### 빌드 & 배포
+
+- [x] Flutter 웹 빌드 성공 (에러 0건)
+- [x] TypeScript 빌드 에러 0건
+- [x] Cloudflare Pages 배포 완료
+
+---
+
+## 2026-03-05 — 피드백 3건 반영 (세션 4)
+
+### 처리 내용
+
+| # | 피드백 | 처리 | 수정 파일 |
+|---|--------|------|-----------|
+| 1 | 관리자 대시보드 행사 카드와 배경 구분 안 됨 | 행사 카드 + 추가 카드에 boxShadow + border 추가하여 배경과 시각적 구분 | `dashboard_page.dart` |
+| 2 | 알림 팝업 디자인이 서비스와 안 어울림 | theme.dart에 dialogTheme(둥근 모서리 20px, 타이포그래피) + snackBarTheme(floating, 둥근 모서리 12px) 글로벌 적용. 회원가입 완료 다이얼로그 → 아이콘+중앙정렬+브랜드 버튼 디자인으로 전면 개편 | `theme.dart`, `register_screen.dart` |
+| 3 | 업체가 품목 자리 없는 행사에 참가되어 붕뜨는 문제 | auth.service.ts enterEvent에서 VENDOR 신규 참여 시 가용 품목 수 체크 → 0개면 참가 차단 (403 에러: "참여 가능한 품목이 없습니다") | `auth.service.ts` |
+
+### 수정 파일 목록
+
+**백엔드 (1개):**
+- `signnote_server/src/auth/auth.service.ts` — VENDOR 입장 시 가용 품목 체크 로직 추가
+
+**프론트엔드 (3개):**
+- `signnote_app/lib/config/theme.dart` — dialogTheme + snackBarTheme 글로벌 스타일
+- `signnote_app/lib/screens/organizer/web/dashboard_page.dart` — 카드 그림자/테두리
+- `signnote_app/lib/screens/onboarding/register_screen.dart` — 가입 완료 다이얼로그 디자인 개편
+
+**설정 (1개):**
+- `CLAUDE.md` — "배포 직전에 반드시 워킹로그 업데이트" 절대기준 추가
+
+### 빌드 & 배포
+
+- [x] Flutter 웹 빌드 성공 (에러 0건)
+- [x] TypeScript 빌드 에러 0건
+- [x] Cloudflare Pages 배포 완료
+
+---
+
+## 2026-03-06 — 2차 디자인 Phase 2: 주관사 업체 드롭다운 + 업체 페이지 전면 개편
+
+### Phase A: 백엔드 변경
+
+| # | 변경 | 파일 |
+|---|------|------|
+| 1 | 1행사 1품목 제한 해제 (업체가 여러 품목 참여 가능) | `products.service.ts` |
+| 2 | 주관사 업체 배정 API 추가 (`POST /products/:id/assign-vendor`) | `products.service.ts`, `products.controller.ts` |
+| 3 | 행사 참여자 목록 API 추가 (`GET /events/:id/participants?role=VENDOR`) | `events.service.ts`, `events.controller.ts` |
+| 4 | Flutter ProductService에 `assignVendor()` 메서드 추가 | `product_service.dart` |
+| 5 | Flutter EventService에 `getParticipants()` 메서드 추가 | `event_service.dart` |
+
+### Phase B: 주관사 품목 관리 - 업체 배정 드롭다운
+
+| # | 변경 | 파일 |
+|---|------|------|
+| 1 | "협력 업체" 행을 연필 아이콘 → 드롭다운 선택으로 변경 | `event_manage_screen.dart` |
+| 2 | 행사 참여 업체 목록 API 연동 (드롭다운 데이터) | `event_manage_screen.dart` |
+| 3 | 업체 선택 시 `assignVendor` API 호출 | `event_manage_screen.dart` |
+
+### Phase C: 업체 페이지 전면 개편 (2차 디자인)
+
+| # | 변경 | 파일 |
+|---|------|------|
+| 1 | 업체 하단탭 3탭→2탭 (홈/마이페이지) 변경 | `app_tab_bar.dart` |
+| 2 | 업체 홈 전면 재작성: 첫 페이지(코드 입력 안내) + 행사 그리드 + 팝업 코드 입력 | `vendor/home_screen.dart` |
+| 3 | 업체 행사 상세 화면 신규 생성: 3탭(판매 품목/계약함/알림) + 카테고리 아코디언 | `vendor/event_detail_screen.dart` (신규) |
+| 4 | 업체 품목 추가 폼 재작성: 품목 드롭다운(주관사 품목 선택) + 적용 타입 칩 | `vendor/product_form_screen.dart` |
+| 5 | 업체 계약 상세보기 화면 신규 생성: 고객정보/계약내용/금액/환불안내 | `vendor/contract_detail_screen.dart` (신규) |
+
+### 수정 파일 전체 목록
+
+**백엔드 (4개):**
+- `signnote_server/src/products/products.service.ts`
+- `signnote_server/src/products/products.controller.ts`
+- `signnote_server/src/events/events.service.ts`
+- `signnote_server/src/events/events.controller.ts`
+
+**프론트엔드 (8개, 신규 2개):**
+- `signnote_app/lib/services/product_service.dart`
+- `signnote_app/lib/services/event_service.dart`
+- `signnote_app/lib/widgets/layout/app_tab_bar.dart`
+- `signnote_app/lib/screens/organizer/event_manage_screen.dart`
+- `signnote_app/lib/screens/vendor/home_screen.dart`
+- `signnote_app/lib/screens/vendor/product_form_screen.dart`
+- `signnote_app/lib/screens/vendor/event_detail_screen.dart` **(신규)**
+- `signnote_app/lib/screens/vendor/contract_detail_screen.dart` **(신규)**
+
+### 빌드 & 배포
+
+- [x] Flutter analyze: 경고 0건 (info 2건은 기존 이슈)
+- [x] TypeScript 타입체크: 에러 0건
+- [x] Flutter 웹 빌드 성공
+- [x] Cloudflare Pages 배포 완료
+
+---
+
+## 세션 9: 1뎁스/2뎁스 품목 구조 전면 개편 (2026-03-06)
+
+### 작업 요약
+
+Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2뎁스, 업체가 생성하는 상세 패키지)를 완전히 분리하는 구조 개편을 DB부터 프론트까지 전 스택에 걸쳐 수행.
+
+### 핵심 변경사항
+
+| # | 작업 내용 | 관련 파일 |
+|---|----------|----------|
+| 1 | **DB 스키마**: Product에서 price/description/housingTypes 제거, ProductItem 모델 신규 추가 (onDelete: Cascade) | `prisma/schema.prisma` |
+| 2 | **백엔드 API**: ProductItem CRUD 엔드포인트 5개 추가 (목록/생성/조회/수정/삭제) | `products.controller.ts`, `products.service.ts` |
+| 3 | **백엔드 계약**: Contract 생성 시 가격을 ProductItem에서 가져오도록 변경, productItemId 필드 추가 | `contracts.service.ts`, `create-contract.dto.ts` |
+| 4 | **Flutter 서비스**: ProductItem용 API 메서드 4개 추가 (getProductItems, createProductItem, updateProductItem, deleteProductItem) | `product_service.dart` |
+| 5 | **업체 행사 상세**: 평면 구조 → 1뎁스 아코디언 + 2뎁스 카드 형태로 전면 재작성 | `vendor/event_detail_screen.dart` |
+| 6 | **업체 품목 폼**: 카테고리 드롭다운 → 배정받은 1뎁스 품목 드롭다운으로 변경, ProductItem 생성/수정 | `vendor/product_form_screen.dart` |
+| 7 | **주관사 행사 관리**: 품목 섹션에 2뎁스 상세 품목(패키지) 인라인 표시 추가 | `organizer/event_manage_screen.dart` |
+| 8 | **관리자 품목 페이지**: DataTable → ExpansionTile 기반 2레벨 확장형 테이블로 전면 재작성 | `web/products_page.dart` |
+| 9 | **관리자 계약 페이지**: "상품명" 단일 컬럼 → "품목"(1뎁스) + "패키지"(2뎁스) 2개 컬럼으로 분리 | `web/contracts_page.dart` |
+
+### 신규 파일
+
+- `signnote_server/src/products/dto/create-product-item.dto.ts` — ProductItem 생성 DTO
+
+### 수정 파일 전체 목록
+
+**백엔드 (5개, 신규 1개):**
+- `signnote_server/prisma/schema.prisma`
+- `signnote_server/src/products/products.service.ts`
+- `signnote_server/src/products/products.controller.ts`
+- `signnote_server/src/contracts/contracts.service.ts`
+- `signnote_server/src/contracts/dto/create-contract.dto.ts`
+- `signnote_server/src/products/dto/create-product-item.dto.ts` **(신규)**
+
+**프론트엔드 (6개):**
+- `signnote_app/lib/services/product_service.dart`
+- `signnote_app/lib/screens/vendor/event_detail_screen.dart`
+- `signnote_app/lib/screens/vendor/product_form_screen.dart`
+- `signnote_app/lib/screens/organizer/event_manage_screen.dart`
+- `signnote_app/lib/screens/organizer/web/products_page.dart`
+- `signnote_app/lib/screens/organizer/web/contracts_page.dart`
+
+### 이슈 해결
+
+- **Prisma 마이그레이션 드리프트**: `migrate dev` 실패 → `db push --accept-data-loss`로 직접 스키마 반영
+- **데이터 손실**: products 테이블에서 description(3건), housingTypes(3건), price(13건) 드롭 (ProductItem으로 이관)
+- **NestJS 빌드 에러 3건**: contracts.service.ts에서 product.price 참조 → ProductItem에서 가격 조회하도록 수정
+
+### 빌드 & 배포
+
+- [x] `prisma db push` 성공 (ProductItem 테이블 생성 완료)
+- [x] NestJS 빌드 성공 (TypeScript 에러 0건)
+- [x] Flutter 웹 빌드 성공
+- [x] Cloudflare Pages 배포 완료
+
+---
+
+### 2026-03-06 — Session 10: 피드백 5건 처리 (버그 3건 + 기능 1건 + 고객 페이지 전면 리디자인)
+
+### 버그 수정 3건
+
+1. **Internal Server Error (업체 품목 목록/등록 실패)**
+   - 원인: NestJS 라우트 순서 문제 — `GET products/vendor/mine`이 `PUT products/:id` 패턴에 먼저 매칭됨
+   - 수정: `products.controller.ts`에서 `vendor/mine` 라우트를 `:id` 라우트보다 위로 이동
+
+2. **3-dot 메뉴 클릭 안 되는 문제 (주관사 행사 카드)**
+   - 원인: 터치 영역 너무 작음 (18px 아이콘, 패딩 없음)
+   - 수정: `event_card.dart`에서 `IconButton` + `SizedBox(32x32)`로 변경
+
+3. **행사 삭제 실패 (외래키 제약조건 에러)**
+   - 원인: CartItem, Contract, Payment, Settlement 등 관련 테이블에 cascade delete 미설정
+   - 수정: `schema.prisma`에서 8개 관계에 `onDelete: Cascade` 추가 후 `db push`
+
+### 기능 추가 1건
+
+4. **업체(Vendor) 계약서 이미지 다운로드**
+   - `vendor/event_detail_screen.dart`: 계약 카드에 선택 체크박스 추가, 선택 후 다운로드
+   - `utils/image_download.dart`: 웹 환경 이미지 다운로드 유틸 (dart:html + base64)
+   - OverlayEntry로 오프스크린 렌더링 → RepaintBoundary → PNG 캡처 → 다운로드
+
+### 고객 페이지 전면 리디자인 (1계정 1행사 구조)
+
+5. **고객 홈 화면 (`customer/home_screen.dart`) — 완전 재작성**
+   - 이미 행사 참여 중이면 → 행사 상세로 자동 직행
+   - 행사 없으면 → 6자리 코드 입력 화면 (개별 TextField, 자동 포커스 이동)
+   - 코드 입력 성공 → 평형 선택 팝업 (동/호 입력 + 타입 라디오) → 행사 상세로 이동
+
+6. **고객 행사 상세 (`customer/event_detail_screen.dart`) — 완전 재작성**
+   - 2레벨 아코디언: 1뎁스 카테고리(ExpansionTile) → 2뎁스 패키지 카드
+   - 각 카드: 이미지 + 업체명 + 상세보기 + 패키지명 + 설명 + 가격 + 장바구니 토글
+   - 품목 상세 팝업 (showModalBottomSheet) + "장바구니 담기" 버튼
+   - 하단 플로팅 장바구니 버튼 (빨간 뱃지 카운트)
+
+7. **고객 계약함 (`customer/contract_screen.dart`) — 완전 재작성**
+   - 카테고리별 그룹핑 계약 카드 (상태 뱃지 포함)
+   - CONFIRMED 상태 계약에 "취소 요청" 버튼 추가
+   - "계약서 전체 다운로드" 하단 버튼
+
+8. **고객 계약 상세 (`customer/contract_detail_screen.dart`) — 신규**
+   - 업체 정보 / 계약 내용 / 계약 금액 섹션
+   - 환불 안내 정보 박스
+   - RepaintBoundary로 계약서 이미지 캡처 → 다운로드
+
+### 백엔드 변경
+
+- `events.controller.ts`: `PUT :id/participant-info`, `GET :id/my-info` 엔드포인트 추가
+- `events.service.ts`: `updateParticipantInfo()`, `getParticipantInfo()` 메서드 추가
+- `schema.prisma`: EventParticipant에 `dong`, `ho`, `housingType` 필드 추가
+- `event_service.dart`: `updateParticipantInfo()`, `getMyParticipantInfo()` API 호출 추가
+
+### 빌드 & 배포
+
+- [x] Prisma db push 성공 (cascade delete + EventParticipant 필드 추가)
+- [x] NestJS TypeScript 에러 0건
+- [x] Flutter analyze — info 3건 (warning/error 0건)
+- [x] Flutter 웹 빌드 성공
+- [x] Cloudflare Pages 배포 완료
+

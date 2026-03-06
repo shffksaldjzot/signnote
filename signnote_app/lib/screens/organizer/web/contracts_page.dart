@@ -278,7 +278,8 @@ class _ContractsPageState extends State<ContractsPage> {
                               columns: const [
                                 DataColumn(label: Text('행사명', style: TextStyle(fontWeight: FontWeight.w600))),
                                 DataColumn(label: Text('고객명', style: TextStyle(fontWeight: FontWeight.w600))),
-                                DataColumn(label: Text('상품명', style: TextStyle(fontWeight: FontWeight.w600))),
+                                DataColumn(label: Text('품목', style: TextStyle(fontWeight: FontWeight.w600))),
+                                DataColumn(label: Text('패키지', style: TextStyle(fontWeight: FontWeight.w600))),
                                 DataColumn(label: Text('업체명', style: TextStyle(fontWeight: FontWeight.w600))),
                                 DataColumn(label: Text('계약금', style: TextStyle(fontWeight: FontWeight.w600))),
                                 DataColumn(label: Text('상태', style: TextStyle(fontWeight: FontWeight.w600))),
@@ -289,14 +290,18 @@ class _ContractsPageState extends State<ContractsPage> {
                                 final statusText = _getStatusText(status);
                                 final statusColor = _getStatusColor(status);
 
-                                // 고객/상품/업체 정보
+                                // 고객/품목/상세품목/업체 정보
                                 final customer = contract['customer'] as Map<String, dynamic>?;
                                 final product = contract['product'] as Map<String, dynamic>?;
+                                final productItem = contract['productItem'] as Map<String, dynamic>?;
 
                                 return DataRow(cells: [
                                   DataCell(Text(contract['eventTitle'] ?? '-')),
                                   DataCell(Text(customer?['name'] ?? '-')),
-                                  DataCell(Text(product?['name'] ?? '-')),
+                                  // 품목 (1뎁스)
+                                  DataCell(Text(product?['name'] ?? product?['category'] ?? '-')),
+                                  // 패키지 (2뎁스)
+                                  DataCell(Text(productItem?['name'] ?? '-')),
                                   DataCell(Text(product?['vendorName'] ?? '-')),
                                   DataCell(Text(
                                     '${numberFormat.format(deposit)}원',

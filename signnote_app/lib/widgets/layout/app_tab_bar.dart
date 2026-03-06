@@ -70,7 +70,7 @@ class AppTabBar extends StatelessWidget {
     );
   }
 
-  // 업체용 탭바 (3탭: 홈, 계약함, 마이페이지)
+  // 업체용 탭바 (2탭: 홈, 마이페이지) — 2차 디자인 기준
   factory AppTabBar.vendor({
     required int currentIndex,
     required ValueChanged<int> onTap,
@@ -83,11 +83,6 @@ class AppTabBar extends StatelessWidget {
           icon: Icon(Icons.home_outlined),
           activeIcon: Icon(Icons.home),
           label: '홈',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.description_outlined),
-          activeIcon: Icon(Icons.description),
-          label: '계약함',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person_outline),

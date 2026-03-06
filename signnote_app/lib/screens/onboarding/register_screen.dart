@@ -132,31 +132,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 승인 대기 안내 다이얼로그
+  // 승인 대기 안내 다이얼로그 (브랜드 디자인 적용)
   void _showApprovalPendingDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('가입 신청 완료'),
-        content: const Text(
-          '회원가입 신청이 완료되었습니다.\n\n'
-          '관리자 승인 후 로그인할 수 있습니다.\n'
-          '승인까지 잠시 기다려 주세요.',
+        contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 체크 아이콘
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_outline, color: AppColors.primary, size: 32),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              '가입 신청 완료',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '회원가입 신청이 완료되었습니다.\n관리자 승인 후 로그인할 수 있습니다.\n승인까지 잠시 기다려 주세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.6),
+            ),
+            const SizedBox(height: 24),
+            // 확인 버튼 (브랜드 색상)
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // 다이얼로그 닫기
-              // 로그인 화면으로 이동 (기존 화면 모두 제거)
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
-            },
-            child: const Text('확인'),
-          ),
-        ],
       ),
     );
   }

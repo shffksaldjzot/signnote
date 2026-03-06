@@ -61,10 +61,12 @@ class BadgeIcon extends StatelessWidget {
 
 class DdayBadge extends StatelessWidget {
   final int daysLeft;   // 남은 일수
+  final Color? activeColor; // 활성 상태 뱃지 색상 (기본 빨강)
 
   const DdayBadge({
     super.key,
     required this.daysLeft,
+    this.activeColor,
   });
 
   @override
@@ -75,10 +77,10 @@ class DdayBadge extends StatelessWidget {
 
     if (daysLeft > 0) {
       text = 'D-$daysLeft';
-      bgColor = AppColors.badgeRed;           // 빨간색
+      bgColor = activeColor ?? AppColors.badgeRed;
     } else if (daysLeft == 0) {
       text = 'D-Day';
-      bgColor = AppColors.badgeRed;           // 빨간색
+      bgColor = activeColor ?? AppColors.badgeRed;
     } else {
       text = '종료';
       bgColor = AppColors.textSecondary;      // 회색

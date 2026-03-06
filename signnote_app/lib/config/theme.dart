@@ -1,70 +1,81 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // ============================================
-// Signnote 앱 테마 설정
-// 디자인 가이드라인에서 추출한 색상, 글꼴, 버튼 스타일
+// Signnote 앱 테마 설정 (2차 디자인)
+// 폰트: Inter / 역할별 메인컬러 분리
 // ============================================
 
 /// 앱에서 사용하는 색상 모음
 class AppColors {
-  // 주요 색상 (Primary)
-  static const Color primary = Color(0xFF4A90FF);       // 파란색 - 로고, 고객용 버튼, 활성 탭
-  static const Color primaryDark = Color(0xFF000000);    // 검정색 - 업체/주관사용 버튼
-  static const Color white = Color(0xFFFFFFFF);          // 흰색 - 배경
-  static const Color background = Color(0xFFF5F5F5);     // 연한 회색 - 카드 배경
+  // ── 역할별 메인컬러 ──
+  static const Color customer = Color(0xFF2D6EFF);    // 고객 메인 (파란색)
+  static const Color organizer = Color(0xFFFF6A00);   // 주관사 메인 (주황색)
+  static const Color vendor = Color(0xFF000000);       // 협력업체 메인 (검정색)
+
+  // ── 기존 호환용 (고객 파란색 = primary) ──
+  static const Color primary = Color(0xFF2D6EFF);
+  static const Color primaryDark = Color(0xFF000000);
+  static const Color white = Color(0xFFFFFFFF);
+  static const Color background = Color(0xFFF5F5F5);
 
   // 텍스트 색상
-  static const Color textPrimary = Color(0xFF000000);    // 검정 - 주요 텍스트
-  static const Color textSecondary = Color(0xFF666666);  // 회색 - 보조 텍스트
-  static const Color textHint = Color(0xFF999999);       // 연한 회색 - 힌트 텍스트
+  static const Color textPrimary = Color(0xFF000000);
+  static const Color textSecondary = Color(0xFF666666);
+  static const Color textHint = Color(0xFF999999);
 
   // 강조 색상
-  static const Color priceRed = Color(0xFFFF3B5C);       // 빨간색 - 가격, 취소 요청
-  static const Color badgeRed = Color(0xFFFF3B5C);       // 빨간색 - D-day 뱃지, 장바구니 숫자
-  static const Color summaryBar = Color(0xFF2C2C2C);     // 진한 검정 - 총 견적/금액 바
+  static const Color priceRed = Color(0xFFFF3B5C);
+  static const Color badgeRed = Color(0xFFFF3B5C);
+  static const Color summaryBar = Color(0xFF2C2C2C);
 
   // 상태 색상
-  static const Color success = Color(0xFF4CAF50);        // 초록 - 성공
-  static const Color warning = Color(0xFFFFC107);        // 노랑 - 경고
+  static const Color success = Color(0xFF4CAF50);
+  static const Color warning = Color(0xFFFFC107);
 
   // 구분선/테두리
-  static const Color border = Color(0xFFE0E0E0);         // 연한 회색 - 구분선
-  static const Color divider = Color(0xFFF0F0F0);        // 더 연한 회색 - 얇은 구분선
+  static const Color border = Color(0xFFE0E0E0);
+  static const Color divider = Color(0xFFF0F0F0);
 }
 
 /// 앱에서 사용하는 테마 (MaterialApp에 적용)
 class AppTheme {
   static ThemeData get lightTheme {
+    // Inter 폰트 기본 텍스트 테마
+    final textTheme = GoogleFonts.interTextTheme();
+
     return ThemeData(
       // 기본 색상 설정
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.primary,
         brightness: Brightness.light,
       ),
+      // Inter 폰트 적용
+      textTheme: textTheme,
       // 배경색
       scaffoldBackgroundColor: AppColors.white,
       // 앱바 (상단 헤더) 스타일
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.white,          // 흰색 배경
-        foregroundColor: AppColors.textPrimary,     // 검정 글씨
-        elevation: 0,                               // 그림자 없음
-        centerTitle: true,                           // 제목 가운데 정렬
-        titleTextStyle: TextStyle(
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 18,
-          fontWeight: FontWeight.w600,               // 약간 굵게
+          fontWeight: FontWeight.w600,
         ),
       ),
       // 파란 버튼 스타일 (고객용 기본 버튼)
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,        // 파란 배경
-          foregroundColor: AppColors.white,           // 흰 글씨
-          minimumSize: const Size(double.infinity, 52), // 가로 꽉 차게, 높이 52
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
+          minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),  // 둥근 모서리
+            borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
+          textStyle: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -89,7 +100,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
-        hintStyle: const TextStyle(
+        hintStyle: GoogleFonts.inter(
           color: AppColors.textHint,
           fontSize: 14,
         ),
@@ -97,8 +108,8 @@ class AppTheme {
       // 하단 네비게이션 바 스타일
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primary,        // 선택된 탭: 파란색
-        unselectedItemColor: AppColors.textSecondary, // 미선택 탭: 회색
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textSecondary,
         type: BottomNavigationBarType.fixed,
       ),
       // 카드 스타일
@@ -109,6 +120,38 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: AppColors.border, width: 0.5),
         ),
+      ),
+      // 다이얼로그 스타일
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        titleTextStyle: GoogleFonts.inter(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        ),
+        contentTextStyle: GoogleFonts.inter(
+          fontSize: 15,
+          color: AppColors.textSecondary,
+          height: 1.6,
+        ),
+      ),
+      // SnackBar 스타일
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.summaryBar,
+        contentTextStyle: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: AppColors.white,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        behavior: SnackBarBehavior.floating,
+        elevation: 4,
       ),
       // 구분선 스타일
       dividerTheme: const DividerThemeData(

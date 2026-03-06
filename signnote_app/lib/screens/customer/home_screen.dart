@@ -4,20 +4,19 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../widgets/layout/app_tab_bar.dart';
-import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
 import '../../services/auth_service.dart';
 import 'event_detail_screen.dart';
+import 'cart_screen.dart';
 import 'contract_screen.dart';
 
 // ============================================
-// 고객 홈 화면 (행사 목록)
+// 고객 홈 화면 (1계정 1행사 구조)
 //
-// 디자인 참고: 3.고객용-행사 목록.jpg
-// - 상단: Signnote 로고 + "행사 목록 >"
-// - 행사 카드 그리드 (2열)
-// - 카드에 + 버튼 (새 행사 추가 → 참여 코드 입력)
-// - 하단: 4탭 네비게이션
+// 디자인 참고: 1.고객용-첫 페이지.jpg / 2.고객용-평형 선택.jpg
+// - 이미 행사에 참여 중이면 → 바로 행사 상세로 직행
+// - 아직 행사 없으면 → 6자리 코드 입력 화면 표시
+// - 코드 입력 성공 → 평형 선택 팝업 → 행사 상세로 이동
 // ============================================
 
 class CustomerHomeScreen extends StatefulWidget {
@@ -35,26 +34,36 @@ class CustomerHomeScreen extends StatefulWidget {
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final int _currentTabIndex = 0;
 
-  // API에서 가져온 행사 목록
-  List<Map<String, dynamic>> _events = [];
+  // 참여 중인 행사 정보
+  Map<String, dynamic>? _currentEvent;
   bool _isLoading = true;
   String? _error;
 
   final EventService _eventService = EventService();
   final AuthService _authService = AuthService();
 
+  // 코드 입력 컨트롤러 (6칸 각각)
+  final List<TextEditingController> _codeControllers =
+      List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _codeFocusNodes =
+      List.generate(6, (_) => FocusNode());
+
   @override
   void initState() {
     super.initState();
-    _loadEvents(); // 화면 열릴 때 행사 목록 불러오기
+    _checkExistingEvent();
   }
 
-  // 서버에서 행사 목록 가져오기
-  Future<void> _loadEvents() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    for (final c in _codeControllers) { c.dispose(); }
+    for (final f in _codeFocusNodes) { f.dispose(); }
+    super.dispose();
+  }
+
+  // 이미 참여 중인 행사가 있는지 확인
+  Future<void> _checkExistingEvent() async {
+    setState(() { _isLoading = true; _error = null; });
 
     final result = await _eventService.getEvents();
 
@@ -62,104 +71,215 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
     if (result['success'] == true) {
       final List events = result['events'] ?? [];
-      setState(() {
-        _events = events.map<Map<String, dynamic>>((e) {
-          return {
-            'id': e['id']?.toString() ?? '',
-            'title': e['title'] ?? '행사명 없음',
-            'coverImageUrl': e['coverImage'],
-            'startDate': e['startDate'] != null
-                ? DateTime.tryParse(e['startDate'].toString())
-                : null,
-            'endDate': e['endDate'] != null
-                ? DateTime.tryParse(e['endDate'].toString())
-                : null,
+      if (events.isNotEmpty) {
+        // 1계정 1행사: 첫 번째 행사로 바로 직행
+        final event = events.first;
+        setState(() {
+          _currentEvent = {
+            'id': event['id']?.toString() ?? '',
+            'title': event['title'] ?? '행사명 없음',
           };
-        }).toList();
-        _isLoading = false;
-      });
-    } else {
+          _isLoading = false;
+        });
+        // 바로 행사 상세로 이동
+        _goToEventDetail();
+        return;
+      }
+    }
+
+    setState(() { _isLoading = false; });
+  }
+
+  // 행사 상세 화면으로 이동
+  void _goToEventDetail() {
+    if (_currentEvent == null) return;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => EventDetailScreen(
+          eventId: _currentEvent!['id'],
+          eventTitle: _currentEvent!['title'],
+        ),
+      ),
+    );
+  }
+
+  // 6자리 코드 얻기
+  String get _entryCode {
+    return _codeControllers.map((c) => c.text).join();
+  }
+
+  // 입장하기 버튼 클릭
+  Future<void> _handleEnter() async {
+    final code = _entryCode;
+    if (code.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('6자리 코드를 모두 입력해 주세요')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final result = await _authService.enterEvent(code);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final event = result['event'] as Map<String, dynamic>;
+      final eventId = event['eventId']?.toString() ?? '';
+      final eventTitle = event['title']?.toString() ?? '행사';
+      final housingTypes = List<String>.from(event['housingTypes'] ?? []);
+
       setState(() {
-        _error = result['error'] ?? '행사 목록을 불러올 수 없습니다';
+        _currentEvent = {'id': eventId, 'title': eventTitle};
         _isLoading = false;
       });
+
+      // 평형 선택 팝업 표시
+      if (mounted) {
+        _showHousingInfoDialog(eventId, eventTitle, housingTypes);
+      }
+    } else {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['error'] ?? '입장에 실패했습니다')),
+        );
+      }
     }
   }
 
-  // 참여 코드 입력 다이얼로그 (새 행사 추가용)
-  void _showEntryCodeDialog() {
-    final codeController = TextEditingController();
+  // 평형 선택 팝업 (C-2)
+  void _showHousingInfoDialog(String eventId, String eventTitle, List<String> housingTypes) {
+    final dongController = TextEditingController();
+    final hoController = TextEditingController();
+    String? selectedType;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          '행사 참여 코드 입력',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              '6자리 참여 코드를 입력해 주세요.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: codeController,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 8,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            24, 24, 24,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 행사명
+              Text(
+                eventTitle,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
-              decoration: InputDecoration(
-                hintText: '000000',
-                counterText: '',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 20),
+              // 동호수 입력
+              const Text('동호수를 입력해 주세요.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // 동 입력
+                  Expanded(
+                    child: TextField(
+                      controller: dongController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: '',
+                        suffixText: '동',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // 호 입력
+                  Expanded(
+                    child: TextField(
+                      controller: hoController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: '',
+                        suffixText: '호',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              // 타입 선택
+              const Text('타입을 선택해 주세요.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              ...housingTypes.map((type) => RadioListTile<String>(
+                title: Text('$type 타입'),
+                value: type,
+                groupValue: selectedType,
+                onChanged: (v) => setSheetState(() => selectedType = v),
+                activeColor: AppColors.primary,
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              )),
+              const SizedBox(height: 20),
+              // 완료 버튼
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (dongController.text.isEmpty || hoController.text.isEmpty) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('동호수를 입력해 주세요')),
+                      );
+                      return;
+                    }
+                    if (selectedType == null) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('타입을 선택해 주세요')),
+                      );
+                      return;
+                    }
+
+                    // 서버에 평형 정보 저장
+                    await _eventService.updateParticipantInfo(
+                      eventId,
+                      dong: dongController.text,
+                      ho: hoController.text,
+                      housingType: selectedType,
+                    );
+
+                    if (!mounted) return;
+                    Navigator.of(ctx).pop();
+
+                    // 행사 상세로 이동
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => EventDetailScreen(
+                          eventId: eventId,
+                          eventTitle: eventTitle,
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('완료'),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final code = codeController.text;
-              if (code.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('6자리 코드를 입력해 주세요')),
-                );
-                return;
-              }
-              // async 전에 미리 참조 저장
-              final messenger = ScaffoldMessenger.of(context);
-              Navigator.pop(context);
-              final result = await _authService.enterEvent(code);
-              if (!mounted) return;
-              if (result['success'] == true) {
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('행사에 참여했습니다!')),
-                );
-                _loadEvents(); // 목록 새로고침
-              } else {
-                messenger.showSnackBar(
-                  SnackBar(content: Text(result['error'] ?? '입장에 실패했습니다')),
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-            child: const Text('입장하기'),
-          ),
-        ],
       ),
     );
   }
@@ -169,15 +289,25 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     if (index == _currentTabIndex) return;
 
     switch (index) {
-      case 0: // 홈 — 현재 화면이므로 무시
-        break;
-      case 1: // 장바구니 (행사 상세에서 접근 필요)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('행사를 선택한 후 장바구니를 이용해 주세요')),
-        );
+      case 0: break; // 홈 — 현재
+      case 1: // 장바구니
+        if (_currentEvent != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CartScreen(
+                eventId: _currentEvent!['id'],
+                eventTitle: _currentEvent!['title'],
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('행사에 참여한 후 이용해 주세요')),
+          );
+        }
         break;
       case 2: // 계약함
-        Navigator.of(context).pushReplacement(
+        Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const CustomerContractScreen()),
         );
         break;
@@ -189,140 +319,108 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              // 로고
-              _buildLogo(),
-              const SizedBox(height: 24),
-              // "행사 목록 >" 제목
-              Row(
-                children: [
-                  const Text(
-                    '행사 목록',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: AppColors.textPrimary,
-                    size: 22,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // 행사 카드 그리드 (로딩/에러/데이터 분기)
-              Expanded(child: _buildBody()),
-            ],
-          ),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: AppColors.white,
+        body: SafeArea(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(child: Text(_error!, style: const TextStyle(color: AppColors.priceRed)))
+                  : _buildEntryCodePage(),
         ),
-      ),
-      // 하단 탭바
-      bottomNavigationBar: AppTabBar.customer(
-        currentIndex: _currentTabIndex,
-        onTap: _onTabChanged,
+        bottomNavigationBar: AppTabBar.customer(
+          currentIndex: _currentTabIndex,
+          onTap: _onTabChanged,
+        ),
       ),
     );
   }
 
-  // 본문 영역: 로딩 / 에러 / 행사 목록 분기
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            TextButton(onPressed: _loadEvents, child: const Text('다시 시도')),
-          ],
-        ),
-      );
-    }
-
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,          // 2열
-        crossAxisSpacing: 12,        // 가로 간격
-        mainAxisSpacing: 16,         // 세로 간격
-        childAspectRatio: 0.72,      // 카드 세로:가로 비율
-      ),
-      itemCount: _events.length + 1,  // 행사 수 + 추가 카드(+)
-      itemBuilder: (context, index) {
-        // 마지막은 + 추가 카드
-        if (index == _events.length) {
-          return AddEventCard(
-            onTap: _showEntryCodeDialog,
-          );
-        }
-
-        final event = _events[index];
-        return EventCard(
-          title: event['title'],
-          coverImageUrl: event['coverImageUrl'],
-          startDate: event['startDate'],
-          endDate: event['endDate'],
-          onTap: () {
-            // 행사 상세 화면으로 이동
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => EventDetailScreen(
-                  eventId: event['id'],
-                  eventTitle: event['title'],
-                ),
-              ),
-            );
-          },
-          onMoreTap: () {},
-        );
-      },
-    );
-  }
-
-  // 로고 위젯 (진짜 logo.png 이미지 사용 + 역할 뱃지)
-  Widget _buildLogo() {
-    String? roleBadge;
-    if (widget.role == AppConstants.roleVendor) roleBadge = '협력업체';
-    if (widget.role == AppConstants.roleOrganizer) roleBadge = '주관사';
-
-    return Row(
-      children: [
-        // 진짜 로고 이미지 파일 사용
-        Image.asset(
-          'assets/images/logo.png',
-          height: 28,
-          fit: BoxFit.contain,
-        ),
-        if (roleBadge != null) ...[
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
+  // 코드 입력 페이지 (디자인: 1.고객용-첫 페이지.jpg)
+  Widget _buildEntryCodePage() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 32),
+          // Signnote 로고
+          Image.asset('assets/images/logo.png', height: 28, fit: BoxFit.contain),
+          const SizedBox(height: 32),
+          // 안내 문구
+          const Text(
+            '안녕하세요.\n사인노트 사용을 위해\n행사 참여 코드를 입력해 주세요.',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
               color: AppColors.textPrimary,
-              borderRadius: BorderRadius.circular(4),
             ),
-            child: Text(
-              roleBadge,
-              style: const TextStyle(color: AppColors.white, fontSize: 11, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 48),
+          // 6자리 코드 입력 (개별 칸)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(6, (i) => _buildCodeBox(i)),
+          ),
+          const SizedBox(height: 32),
+          // 입장하기 버튼
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _handleEnter,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              child: const Text('입장하기'),
             ),
           ),
         ],
-      ],
+      ),
+    );
+  }
+
+  // 코드 입력 칸 1개
+  Widget _buildCodeBox(int index) {
+    return SizedBox(
+      width: 48,
+      height: 56,
+      child: TextField(
+        controller: _codeControllers[index],
+        focusNode: _codeFocusNodes[index],
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        maxLength: 1,
+        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+        decoration: InputDecoration(
+          counterText: '',
+          filled: true,
+          fillColor: AppColors.background,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          ),
+        ),
+        onChanged: (value) {
+          if (value.isNotEmpty && index < 5) {
+            // 다음 칸으로 포커스 이동
+            _codeFocusNodes[index + 1].requestFocus();
+          } else if (value.isEmpty && index > 0) {
+            // 빈 칸이면 이전 칸으로
+            _codeFocusNodes[index - 1].requestFocus();
+          }
+        },
+      ),
     );
   }
 }

@@ -120,6 +120,27 @@ class EventService {
     }
   }
 
+  // 행사 참여자 목록 (역할 필터 가능)
+  Future<Map<String, dynamic>> getParticipants(String eventId, {String? role}) async {
+    try {
+      final response = await _api.get(
+        '/events/$eventId/participants',
+        queryParams: {
+          if (role != null) 'role': role,
+        },
+      );
+      return {
+        'success': true,
+        'participants': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '참여자 목록을 불러올 수 없습니다',
+      };
+    }
+  }
+
   // 행사 수정 (주관사만 가능)
   Future<Map<String, dynamic>> updateEvent(String eventId, Map<String, dynamic> data) async {
     try {
@@ -132,6 +153,41 @@ class EventService {
       return {
         'success': false,
         'error': e.response?.data['message'] ?? '행사 수정에 실패했습니다',
+      };
+    }
+  }
+
+  // 고객 평형 정보 저장 (동/호수/타입)
+  Future<Map<String, dynamic>> updateParticipantInfo(
+    String eventId, {
+    String? dong,
+    String? ho,
+    String? housingType,
+  }) async {
+    try {
+      final response = await _api.put('/events/$eventId/participant-info', data: {
+        if (dong != null) 'dong': dong,
+        if (ho != null) 'ho': ho,
+        if (housingType != null) 'housingType': housingType,
+      });
+      return {'success': true, 'data': response.data};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '정보 저장에 실패했습니다',
+      };
+    }
+  }
+
+  // 내 참여 정보 조회 (고객용 — 동/호수/타입)
+  Future<Map<String, dynamic>> getMyParticipantInfo(String eventId) async {
+    try {
+      final response = await _api.get('/events/$eventId/my-info');
+      return {'success': true, 'data': response.data};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '정보를 불러올 수 없습니다',
       };
     }
   }

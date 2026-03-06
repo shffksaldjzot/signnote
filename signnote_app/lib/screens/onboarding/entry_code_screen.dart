@@ -237,6 +237,37 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
     );
   }
 
+  // 붙여넣기 감지: 여러 글자가 한번에 들어오면 각 칸에 분배
+  void _handlePasteOrInput(String value, int index) {
+    // 숫자만 추출
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (digits.length > 1) {
+      // 붙여넣기 감지 — 여러 글자를 각 칸에 분배
+      for (int i = 0; i < digits.length && i < AppConstants.entryCodeLength; i++) {
+        _controllers[i].text = digits[i];
+      }
+      // 마지막 입력된 칸 다음으로 포커스 이동
+      final lastIndex = (digits.length < AppConstants.entryCodeLength)
+          ? digits.length
+          : AppConstants.entryCodeLength - 1;
+      if (lastIndex < AppConstants.entryCodeLength) {
+        _focusNodes[lastIndex].requestFocus();
+      } else {
+        _focusNodes[AppConstants.entryCodeLength - 1].unfocus();
+      }
+      setState(() {}); // UI 갱신
+    } else if (digits.length == 1) {
+      // 한 글자 입력 — 기존 동작
+      _controllers[index].text = digits;
+      if (index < AppConstants.entryCodeLength - 1) {
+        _focusNodes[index + 1].requestFocus();
+      } else {
+        _focusNodes[index].unfocus();
+      }
+    }
+  }
+
   // 코드 입력 칸 하나 만들기
   Widget _buildCodeBox(int index) {
     return Container(
@@ -248,7 +279,7 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
         focusNode: _focusNodes[index],
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,  // 숫자 키패드만 표시
-        maxLength: 1,
+        // maxLength 제거 — 붙여넣기 시 여러 글자 수신 위해
         style: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
@@ -266,18 +297,11 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
             borderSide: const BorderSide(color: AppColors.primary, width: 2),
           ),
         ),
-        // 한 글자 입력하면 자동으로 다음 칸으로 이동
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,  // 숫자만 입력 가능
         ],
         onChanged: (value) {
-          if (value.isNotEmpty && index < AppConstants.entryCodeLength - 1) {
-            _focusNodes[index + 1].requestFocus();
-          }
-          // 마지막 칸이면 키보드 닫기
-          if (value.isNotEmpty && index == AppConstants.entryCodeLength - 1) {
-            _focusNodes[index].unfocus();
-          }
+          _handlePasteOrInput(value, index);
         },
       ),
     );

@@ -31,8 +31,59 @@
 
   <title>signnote_app</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- 로딩 화면 스타일 (폰트 로딩 중 깨진 글자 방지) -->
+  <style>
+    #loading-screen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #FFFFFF;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      transition: opacity 0.3s ease;
+    }
+    #loading-screen .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #E0E0E0;
+      border-top: 3px solid #1565C0;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
+  <!-- 로딩 화면 (Flutter 엔진 + 폰트 로딩 완료까지 표시) -->
+  <div id="loading-screen">
+    <div class="spinner"></div>
+  </div>
+
   <script src="flutter_bootstrap.js" async></script>
+
+  <!-- Flutter 앱이 렌더링되면 로딩 화면 숨기기 -->
+  <script>
+    // Flutter가 첫 프레임을 그리면 로딩 화면 제거
+    window.addEventListener('flutter-first-frame', function() {
+      var loader = document.getElementById('loading-screen');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(function() { loader.remove(); }, 300);
+      }
+    });
+    // 안전장치: 10초 후에도 로딩 화면이 남아있으면 강제 제거
+    setTimeout(function() {
+      var loader = document.getElementById('loading-screen');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(function() { loader.remove(); }, 300);
+      }
+    }, 10000);
+  </script>
 </body>
 </html>

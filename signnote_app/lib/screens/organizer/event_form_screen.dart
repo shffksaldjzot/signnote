@@ -3,31 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../config/theme.dart';
-import '../../widgets/layout/app_header.dart';
-import '../../widgets/common/app_button.dart';
 import '../../services/event_service.dart';
 import '../../utils/number_formatter.dart';
 
 // ============================================
-// 주관사용 행사 생성/수정 폼 화면
+// 주관사용 행사 생성/수정 폼 (2차 디자인)
 //
-// 디자인 참고: 13.주관사용-행사 등록.jpg
-// - 상단: ← "행사 등록" 헤더
-// - 입력 필드들:
-//   - 행사명
-//   - 현장명
-//   - 세대수
-//   - 입주 예정일
-//   - 행사 기간 (시작일 ~ 종료일)
-//   - 평형 타입 (체크박스)
-//   - 계약 방식 (현장/온라인 선택)
-//   - 취소 가능 기간
-// - 하단: "등록하기" 버튼
-// - 등록 성공 시 참여 코드(6자리 숫자) 자동 생성됨
+// 디자인 참고: 2.주관사용-행사 추가.jpg
+// 필드 순서:
+//   행사 제목 → 계약 방식(드롭다운) → 현장명 → 세대수 →
+//   입주 예정일(월) → 적용 타입(칩+추가) → 커버 이미지 →
+//   행사 기간(범위) → 취소 지정 기간(범위) →
+//   취소 기간 온라인 계약 여부 → 작성 완료
 // ============================================
 
 class OrganizerEventFormScreen extends StatefulWidget {
-  final Map<String, dynamic>? event;  // 수정 시 기존 데이터 (null이면 새 등록)
+  final Map<String, dynamic>? event; // 수정 시 기존 데이터
 
   const OrganizerEventFormScreen({super.key, this.event});
 
@@ -40,7 +31,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final EventService _eventService = EventService();
 
-  // 입력 필드 컨트롤러들
+  // 입력 필드 컨트롤러
   late final TextEditingController _titleController;
   late final TextEditingController _siteNameController;
   late final TextEditingController _unitCountController;
@@ -52,17 +43,17 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   DateTime? _cancelDeadlineStart;
   DateTime? _cancelDeadlineEnd;
 
-  // 평형 타입 (자유 입력 방식 — 아파트 단지마다 타입이 다를 수 있으므로)
+  // 평형 타입
   late List<String> _selectedTypes;
   final TextEditingController _typeInputController = TextEditingController();
 
-  // 계약 방식: 'integrated'(통합계약) 또는 'individual'(개별계약)
+  // 계약 방식
   String _contractMethod = 'integrated';
   bool _allowOnlineContract = true;
 
-  // 커버 이미지 (base64 문자열)
+  // 커버 이미지
   String? _coverImageBase64;
-  Uint8List? _coverImageBytes; // 미리보기용
+  Uint8List? _coverImageBytes;
 
   bool _isLoading = false;
   bool get _isEditMode => widget.event != null;
@@ -75,18 +66,14 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     _unitCountController = TextEditingController(
       text: widget.event?['unitCount']?.toString() ?? '',
     );
-    _selectedTypes = List<String>.from(
-      widget.event?['housingTypes'] ?? [],
-    );
+    _selectedTypes = List<String>.from(widget.event?['housingTypes'] ?? []);
 
-    // 수정 모드일 때 기존 날짜 채우기
     if (widget.event != null) {
       _startDate = widget.event!['startDate'];
       _endDate = widget.event!['endDate'];
       _moveInDate = widget.event!['moveInDate'];
       _contractMethod = widget.event!['contractMethod'] ?? 'integrated';
       _allowOnlineContract = widget.event!['allowOnlineContract'] ?? true;
-      // 기존 커버이미지가 있으면 불러오기
       final existingImage = widget.event!['coverImage']?.toString();
       if (existingImage != null && existingImage.startsWith('data:image')) {
         _coverImageBase64 = existingImage;
@@ -107,40 +94,95 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     super.dispose();
   }
 
-  // 날짜 선택 다이얼로그
-  // (한국어 설정은 main.dart에서 전체 적용됨)
-  Future<DateTime?> _pickDate(DateTime? initialDate) async {
-    return showDatePicker(
+  // 날짜 범위 선택 (숙박 예약 스타일)
+  Future<void> _pickDateRange({
+    required DateTime? currentStart,
+    required DateTime? currentEnd,
+    required void Function(DateTime start, DateTime end) onPicked,
+  }) async {
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: initialDate ?? DateTime.now(),
       firstDate: DateTime(2024),
       lastDate: DateTime(2030),
+      initialDateRange: currentStart != null && currentEnd != null
+          ? DateTimeRange(start: currentStart, end: currentEnd)
+          : null,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: AppColors.organizer, // 주황색 강조
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
+    if (picked != null) {
+      onPicked(picked.start, picked.end);
+    }
   }
 
-  // 날짜를 텍스트로 변환
+  // 월 선택기 (입주 예정일)
+  Future<void> _pickMonth() async {
+    // showDatePicker를 사용하되 일(day)는 1일로 고정
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _moveInDate ?? DateTime.now(),
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2030),
+      initialDatePickerMode: DatePickerMode.year, // 연/월 먼저 선택
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: AppColors.organizer,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _moveInDate = DateTime(picked.year, picked.month, 1));
+    }
+  }
+
+  // 날짜 표시 포맷
   String _formatDate(DateTime? date) {
     if (date == null) return '날짜 선택';
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+    return '${date.year}. ${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
   }
 
-  // 날짜를 API 전송용 문자열로 변환 (ISO 8601)
+  // 월 표시 포맷
+  String _formatMonth(DateTime? date) {
+    if (date == null) return '날짜 선택';
+    return '${date.year}. ${date.month.toString().padLeft(2, '0')}월';
+  }
+
+  // 범위 표시 포맷
+  String _formatRange(DateTime? start, DateTime? end) {
+    if (start == null || end == null) return '날짜 선택';
+    return '${_formatDate(start)} ~ ${_formatDate(end)}';
+  }
+
+  // API 전송용 ISO 날짜
   String _toIsoDate(DateTime date) {
     return date.toIso8601String().split('T').first;
   }
 
-  // 폼 제출 — 실제 API 호출
+  // 폼 제출
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('행사 시작일과 종료일을 선택해 주세요')),
+        const SnackBar(content: Text('행사 기간을 선택해 주세요')),
       );
       return;
     }
     if (_selectedTypes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('평형 타입을 1개 이상 선택해 주세요')),
+        const SnackBar(content: Text('적용 타입을 1개 이상 추가해 주세요')),
       );
       return;
     }
@@ -150,7 +192,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     Map<String, dynamic> result;
 
     if (_isEditMode) {
-      // 수정 모드: updateEvent API 호출
       result = await _eventService.updateEvent(
         widget.event!['id'].toString(),
         {
@@ -175,7 +216,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
         },
       );
     } else {
-      // 등록 모드: createEvent API 호출
       result = await _eventService.createEvent(
         title: _titleController.text,
         startDate: _toIsoDate(_startDate!),
@@ -206,7 +246,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
 
     if (result['success'] == true) {
       if (!_isEditMode) {
-        // 등록 성공 시 서버에서 반환한 실제 참여 코드 사용
         final event = result['event'] ?? {};
         final entryCode = event['entryCode']?.toString() ?? '------';
         _showEntryCodeDialog(entryCode);
@@ -243,7 +282,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
-            // 참여 코드 크게 표시
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
@@ -256,12 +294,11 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 8,
-                  color: AppColors.primary,
+                  color: AppColors.organizer,
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            // 복사하기 버튼
             TextButton.icon(
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: code));
@@ -271,7 +308,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
               },
               icon: const Icon(Icons.copy, size: 16),
               label: const Text('복사하기'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+              style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
             ),
             const SizedBox(height: 4),
             const Text(
@@ -286,16 +323,12 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
             width: double.infinity,
             child: TextButton(
               onPressed: () {
-                Navigator.of(context).pop();    // 다이얼로그 닫기
-                Navigator.of(context).pop(true); // 폼 화면 닫기
+                Navigator.of(context).pop();
+                Navigator.of(context).pop(true);
               },
               child: const Text(
                 '확인',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.organizer),
               ),
             ),
           ),
@@ -308,7 +341,21 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppHeader(title: _isEditMode ? '행사 수정' : '행사 등록'),
+      // 상단 바: ← "행사 추가하기"
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        centerTitle: true,
+        title: Text(
+          _isEditMode ? '행사 수정하기' : '행사 추가하기',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, size: 28),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -316,140 +363,143 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 행사명
-              _buildLabel('행사명'),
+              // ── 행사 제목 ──
+              _buildLabel('행사 제목'),
               const SizedBox(height: 8),
               _buildTextField(
                 controller: _titleController,
-                hint: '예: 창원 자이 사전 박람회',
-                validator: (v) => v == null || v.isEmpty ? '행사명을 입력해 주세요' : null,
+                hint: '제목을 입력해주세요.',
+                validator: (v) => v == null || v.isEmpty ? '행사 제목을 입력해 주세요' : null,
               ),
               const SizedBox(height: 20),
 
-              // 현장명
+              // ── 계약 방식 (드롭다운) ──
+              _buildContractMethodDropdown(),
+              const SizedBox(height: 20),
+
+              // ── 현장명 ──
               _buildLabel('현장명'),
               const SizedBox(height: 8),
               _buildTextField(
                 controller: _siteNameController,
-                hint: '예: 창원 자이 아파트',
+                hint: '현장명을 입력해 주세요.',
               ),
               const SizedBox(height: 20),
 
-              // 세대수
+              // ── 세대수 ──
               _buildLabel('세대수'),
               const SizedBox(height: 8),
               _buildTextField(
                 controller: _unitCountController,
-                hint: '예: 500',
+                hint: '',
                 keyboardType: TextInputType.number,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
-                  CommaFormatter(),  // 천 단위 콤마 자동 삽입
+                  CommaFormatter(),
                 ],
+                suffixText: '세대',
               ),
               const SizedBox(height: 20),
 
-              // 입주 예정일
+              // ── 입주 예정일 (월 선택) ──
               _buildLabel('입주 예정일'),
               const SizedBox(height: 8),
-              _buildDatePicker(
-                date: _moveInDate,
-                onTap: () async {
-                  final picked = await _pickDate(_moveInDate);
-                  if (picked != null) setState(() => _moveInDate = picked);
-                },
+              _buildTapField(
+                text: _formatMonth(_moveInDate),
+                hasValue: _moveInDate != null,
+                onTap: _pickMonth,
               ),
               const SizedBox(height: 20),
 
-              // 평형 타입 (자유 입력)
-              _buildLabel('평형 타입'),
+              // ── 적용 타입 (칩 + 추가 버튼) ──
+              _buildLabel('적용 타입'),
               const SizedBox(height: 8),
               _buildTypeInput(),
               const SizedBox(height: 20),
 
-              // 계약 방식
-              _buildLabel('계약 방식'),
-              const SizedBox(height: 8),
-              _buildContractMethodSelector(),
-              const SizedBox(height: 20),
-
-              // 커버 이미지 (행사 카드 배경으로 사용)
-              _buildLabel('커버 이미지 (선택)'),
+              // ── 커버 이미지 ──
+              _buildLabel('커버 이미지'),
               const SizedBox(height: 8),
               _buildCoverImagePicker(),
               const SizedBox(height: 20),
 
-              // 행사 기간 (취소 가능 기간 바로 위에 배치)
+              // ── 행사 기간 (범위 선택) ──
               _buildLabel('행사 기간'),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDatePicker(
-                      date: _startDate,
-                      onTap: () async {
-                        final picked = await _pickDate(_startDate);
-                        if (picked != null) setState(() => _startDate = picked);
-                      },
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('~', style: TextStyle(fontSize: 16)),
-                  ),
-                  Expanded(
-                    child: _buildDatePicker(
-                      date: _endDate,
-                      onTap: () async {
-                        final picked = await _pickDate(_endDate);
-                        if (picked != null) setState(() => _endDate = picked);
-                      },
-                    ),
-                  ),
-                ],
+              _buildTapField(
+                text: _formatRange(_startDate, _endDate),
+                hasValue: _startDate != null && _endDate != null,
+                onTap: () => _pickDateRange(
+                  currentStart: _startDate,
+                  currentEnd: _endDate,
+                  onPicked: (start, end) => setState(() {
+                    _startDate = start;
+                    _endDate = end;
+                  }),
+                ),
               ),
               const SizedBox(height: 20),
 
-              // 취소 가능 기간
-              _buildLabel('취소 가능 기간 (선택)'),
+              // ── 취소 지정 기간 (범위 선택) ──
+              _buildLabel('취소 지정 기간'),
               const SizedBox(height: 8),
+              _buildTapField(
+                text: _formatRange(_cancelDeadlineStart, _cancelDeadlineEnd),
+                hasValue: _cancelDeadlineStart != null && _cancelDeadlineEnd != null,
+                onTap: () => _pickDateRange(
+                  currentStart: _cancelDeadlineStart,
+                  currentEnd: _cancelDeadlineEnd,
+                  onPicked: (start, end) => setState(() {
+                    _cancelDeadlineStart = start;
+                    _cancelDeadlineEnd = end;
+                  }),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ── 취소 지정 기간 온라인 계약 허용 여부 ──
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _buildDatePicker(
-                      date: _cancelDeadlineStart,
-                      onTap: () async {
-                        final picked = await _pickDate(_cancelDeadlineStart);
-                        if (picked != null) {
-                          setState(() => _cancelDeadlineStart = picked);
-                        }
-                      },
+                  const Expanded(
+                    child: Text(
+                      '취소 지정기간에도 온라인을 통해 계약이 가능하도록 하시겠습니까?',
+                      style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('~', style: TextStyle(fontSize: 16)),
-                  ),
-                  Expanded(
-                    child: _buildDatePicker(
-                      date: _cancelDeadlineEnd,
-                      onTap: () async {
-                        final picked = await _pickDate(_cancelDeadlineEnd);
-                        if (picked != null) {
-                          setState(() => _cancelDeadlineEnd = picked);
-                        }
-                      },
-                    ),
+                  const SizedBox(width: 12),
+                  // 예/아니오 드롭다운
+                  DropdownButton<bool>(
+                    value: _allowOnlineContract,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: true, child: Text('예')),
+                      DropdownMenuItem(value: false, child: Text('아니오')),
+                    ],
+                    onChanged: (v) => setState(() => _allowOnlineContract = v!),
                   ),
                 ],
               ),
               const SizedBox(height: 32),
 
-              // 등록/수정 버튼
-              AppButton.black(
-                text: _isEditMode ? '수정하기' : '등록하기',
-                isLoading: _isLoading,
-                onPressed: _handleSubmit,
+              // ── 작성 완료 / 수정하기 버튼 (주황색) ──
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.organizer,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
+                      : Text(_isEditMode ? '수정하기' : '작성 완료'),
+                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -459,7 +509,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     );
   }
 
-  // 라벨 텍스트
+  // 라벨
   Widget _buildLabel(String text) {
     return Text(
       text,
@@ -471,13 +521,14 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     );
   }
 
-  // 공통 텍스트 입력 필드
+  // 텍스트 입력 필드
   Widget _buildTextField({
     required TextEditingController controller,
     String? hint,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    String? suffixText,
   }) {
     return TextFormField(
       controller: controller,
@@ -486,6 +537,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
       validator: validator,
       decoration: InputDecoration(
         hintText: hint,
+        suffixText: suffixText,
         hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
@@ -498,115 +550,148 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.organizer, width: 1.5),
         ),
       ),
     );
   }
 
-  // 날짜 선택 위젯
-  Widget _buildDatePicker({DateTime? date, required VoidCallback onTap}) {
+  // 탭 가능한 필드 (날짜 선택 등)
+  Widget _buildTapField({
+    required String text,
+    required bool hasValue,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.border),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _formatDate(date),
-              style: TextStyle(
-                fontSize: 14,
-                color: date != null ? AppColors.textPrimary : AppColors.textHint,
-              ),
-            ),
-            const Icon(Icons.calendar_today, size: 18, color: AppColors.textSecondary),
-          ],
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 14,
+            color: hasValue ? AppColors.textPrimary : AppColors.textHint,
+          ),
         ),
       ),
     );
   }
 
-  // 평형 타입 자유 입력 + 추가 버튼
-  // (아파트 단지마다 타입이 다를 수 있으므로 직접 입력)
+  // 계약 방식 드롭다운 (디자인: 드롭다운 버튼)
+  Widget _buildContractMethodDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _contractMethod,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down),
+          items: const [
+            DropdownMenuItem(value: 'integrated', child: Text('계약 방식: 통합 계약')),
+            DropdownMenuItem(
+              value: 'individual',
+              enabled: false, // 비활성화
+              child: Text('계약 방식: 개별 계약 (준비중)', style: TextStyle(color: AppColors.textHint)),
+            ),
+          ],
+          onChanged: (v) {
+            if (v != null) setState(() => _contractMethod = v);
+          },
+        ),
+      ),
+    );
+  }
+
+  // 평형 타입 입력 (칩 + 추가 버튼)
   Widget _buildTypeInput() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 입력 필드 (suffix에 추가 버튼 포함)
-        TextField(
-          controller: _typeInputController,
-          decoration: InputDecoration(
-            hintText: '예: 84A, 59B 등',
-            hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-            ),
-            // 입력 필드 오른쪽에 추가 버튼
-            suffixIcon: GestureDetector(
-              onTap: _addType,
-              child: Container(
-                margin: const EdgeInsets.all(4),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text(
-                  '추가',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
-                ),
-              ),
-            ),
-            suffixIconConstraints: const BoxConstraints(minWidth: 60, minHeight: 40),
-          ),
-          onSubmitted: (_) => _addType(),  // 엔터 키로도 추가 가능
-        ),
-        const SizedBox(height: 12),
-        // 추가된 타입 목록 (칩 형태, X 버튼으로 삭제 가능)
-        if (_selectedTypes.isNotEmpty)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _selectedTypes.map((type) {
+        // 추가된 타입 칩 + 추가 버튼 (한 줄에)
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            // 기존 타입들
+            ..._selectedTypes.map((type) {
               return Chip(
-                label: Text('$type타입'),
+                label: Text(type),
                 deleteIcon: const Icon(Icons.close, size: 16),
-                onDeleted: () {
-                  setState(() => _selectedTypes.remove(type));
-                },
-                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                onDeleted: () => setState(() => _selectedTypes.remove(type)),
+                backgroundColor: AppColors.white,
                 labelStyle: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: const BorderSide(color: AppColors.primary),
+                  borderRadius: BorderRadius.circular(20),
+                  side: const BorderSide(color: AppColors.border),
                 ),
               );
-            }).toList(),
-          )
-        else
-          Text(
-            '아직 추가된 타입이 없습니다',
-            style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-          ),
+            }),
+            // + 추가 버튼 (검정 원형)
+            GestureDetector(
+              onTap: _showAddTypeDialog,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: AppColors.textPrimary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add, color: AppColors.white, size: 20),
+              ),
+            ),
+          ],
+        ),
       ],
+    );
+  }
+
+  // 타입 추가 다이얼로그
+  void _showAddTypeDialog() {
+    _typeInputController.clear();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('타입 추가', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: _typeInputController,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: '예: 84A, 59B 등',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onSubmitted: (_) {
+            Navigator.pop(ctx);
+            _addType();
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _addType();
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
+            child: const Text('추가'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -615,7 +700,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     final text = _typeInputController.text.trim();
     if (text.isEmpty) return;
     if (_selectedTypes.contains(text)) {
-      // 이미 있는 타입이면 안내
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('\'$text\' 타입이 이미 추가되어 있습니다')),
       );
@@ -627,13 +711,12 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     });
   }
 
-  // 커버 이미지 선택 (파일 선택 다이얼로그 → base64 변환)
-  // file_picker 사용 — PC 웹 + 모바일 모두 호환
+  // 커버 이미지 선택
   Future<void> _pickCoverImage() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,  // 이미지 파일만 선택 가능
-        withData: true,        // 파일 바이트 데이터 포함
+        type: FileType.image,
+        withData: true,
       );
 
       if (result == null || result.files.isEmpty) return;
@@ -642,7 +725,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
       final bytes = file.bytes;
       if (bytes == null) return;
 
-      // base64 문자열로 변환 (data URL 형식)
       final base64Str = base64Encode(bytes);
       final extension = file.extension?.toLowerCase() ?? 'jpg';
       final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
@@ -660,7 +742,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     }
   }
 
-  // 커버 이미지 선택/미리보기 위젯
+  // 커버 이미지 미리보기
   Widget _buildCoverImagePicker() {
     return GestureDetector(
       onTap: _pickCoverImage,
@@ -673,7 +755,6 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           border: Border.all(color: AppColors.border),
         ),
         child: _coverImageBytes != null
-            // 이미지가 선택된 경우: 미리보기 표시
             ? Stack(
                 children: [
                   ClipRRect(
@@ -685,17 +766,14 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                       fit: BoxFit.cover,
                     ),
                   ),
-                  // 삭제 버튼
                   Positioned(
                     top: 8,
                     right: 8,
                     child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _coverImageBase64 = null;
-                          _coverImageBytes = null;
-                        });
-                      },
+                      onTap: () => setState(() {
+                        _coverImageBase64 = null;
+                        _coverImageBytes = null;
+                      }),
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
@@ -708,55 +786,18 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                   ),
                 ],
               )
-            // 이미지가 없는 경우: 업로드 안내
             : const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_photo_alternate_outlined, size: 40, color: AppColors.textHint),
+                  Icon(Icons.image_outlined, size: 40, color: AppColors.textHint),
                   SizedBox(height: 8),
                   Text(
                     '탭하여 커버 이미지 선택',
                     style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    '행사 카드 배경으로 표시됩니다',
-                    style: TextStyle(fontSize: 11, color: AppColors.textHint),
-                  ),
                 ],
               ),
       ),
-    );
-  }
-
-  // 계약 방식 선택 (라디오 버튼)
-  // 통합계약: 모든 품목을 한 번에 계약 / 개별계약: 품목별로 따로 계약
-  Widget _buildContractMethodSelector() {
-    return Column(
-      children: [
-        RadioListTile<String>(
-          title: const Text('통합계약', style: TextStyle(fontSize: 14)),
-          subtitle: const Text('모든 품목을 한 번에 계약', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          value: 'integrated',
-          groupValue: _contractMethod,
-          activeColor: AppColors.primary,
-          contentPadding: EdgeInsets.zero,
-          onChanged: (v) => setState(() {
-            _contractMethod = v!;
-          }),
-        ),
-        RadioListTile<String>(
-          title: const Text('개별계약', style: TextStyle(fontSize: 14)),
-          subtitle: const Text('품목별로 따로 계약', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          value: 'individual',
-          groupValue: _contractMethod,
-          activeColor: AppColors.primary,
-          contentPadding: EdgeInsets.zero,
-          onChanged: (v) => setState(() {
-            _contractMethod = v!;
-          }),
-        ),
-      ],
     );
   }
 }

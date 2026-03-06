@@ -14,11 +14,15 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-// 개별 계약 항목 (상품 1개 = 계약 1건)
+// 개별 계약 항목 (상세 품목 1개 = 계약 1건)
 export class ContractItemDto {
   @IsString()
   @IsNotEmpty()
-  productId: string;      // 계약할 상품 ID
+  productId: string;      // 품목 ID (1뎁스)
+
+  @IsOptional()
+  @IsString()
+  productItemId?: string; // 상세 품목 ID (2뎁스, 실제 계약 패키지)
 
   @IsString()
   @IsNotEmpty()

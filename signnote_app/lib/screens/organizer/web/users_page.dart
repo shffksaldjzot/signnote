@@ -592,63 +592,82 @@ class _UsersPageState extends State<UsersPage> {
           BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4),
         ],
       ),
+      // 가로 스크롤 가능하게 (컬럼이 많아 좁은 화면에서 겹침 방지)
       child: SingleChildScrollView(
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
-          columnSpacing: 24,
-          columns: [
-            const DataColumn(label: Text('이름/업체명', style: TextStyle(fontWeight: FontWeight.bold))),
-            const DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold))),
-            const DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold))),
-            const DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold))),
-            const DataColumn(label: Text('승인', style: TextStyle(fontWeight: FontWeight.bold))),
-            const DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold))),
-            const DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.bold))),
-          ],
-          rows: users.map<DataRow>((u) {
-            final role = u['role'] ?? 'CUSTOMER';
-            final roleName = _roleNames[role] ?? role;
-            final roleColor = _roleColors[role] ?? Colors.grey;
-            final isApproved = u['isApproved'] ?? true;
-            final createdAt = u['createdAt'] != null
-                ? _dateFormat.format(DateTime.parse(u['createdAt']))
-                : '-';
+        scrollDirection: Axis.horizontal,
+        child: SingleChildScrollView(
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
+            columnSpacing: 32,
+            columns: const [
+              DataColumn(label: Text('이름/업체명', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('승인', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: users.map<DataRow>((u) {
+              final role = u['role'] ?? 'CUSTOMER';
+              final roleName = _roleNames[role] ?? role;
+              final roleColor = _roleColors[role] ?? Colors.grey;
+              final isApproved = u['isApproved'] ?? true;
+              final createdAt = u['createdAt'] != null
+                  ? _dateFormat.format(DateTime.parse(u['createdAt']))
+                  : '-';
 
-            return DataRow(cells: [
-              DataCell(Text(u['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500))),
-              DataCell(Text(u['email'] ?? '-')),
-              DataCell(Text(u['phone'] ?? '-')),
-              DataCell(_buildRoleBadge(roleName, roleColor)),
-              // 승인 상태 표시
-              DataCell(_buildApprovalBadge(isApproved)),
-              DataCell(Text(createdAt, style: TextStyle(color: Colors.grey[600]))),
-              // 관리 버튼 (상세보기 + 승인/거부)
-              DataCell(Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 상세보기 버튼
-                  IconButton(
-                    icon: const Icon(Icons.visibility, size: 20),
-                    tooltip: '상세보기',
-                    onPressed: () => _showUserDetail(u),
+              return DataRow(cells: [
+                // 이름/업체명 — 고정 너비 + 말줄임
+                DataCell(SizedBox(
+                  width: 140,
+                  child: Text(
+                    u['name'] ?? '-',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  // 승인 버튼 (관리자 + 미승인 사용자만)
-                  if (_isAdmin && !isApproved) ...[
+                )),
+                // 이메일 — 고정 너비 + 말줄임
+                DataCell(SizedBox(
+                  width: 200,
+                  child: Text(
+                    u['email'] ?? '-',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )),
+                DataCell(Text(u['phone'] ?? '-')),
+                DataCell(_buildRoleBadge(roleName, roleColor)),
+                // 승인 상태 표시
+                DataCell(_buildApprovalBadge(isApproved)),
+                DataCell(Text(createdAt, style: TextStyle(color: Colors.grey[600]))),
+                // 관리 버튼 (상세보기 + 승인/거부)
+                DataCell(Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 상세보기 버튼
                     IconButton(
-                      icon: const Icon(Icons.check_circle, size: 20, color: Colors.green),
-                      tooltip: '승인',
-                      onPressed: () => _approveUser(u),
+                      icon: const Icon(Icons.visibility, size: 20),
+                      tooltip: '상세보기',
+                      onPressed: () => _showUserDetail(u),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
-                      tooltip: '거부',
-                      onPressed: () => _rejectUser(u),
-                    ),
+                    // 승인 버튼 (관리자 + 미승인 사용자만)
+                    if (_isAdmin && !isApproved) ...[
+                      IconButton(
+                        icon: const Icon(Icons.check_circle, size: 20, color: Colors.green),
+                        tooltip: '승인',
+                        onPressed: () => _approveUser(u),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
+                        tooltip: '거부',
+                        onPressed: () => _rejectUser(u),
+                      ),
+                    ],
                   ],
-                ],
-              )),
-            ]);
-          }).toList(),
+                )),
+              ]);
+            }).toList(),
+          ),
         ),
       ),
     );

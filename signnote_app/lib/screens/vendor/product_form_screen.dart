@@ -3,34 +3,32 @@ import 'package:flutter/services.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
-import '../../widgets/common/app_button.dart';
 import '../../services/product_service.dart';
 import '../../services/event_service.dart';
 import '../../utils/number_formatter.dart';
 
 // ============================================
-// 업체용 상품 추가/수정 폼 화면
+// 업체용 상세 품목(2뎁스) 추가/수정 폼 화면
 //
-// 디자인 참고: 9.업체용-품목 등록.jpg
-// - 상단: ← "상품 추가" 또는 "상품 수정" 헤더
-// - 입력 필드들:
-//   - 카테고리 (줄눈, 나노코팅 등)
-//   - 상품명
-//   - 상품 설명 (여러 줄)
-//   - 가격 (숫자만)
-//   - 적용 타입 (체크박스: 74A, 74B, 84A, 84B)
-//   - 상품 이미지 (나중에 업로드 기능 추가)
-// - 하단: "등록하기" 또는 "수정하기" 버튼
+// 디자인 참고: 4.업체용-품목 추가하기.jpg
+// - 품목(1뎁스) 드롭다운: 배정받은 품목에서 선택
+// - 품목 제목 (패키지명)
+// - 적용 타입 (칩)
+// - 상세 품목 (설명)
+// - 비용 (원)
+// - 하단: "작성 완료" 버튼
 // ============================================
 
 class VendorProductFormScreen extends StatefulWidget {
   final String eventId;
-  final Map<String, dynamic>? product;  // 수정 시 기존 데이터 (null이면 새 등록)
+  final Map<String, dynamic>? product;      // 수정 시: 상세 품목(2뎁스) 데이터
+  final String? preSelectedProductId;        // 미리 선택된 1뎁스 품목 ID
 
   const VendorProductFormScreen({
     super.key,
     required this.eventId,
     this.product,
+    this.preSelectedProductId,
   });
 
   @override
@@ -40,63 +38,55 @@ class VendorProductFormScreen extends StatefulWidget {
 class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final ProductService _productService = ProductService();
-
-  // 입력 필드 컨트롤러들
-  late final TextEditingController _categoryController;
-  late final TextEditingController _nameController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _priceController;
-
-  // 적용 타입 선택 (여러 개 선택 가능)
-  late Set<String> _selectedTypes;
-  // 행사에서 설정된 타입 목록 (서버에서 가져옴)
-  List<String> _eventHousingTypes = [];
-  bool _isLoading = false;
-
-  // 수정 모드인지 여부
-  bool get _isEditMode => widget.product != null;
-
   final EventService _eventService = EventService();
+
+  // 입력 필드 컨트롤러
+  late final TextEditingController _nameController;       // 패키지명
+  late final TextEditingController _descriptionController; // 상세 설명
+  late final TextEditingController _priceController;       // 비용
+
+  // 배정받은 1뎁스 품목 목록 (드롭다운용)
+  List<Map<String, dynamic>> _assignedProducts = [];
+  String? _selectedProductId;  // 선택된 1뎁스 품목 ID
+
+  // 적용 타입
+  late Set<String> _selectedTypes;
+  List<String> _eventHousingTypes = [];
+
+  bool _isLoading = false;
+  bool get _isEditMode => widget.product != null;
 
   @override
   void initState() {
     super.initState();
-    _loadEventTypes(); // 행사별 타입 목록 가져오기
+    _loadData();
+
     // 수정 모드면 기존 데이터로 채우기
-    _categoryController = TextEditingController(
-      text: widget.product?['category'] ?? '',
-    );
-    _nameController = TextEditingController(
-      text: widget.product?['name'] ?? '',
-    );
-    _descriptionController = TextEditingController(
-      text: widget.product?['description'] ?? '',
-    );
+    _selectedProductId = widget.product?['productId'] ?? widget.preSelectedProductId;
+    _nameController = TextEditingController(text: widget.product?['name'] ?? '');
+    _descriptionController = TextEditingController(text: widget.product?['description'] ?? '');
     _priceController = TextEditingController(
-      text: widget.product?['price'] != null
-          ? formatWithComma(widget.product!['price'] as int)
-          : '',
+      text: widget.product?['price'] != null ? formatWithComma(widget.product!['price'] as int) : '',
     );
-    _selectedTypes = Set<String>.from(
-      widget.product?['housingTypes'] ?? ['84A'],
-    );
+    _selectedTypes = Set<String>.from(widget.product?['housingTypes'] ?? []);
   }
 
   @override
   void dispose() {
-    _categoryController.dispose();
     _nameController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
     super.dispose();
   }
 
-  // 행사에서 설정된 타입 목록 가져오기
-  Future<void> _loadEventTypes() async {
-    final result = await _eventService.getEventDetail(widget.eventId);
+  // 행사 데이터 + 배정받은 품목 가져오기
+  Future<void> _loadData() async {
+    // 행사 상세에서 타입 목록 가져오기
+    final eventResult = await _eventService.getEventDetail(widget.eventId);
     if (!mounted) return;
-    if (result['success'] == true) {
-      final event = result['event'] as Map<String, dynamic>? ?? {};
+
+    if (eventResult['success'] == true) {
+      final event = eventResult['event'] as Map<String, dynamic>? ?? {};
       final types = event['housingTypes'];
       if (types is List && types.isNotEmpty) {
         setState(() {
@@ -104,17 +94,39 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         });
       }
     }
-    // 서버에서 못 가져오면 기본 타입 사용
+
+    // 타입 기본값
     if (_eventHousingTypes.isEmpty) {
       setState(() {
         _eventHousingTypes = List<String>.from(AppConstants.defaultHousingTypes);
       });
     }
+
+    // 배정받은 1뎁스 품목 목록 (내 품목)
+    final myResult = await _productService.getMyProducts(eventId: widget.eventId);
+    if (!mounted) return;
+
+    if (myResult['success'] == true) {
+      final List products = myResult['products'] ?? [];
+      setState(() {
+        _assignedProducts = products.map<Map<String, dynamic>>((p) => {
+          'id': p['id']?.toString() ?? '',
+          'name': p['name'] ?? '',
+          'category': p['category'] ?? '',
+        }).toList();
+      });
+    }
   }
 
-  // 폼 제출 (등록 또는 수정) — 실제 API 호출
+  // 폼 제출
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedProductId == null || _selectedProductId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('품목을 선택해 주세요')),
+      );
+      return;
+    }
     if (_selectedTypes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('적용 타입을 1개 이상 선택해 주세요')),
@@ -127,11 +139,10 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     Map<String, dynamic> result;
 
     if (_isEditMode) {
-      // 수정 모드: updateProduct API 호출
-      result = await _productService.updateProduct(
+      // 수정: ProductItem 수정 API
+      result = await _productService.updateProductItem(
         widget.product!['id'].toString(),
         {
-          'category': _categoryController.text,
           'name': _nameController.text,
           'description': _descriptionController.text,
           'price': parseCommaNumber(_priceController.text),
@@ -139,17 +150,13 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         },
       );
     } else {
-      // 등록 모드: createProduct API 호출
-      result = await _productService.createProduct(
-        eventId: widget.eventId,
+      // 생성: ProductItem 생성 API
+      result = await _productService.createProductItem(
+        productId: _selectedProductId!,
         name: _nameController.text,
-        category: _categoryController.text,
-        vendorName: '', // 서버에서 로그인 사용자 정보로 자동 처리
         housingTypes: _selectedTypes.toList(),
         price: parseCommaNumber(_priceController.text),
-        description: _descriptionController.text.isNotEmpty
-            ? _descriptionController.text
-            : null,
+        description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
       );
     }
 
@@ -159,16 +166,12 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
 
     if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isEditMode ? '상품이 수정되었습니다' : '상품이 등록되었습니다'),
-        ),
+        SnackBar(content: Text(_isEditMode ? '품목이 수정되었습니다' : '품목이 등록되었습니다')),
       );
-      Navigator.of(context).pop(true);  // true = 변경됨 (목록 새로고침용)
+      Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['error'] ?? '처리에 실패했습니다'),
-        ),
+        SnackBar(content: Text(result['error'] ?? '처리에 실패했습니다')),
       );
     }
   }
@@ -177,7 +180,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppHeader(title: _isEditMode ? '상품 수정' : '상품 추가'),
+      appBar: AppHeader(title: _isEditMode ? '품목 수정' : '품목 추가하기'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -185,72 +188,82 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 카테고리 입력
-              _buildLabel('카테고리'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _categoryController,
-                hint: '예: 줄눈, 나노코팅, 에어컨',
-                validator: (v) => v == null || v.isEmpty ? '카테고리를 입력해 주세요' : null,
+              // "판매 품목 추가 >"
+              const Row(
+                children: [
+                  Text('판매 품목 추가', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  SizedBox(width: 4),
+                  Icon(Icons.chevron_right, size: 20),
+                ],
               ),
               const SizedBox(height: 20),
 
-              // 상품명 입력
-              _buildLabel('상품명'),
+              // 품목 드롭다운 (배정받은 1뎁스 품목에서 선택)
+              _buildProductDropdown(),
+              const SizedBox(height: 20),
+
+              // 품목 제목 (패키지명)
+              _buildLabel('품목 제목'),
               const SizedBox(height: 8),
               _buildTextField(
                 controller: _nameController,
-                hint: '예: 줄눈 A 패키지',
-                validator: (v) => v == null || v.isEmpty ? '상품명을 입력해 주세요' : null,
+                hint: '예시 : 기본 패키지 / A 패키지',
+                validator: (v) => v == null || v.isEmpty ? '품목 제목을 입력해 주세요' : null,
               ),
               const SizedBox(height: 20),
 
-              // 상품 설명 입력
-              _buildLabel('상품 설명'),
+              // 적용 타입
+              _buildLabel('적용 타입'),
+              const SizedBox(height: 8),
+              _buildTypeChips(),
+              const SizedBox(height: 20),
+
+              // 상세 품목
+              _buildLabel('상세 품목'),
               const SizedBox(height: 8),
               _buildTextField(
                 controller: _descriptionController,
-                hint: '예: 욕실2바닥+현관+안방샤워부스 벽면1곳',
+                hint: '상세 품목을 작성해 주세요.',
                 maxLines: 4,
               ),
               const SizedBox(height: 20),
 
-              // 가격 입력
-              _buildLabel('가격 (원)'),
+              // 비용
+              _buildLabel('비용'),
               const SizedBox(height: 8),
               _buildTextField(
                 controller: _priceController,
-                hint: '예: 700,000',
+                hint: '',
                 keyboardType: TextInputType.number,
+                suffixText: '원',
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
-                  CommaFormatter(),  // 천 단위 콤마 자동 삽입
+                  CommaFormatter(),
                 ],
                 validator: (v) {
-                  if (v == null || v.isEmpty) return '가격을 입력해 주세요';
-                  if (parseCommaNumber(v) <= 0) return '올바른 숫자를 입력해 주세요';
+                  if (v == null || v.isEmpty) return '비용을 입력해 주세요';
+                  if (parseCommaNumber(v) <= 0) return '올바른 금액을 입력해 주세요';
                   return null;
                 },
               ),
-              const SizedBox(height: 20),
-
-              // 적용 타입 선택 (체크박스)
-              _buildLabel('적용 타입'),
-              const SizedBox(height: 8),
-              _buildTypeCheckboxes(),
-              const SizedBox(height: 20),
-
-              // 상품 이미지 (나중에 업로드 기능 추가)
-              _buildLabel('상품 이미지'),
-              const SizedBox(height: 8),
-              _buildImagePlaceholder(),
               const SizedBox(height: 32),
 
-              // 등록/수정 버튼
-              AppButton.black(
-                text: _isEditMode ? '수정하기' : '등록하기',
-                isLoading: _isLoading,
-                onPressed: _handleSubmit,
+              // "작성 완료" 검정 버튼
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.vendor,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white))
+                      : Text(_isEditMode ? '수정 완료' : '작성 완료'),
+                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -260,24 +273,88 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     );
   }
 
-  // 라벨 텍스트
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+  // 품목 드롭다운 (배정받은 1뎁스 품목)
+  Widget _buildProductDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedProductId != null &&
+                  _assignedProducts.any((p) => p['id'] == _selectedProductId)
+              ? _selectedProductId
+              : null,
+          hint: const Text('품목', style: TextStyle(fontSize: 14, color: AppColors.textHint)),
+          isExpanded: true,
+          icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+          items: _assignedProducts.map((product) {
+            return DropdownMenuItem<String>(
+              value: product['id'],
+              child: Text(product['name'], style: const TextStyle(fontSize: 14)),
+            );
+          }).toList(),
+          onChanged: _isEditMode ? null : (value) {
+            setState(() => _selectedProductId = value);
+          },
+        ),
       ),
     );
   }
 
-  // 공통 텍스트 입력 필드
+  // 적용 타입 칩
+  Widget _buildTypeChips() {
+    if (_eventHousingTypes.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Wrap(
+      spacing: 8,
+      children: _eventHousingTypes.map((type) {
+        final isSelected = _selectedTypes.contains(type);
+        return FilterChip(
+          label: Text(type),
+          selected: isSelected,
+          onSelected: (selected) {
+            setState(() {
+              if (selected) {
+                _selectedTypes.add(type);
+              } else {
+                _selectedTypes.remove(type);
+              }
+            });
+          },
+          selectedColor: AppColors.vendor.withValues(alpha: 0.12),
+          checkmarkColor: AppColors.vendor,
+          labelStyle: TextStyle(
+            color: isSelected ? AppColors.vendor : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: isSelected ? AppColors.vendor : AppColors.border),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // 라벨
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+    );
+  }
+
+  // 텍스트 입력 필드
   Widget _buildTextField({
     required TextEditingController controller,
     String? hint,
     int maxLines = 1,
     TextInputType? keyboardType,
+    String? suffixText,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
@@ -290,6 +367,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
+        suffixText: suffixText,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
@@ -301,81 +379,11 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.vendor, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.priceRed),
-        ),
-      ),
-    );
-  }
-
-  // 타입 체크박스 (여러 개 선택 가능)
-  Widget _buildTypeCheckboxes() {
-    if (_eventHousingTypes.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    return Wrap(
-      spacing: 8,
-      children: _eventHousingTypes.map((type) {
-        final isSelected = _selectedTypes.contains(type);
-        return FilterChip(
-          label: Text('$type타입'),
-          selected: isSelected,
-          onSelected: (selected) {
-            setState(() {
-              if (selected) {
-                _selectedTypes.add(type);
-              } else {
-                _selectedTypes.remove(type);
-              }
-            });
-          },
-          selectedColor: AppColors.primary.withValues(alpha: 0.15),
-          checkmarkColor: AppColors.primary,
-          labelStyle: TextStyle(
-            color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(
-              color: isSelected ? AppColors.primary : AppColors.border,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // 이미지 업로드 영역 (나중에 구현)
-  Widget _buildImagePlaceholder() {
-    return GestureDetector(
-      onTap: () {
-        // 이미지 선택 (파일 스토리지 연동 시 활성화)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지 업로드 기능은 추후 추가됩니다')),
-        );
-      },
-      child: Container(
-        width: double.infinity,
-        height: 120,
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border, style: BorderStyle.solid),
-        ),
-        child: const Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_photo_alternate_outlined, size: 36, color: AppColors.textHint),
-            SizedBox(height: 8),
-            Text(
-              '이미지 추가',
-              style: TextStyle(fontSize: 13, color: AppColors.textHint),
-            ),
-          ],
         ),
       ),
     );

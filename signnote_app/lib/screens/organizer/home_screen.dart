@@ -11,14 +11,13 @@ import 'event_form_screen.dart';
 import 'event_manage_screen.dart';
 
 // ============================================
-// 주관사 홈 화면
+// 주관사 홈 화면 (2차 디자인)
 //
-// 디자인 참고: 12.주관사용-행사 목록.jpg
-// - 상단: Signnote 로고 + "주관사" 뱃지
+// 디자인 참고: 1.주관사용-처음.jpg / 3.주관사용-행사 목록.jpg
+// - 상단: Signnote 로고 + 주황색 "주관사" 뱃지
 // - "행사 목록 >" 제목
-// - 행사 카드 그리드 (2열)
-// - + 카드를 누르면 행사 생성 폼으로 이동
-// - 하단: 마이페이지 아이콘
+// - 행사 카드 그리드 (2열) + 맨 앞 + 카드
+// - 하단: 홈 / 마이페이지 (2탭, 주황색 아이콘)
 // ============================================
 
 class OrganizerHomeScreen extends StatefulWidget {
@@ -33,7 +32,8 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
   List<Map<String, dynamic>> _events = [];
   bool _isLoading = true;
   String? _error;
-  String _currentRole = 'ORGANIZER'; // 현재 사용자 역할 (관리자/주관사)
+  String _currentRole = 'ORGANIZER';
+  int _currentTabIndex = 0; // 하단 탭 인덱스 (0=홈, 1=마이페이지)
 
   final EventService _eventService = EventService();
   final AuthService _authService = AuthService();
@@ -41,8 +41,8 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserRole(); // 사용자 역할 가져오기
-    _loadEvents();   // 화면 열릴 때 행사 목록 불러오기
+    _loadUserRole();
+    _loadEvents();
   }
 
   // 저장된 사용자 역할 가져오기
@@ -72,7 +72,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           return {
             'id': e['id']?.toString() ?? '',
             'title': e['title'] ?? '행사명 없음',
-            'organizerName': e['organizer']?['name'], // 주관사명
+            'organizerName': e['organizer']?['name'],
             'coverImageUrl': e['coverImage'],
             'startDate': e['startDate'] != null
                 ? DateTime.tryParse(e['startDate'].toString())
@@ -93,66 +93,80 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     }
   }
 
+  // 하단 탭 변경
+  void _onTabChanged(int index) {
+    if (index == 1) {
+      // 마이페이지
+      context.push(AppRoutes.mypage, extra: _currentRole);
+      return;
+    }
+    setState(() => _currentTabIndex = index);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              // 로고 + "주관사" 뱃지
-              _buildLogo(),
-              const SizedBox(height: 24),
-              // "행사 목록 >" 제목
-              Row(
-                children: [
-                  const Text(
-                    '행사 목록',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: AppColors.textPrimary,
-                    size: 22,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // 행사 카드 그리드 (로딩/에러/데이터 분기)
-              Expanded(child: _buildBody()),
-            ],
-          ),
-        ),
-      ),
-      // 하단: 마이페이지 아이콘 (디자인 가이드라인대로)
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.only(bottom: 16, right: 24),
-        child: Align(
-          heightFactor: 1.0, // 자식 크기만큼만 차지 (무한 확장 방지)
-          alignment: Alignment.centerRight,
-          child: GestureDetector(
-            onTap: () => context.push(AppRoutes.mypage, extra: _currentRole),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: AppColors.white,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.person_outline, size: 28, color: AppColors.textSecondary),
-                SizedBox(height: 2),
-                Text(
-                  '마이페이지',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                const SizedBox(height: 24),
+                // 로고 + "주관사" 주황 뱃지
+                _buildLogo(),
+                const SizedBox(height: 24),
+                // "행사 목록 >" 제목
+                Row(
+                  children: [
+                    const Text(
+                      '행사 목록',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textPrimary,
+                      size: 22,
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 16),
+                // 행사 카드 그리드
+                Expanded(child: _buildBody()),
               ],
             ),
           ),
+        ),
+        // 하단: 홈 / 마이페이지 (2탭, 주황 아이콘)
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentTabIndex,
+          onTap: _onTabChanged,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.white,
+          selectedItemColor: AppColors.organizer,     // 주황색 (활성)
+          unselectedItemColor: AppColors.textSecondary, // 회색 (비활성)
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          items: [
+            BottomNavigationBarItem(
+              icon: Image.asset('assets/icons/organizer/home_active.png', width: 24, height: 24,
+                color: _currentTabIndex == 0 ? AppColors.organizer : AppColors.textSecondary),
+              label: '홈',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: '마이페이지',
+            ),
+          ],
         ),
       ),
     );
@@ -161,7 +175,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
   // 본문 영역: 로딩 / 에러 / 행사 목록 분기
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: AppColors.organizer));
     }
     if (_error != null) {
       return Center(
@@ -179,6 +193,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     }
 
     return GridView.builder(
+      padding: const EdgeInsets.only(bottom: 24),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 12,
@@ -187,31 +202,29 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
       ),
       itemCount: _events.length + 1,
       itemBuilder: (context, index) {
-        // 맨 앞은 + 추가 카드 (주관사는 행사 생성)
+        // 맨 앞 + 추가 카드
         if (index == 0) {
           return AddEventCard(
             onTap: () async {
-              // 행사 생성 폼으로 이동
               final result = await Navigator.of(context).push<bool>(
                 MaterialPageRoute(
                   builder: (_) => const OrganizerEventFormScreen(),
                 ),
               );
-              // 생성 성공 시 목록 새로고침
               if (result == true) _loadEvents();
             },
           );
         }
 
-        final event = _events[index - 1];  // 인덱스 1부터 행사 카드
+        final event = _events[index - 1];
         return EventCard(
           title: event['title'],
-          organizerName: event['organizerName'], // 주관사명 전달
+          organizerName: event['organizerName'],
           coverImageUrl: event['coverImageUrl'],
           startDate: event['startDate'],
           endDate: event['endDate'],
+          badgeColor: AppColors.organizer, // 주황색 D-day 뱃지
           onTap: () {
-            // 행사 관리 화면으로 이동
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => OrganizerEventManageScreen(
@@ -228,7 +241,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     );
   }
 
-  // 행사 카드 3점 메뉴 (편집/삭제)
+  // 행사 카드 3점 메뉴 (수정/삭제) — 디자인: 3.주관사용-행사 목록.jpg
   void _showEventMenu(Map<String, dynamic> event) {
     showModalBottomSheet(
       context: context,
@@ -239,19 +252,17 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 행사 편집
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('행사 편집'),
+              title: const Text('수정'),
               onTap: () {
                 Navigator.pop(context);
                 _editEvent(event);
               },
             ),
-            // 행사 삭제
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('행사 삭제', style: TextStyle(color: Colors.red)),
+              title: const Text('삭제', style: TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(context);
                 _confirmDeleteEvent(event);
@@ -264,15 +275,13 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     );
   }
 
-  // 행사 편집 (기존 등록 폼 재활용, 수정 모드)
+  // 행사 편집
   void _editEvent(Map<String, dynamic> event) async {
-    // 행사 상세 정보를 가져와서 편집 폼에 전달
     final detailResult = await _eventService.getEventDetail(event['id']);
     if (!mounted) return;
 
     if (detailResult['success'] == true) {
       final eventData = detailResult['event'];
-      // 날짜 문자열을 DateTime으로 변환
       final formData = {
         'id': eventData['id'],
         'title': eventData['title'],
@@ -298,7 +307,6 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           builder: (_) => OrganizerEventFormScreen(event: formData),
         ),
       );
-      // 수정 성공 시 목록 새로고침
       if (result == true) _loadEvents();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -307,7 +315,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     }
   }
 
-  // 행사 삭제 확인 팝업 → 비밀번호 입력
+  // 행사 삭제 확인
   void _confirmDeleteEvent(Map<String, dynamic> event) {
     showDialog(
       context: context,
@@ -336,7 +344,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     );
   }
 
-  // 행사 삭제용 비밀번호 확인 팝업
+  // 삭제용 비밀번호 확인
   void _showDeletePasswordDialog(Map<String, dynamic> event) {
     final passwordController = TextEditingController();
 
@@ -380,7 +388,6 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
 
-              // 비밀번호 확인
               final verifyResult = await _authService.verifyPassword(password);
               if (!mounted) return;
               if (verifyResult['success'] != true) {
@@ -390,14 +397,13 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
                 return;
               }
 
-              // 행사 삭제 API 호출
               final deleteResult = await _eventService.deleteEvent(event['id']);
               if (!mounted) return;
               if (deleteResult['success'] == true) {
                 messenger.showSnackBar(
                   const SnackBar(content: Text('행사가 삭제되었습니다')),
                 );
-                _loadEvents(); // 목록 새로고침
+                _loadEvents();
               } else {
                 messenger.showSnackBar(
                   SnackBar(content: Text(deleteResult['error'] ?? '행사 삭제에 실패했습니다')),
@@ -412,23 +418,21 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
     );
   }
 
-  // 로고 + 역할 뱃지 (관리자/주관사 구분)
+  // 로고 + 역할 뱃지 (주황 배경)
   Widget _buildLogo() {
-    // 관리자면 빨간 뱃지, 주관사면 검정 뱃지
     final bool isAdmin = _currentRole == AppConstants.roleAdmin;
     final String badgeText = isAdmin ? '관리자' : '주관사';
-    final Color badgeColor = isAdmin ? Colors.red : AppColors.textPrimary;
+    // 관리자=빨강, 주관사=주황
+    final Color badgeColor = isAdmin ? Colors.red : AppColors.organizer;
 
     return Row(
       children: [
-        // 진짜 로고 이미지 파일 사용
         Image.asset(
           'assets/images/logo.png',
           height: 28,
           fit: BoxFit.contain,
         ),
         const SizedBox(width: 8),
-        // 역할 뱃지 (관리자: 빨강 / 주관사: 검정)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(

@@ -1,15 +1,25 @@
 // ============================================
 // 상품 컨트롤러 (Products Controller)
 //
-// API 목록:
-//   GET    /api/v1/events/:eventId/products          → 행사별 상품 목록
-//   GET    /api/v1/events/:eventId/products/available → 가용 품목 목록 (업체용)
-//   GET    /api/v1/products/:id                      → 상품 상세
-//   POST   /api/v1/products                          → 상품 등록 (업체)
-//   POST   /api/v1/products/organizer                → 품목 등록 (주관사)
-//   POST   /api/v1/products/:id/claim                → 품목 선점 (업체)
-//   PUT    /api/v1/products/:id                      → 상품 수정
-//   GET    /api/v1/products/vendor/mine              → 내가 등록한 상품 목록 (업체)
+// API 목록 — Product (1뎁스):
+//   GET    /api/v1/products                     → 전체 품목 목록 (주관사/관리자)
+//   GET    /api/v1/events/:eventId/products     → 행사별 품목 목록
+//   GET    /api/v1/events/:eventId/products/available → 가용 품목 목록
+//   GET    /api/v1/products/:id                 → 품목 상세
+//   POST   /api/v1/products                     → 품목 등록 (업체, 레거시)
+//   POST   /api/v1/products/organizer           → 품목 등록 (주관사, 1뎁스)
+//   POST   /api/v1/products/:id/claim           → 품목 선점 (업체)
+//   POST   /api/v1/products/:id/assign-vendor   → 업체 배정 (주관사)
+//   POST   /api/v1/products/:id/unclaim         → 업체 참가 취소 (주관사)
+//   PUT    /api/v1/products/:id                 → 품목 수정
+//   GET    /api/v1/products/vendor/mine         → 내 품목 (업체)
+//
+// API 목록 — ProductItem (2뎁스):
+//   GET    /api/v1/products/:productId/items          → 상세 품목 목록
+//   POST   /api/v1/products/:productId/items          → 상세 품목 등록 (업체)
+//   GET    /api/v1/product-items/:id                   → 상세 품목 단건
+//   PUT    /api/v1/product-items/:id                   → 상세 품목 수정
+//   DELETE /api/v1/product-items/:id                   → 상세 품목 삭제
 // ============================================
 
 import {
@@ -17,6 +27,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -26,14 +37,18 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductOrganizerDto } from './dto/create-product-organizer.dto';
+import { CreateProductItemDto } from './dto/create-product-item.dto';
 import { JwtAuthGuard, RolesGuard, Roles } from '../auth/roles.guard';
 
 @Controller()
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  // 전체 상품 목록 (주관사/관리자용)
-  // ?eventId=xxx&category=xxx 로 필터 가능
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Product (1뎁스) API
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // 전체 품목 목록 (주관사/관리자용, 2뎁스 포함)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ORGANIZER', 'ADMIN')
   @Get('products')
@@ -44,8 +59,7 @@ export class ProductsController {
     return this.productsService.findAll(eventId, category);
   }
 
-  // 행사별 상품 목록 (로그인 필요)
-  // ?housingType=84A 로 평형 필터 가능
+  // 행사별 품목 목록 (2뎁스 포함)
   @UseGuards(JwtAuthGuard)
   @Get('events/:eventId/products')
   async findByEvent(
@@ -55,21 +69,33 @@ export class ProductsController {
     return this.productsService.findByEvent(eventId, housingType);
   }
 
-  // 가용 품목 목록 (업체 선점 전 빈 품목들)
+  // 가용 품목 목록 (업체 미배정)
   @UseGuards(JwtAuthGuard)
   @Get('events/:eventId/products/available')
   async findAvailable(@Param('eventId') eventId: string) {
     return this.productsService.findAvailable(eventId);
   }
 
-  // 상품 상세 조회
+  // 내가 배정된 품목 목록 (업체용, 2뎁스 포함)
+  // ※ 반드시 GET products/:id 보다 위에 위치해야 라우트 충돌 방지
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('VENDOR')
+  @Get('products/vendor/mine')
+  async findMyProducts(
+    @Request() req: any,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.productsService.findByVendor(req.user.id, eventId);
+  }
+
+  // 품목 상세 조회 (2뎁스 포함)
   @UseGuards(JwtAuthGuard)
   @Get('products/:id')
   async findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
   }
 
-  // 품목 등록 (주관사용 — vendorId 없이 품목만 등록)
+  // 품목 등록 (주관사용 — 1뎁스)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ORGANIZER', 'ADMIN')
   @Post('products/organizer')
@@ -80,7 +106,7 @@ export class ProductsController {
     return this.productsService.createByOrganizer(req.user.id, dto);
   }
 
-  // 상품 등록 (업체)
+  // 품목 등록 (업체, 레거시 호환)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('VENDOR', 'ORGANIZER', 'ADMIN')
   @Post('products')
@@ -88,7 +114,7 @@ export class ProductsController {
     return this.productsService.create(req.user.id, dto);
   }
 
-  // 품목 선점 (업체가 품목 선택)
+  // 품목 선점 (업체)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('VENDOR')
   @Post('products/:id/claim')
@@ -100,7 +126,19 @@ export class ProductsController {
     return this.productsService.claimProduct(id, req.user.id, body.vendorName);
   }
 
-  // 업체 참가 취소 (주관사/관리자가 품목에서 업체 해제)
+  // 업체 배정 (주관사가 드롭다운으로 선택)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ORGANIZER', 'ADMIN')
+  @Post('products/:id/assign-vendor')
+  async assignVendor(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: { vendorId: string },
+  ) {
+    return this.productsService.assignVendor(id, body.vendorId, req.user.id);
+  }
+
+  // 업체 참가 취소
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ORGANIZER', 'ADMIN')
   @Post('products/:id/unclaim')
@@ -111,7 +149,7 @@ export class ProductsController {
     return this.productsService.unclaimProduct(id, req.user.id);
   }
 
-  // 상품 수정 (업체/주관사만)
+  // 품목 수정
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('VENDOR', 'ORGANIZER', 'ADMIN')
   @Put('products/:id')
@@ -122,14 +160,56 @@ export class ProductsController {
     return this.productsService.update(id, dto);
   }
 
-  // 내가 등록한 상품 목록 (업체용)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ProductItem (2뎁스) API
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // 상세 품목 목록 (특정 1뎁스 하위)
+  @UseGuards(JwtAuthGuard)
+  @Get('products/:productId/items')
+  async findItemsByProduct(@Param('productId') productId: string) {
+    return this.productsService.findItemsByProduct(productId);
+  }
+
+  // 상세 품목 등록 (업체가 2뎁스 패키지 추가)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('VENDOR')
-  @Get('products/vendor/mine')
-  async findMyProducts(
+  @Post('products/:productId/items')
+  async createItem(
     @Request() req: any,
-    @Query('eventId') eventId?: string,
+    @Param('productId') productId: string,
+    @Body() dto: CreateProductItemDto,
   ) {
-    return this.productsService.findByVendor(req.user.id, eventId);
+    return this.productsService.createItem(productId, req.user.id, dto);
+  }
+
+  // 상세 품목 단건 조회
+  @UseGuards(JwtAuthGuard)
+  @Get('product-items/:id')
+  async findOneItem(@Param('id') id: string) {
+    return this.productsService.findOneItem(id);
+  }
+
+  // 상세 품목 수정
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('VENDOR', 'ORGANIZER', 'ADMIN')
+  @Put('product-items/:id')
+  async updateItem(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateProductItemDto>,
+  ) {
+    return this.productsService.updateItem(id, req.user.id, dto);
+  }
+
+  // 상세 품목 삭제
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('VENDOR', 'ORGANIZER', 'ADMIN')
+  @Delete('product-items/:id')
+  async deleteItem(
+    @Request() req: any,
+    @Param('id') id: string,
+  ) {
+    return this.productsService.deleteItem(id, req.user.id);
   }
 }

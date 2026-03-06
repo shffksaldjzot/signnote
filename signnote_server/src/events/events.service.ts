@@ -182,6 +182,81 @@ export class EventsService {
     return { message: '행사 참가가 취소되었습니다' };
   }
 
+  // 행사 참여자 목록 조회 (역할 필터 가능)
+  // role: 'VENDOR' → 업체만, 'CUSTOMER' → 고객만, 없으면 전체
+  async getParticipants(eventId: string, role?: string) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) {
+      throw new NotFoundException('행사를 찾을 수 없습니다');
+    }
+
+    const where: any = { eventId };
+    if (role) {
+      where.user = { role };
+    }
+
+    const participants = await this.prisma.eventParticipant.findMany({
+      where,
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true, role: true },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    // user 정보를 플랫하게 반환
+    return participants.map((p) => ({
+      id: p.user.id,
+      name: p.user.name,
+      email: p.user.email,
+      phone: p.user.phone,
+      role: p.user.role,
+      joinedAt: p.joinedAt,
+    }));
+  }
+
+  // 고객 평형 정보 저장 (동/호수/타입)
+  async updateParticipantInfo(
+    eventId: string,
+    userId: string,
+    data: { dong?: string; ho?: string; housingType?: string },
+  ) {
+    const participant = await this.prisma.eventParticipant.findUnique({
+      where: { eventId_userId: { eventId, userId } },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('참여 기록을 찾을 수 없습니다');
+    }
+
+    return this.prisma.eventParticipant.update({
+      where: { id: participant.id },
+      data: {
+        ...(data.dong !== undefined && { dong: data.dong }),
+        ...(data.ho !== undefined && { ho: data.ho }),
+        ...(data.housingType !== undefined && { housingType: data.housingType }),
+      },
+    });
+  }
+
+  // 내 참여 정보 조회 (고객용)
+  async getParticipantInfo(eventId: string, userId: string) {
+    const participant = await this.prisma.eventParticipant.findUnique({
+      where: { eventId_userId: { eventId, userId } },
+    });
+
+    if (!participant) {
+      return { dong: null, ho: null, housingType: null };
+    }
+
+    return {
+      dong: participant.dong,
+      ho: participant.ho,
+      housingType: participant.housingType,
+    };
+  }
+
   // 참여 코드로 행사 찾기 (입장 시 사용)
   async findByEntryCode(entryCode: string) {
     return this.prisma.event.findUnique({

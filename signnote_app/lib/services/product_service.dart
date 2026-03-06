@@ -219,6 +219,27 @@ class ProductService {
     }
   }
 
+  // 주관사용 업체 배정 (드롭다운에서 업체 선택)
+  Future<Map<String, dynamic>> assignVendor({
+    required String productId,
+    required String vendorId,
+  }) async {
+    try {
+      final response = await _api.post('/products/$productId/assign-vendor', data: {
+        'vendorId': vendorId,
+      });
+      return {
+        'success': true,
+        'product': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '업체 배정에 실패했습니다',
+      };
+    }
+  }
+
   // 업체용 품목 선점
   Future<Map<String, dynamic>> claimProduct({
     required String productId,
@@ -236,6 +257,90 @@ class ProductService {
       return {
         'success': false,
         'error': e.response?.data['message'] ?? '품목 선점에 실패했습니다',
+      };
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ProductItem (2뎁스 상세 품목) API
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // 상세 품목 목록 조회 (특정 1뎁스 하위)
+  Future<Map<String, dynamic>> getProductItems(String productId) async {
+    try {
+      final response = await _api.get('/products/$productId/items');
+      return {
+        'success': true,
+        'items': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '상세 품목을 불러올 수 없습니다',
+      };
+    }
+  }
+
+  // 상세 품목 등록 (업체가 2뎁스 패키지 추가)
+  Future<Map<String, dynamic>> createProductItem({
+    required String productId,
+    required String name,
+    required List<String> housingTypes,
+    required int price,
+    String? description,
+    String? image,
+  }) async {
+    try {
+      final response = await _api.post('/products/$productId/items', data: {
+        'name': name,
+        'housingTypes': housingTypes,
+        'price': price,
+        if (description != null) 'description': description,
+        if (image != null) 'image': image,
+      });
+      return {
+        'success': true,
+        'item': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '상세 품목 등록에 실패했습니다',
+      };
+    }
+  }
+
+  // 상세 품목 수정
+  Future<Map<String, dynamic>> updateProductItem(
+    String itemId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final response = await _api.put('/product-items/$itemId', data: data);
+      return {
+        'success': true,
+        'item': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '상세 품목 수정에 실패했습니다',
+      };
+    }
+  }
+
+  // 상세 품목 삭제
+  Future<Map<String, dynamic>> deleteProductItem(String itemId) async {
+    try {
+      final response = await _api.delete('/product-items/$itemId');
+      return {
+        'success': true,
+        'result': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '상세 품목 삭제에 실패했습니다',
       };
     }
   }

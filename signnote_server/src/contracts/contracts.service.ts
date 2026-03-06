@@ -42,18 +42,33 @@ export class ContractsService {
     const contracts = [];
 
     for (const item of dto.items) {
-      // 상품 정보 조회
+      // 품목 정보 조회 (1뎁스)
       const product = await this.prisma.product.findUnique({
         where: { id: item.productId },
       });
 
       if (!product) {
-        throw new NotFoundException(`상품(${item.productId})을 찾을 수 없습니다`);
+        throw new NotFoundException(`품목(${item.productId})을 찾을 수 없습니다`);
+      }
+
+      // 상세 품목(2뎁스)에서 가격 가져오기
+      let price = 0;
+      let productItemId: string | null = null;
+
+      if (item.productItemId) {
+        const productItem = await this.prisma.productItem.findUnique({
+          where: { id: item.productItemId },
+        });
+        if (!productItem) {
+          throw new NotFoundException(`상세 품목(${item.productItemId})을 찾을 수 없습니다`);
+        }
+        price = productItem.price;
+        productItemId = productItem.id;
       }
 
       // 계약금과 잔금 계산
-      const depositAmount = Math.round(product.price * this.DEPOSIT_RATE);
-      const remainAmount = product.price - depositAmount;
+      const depositAmount = Math.round(price * this.DEPOSIT_RATE);
+      const remainAmount = price - depositAmount;
 
       // 계약 생성
       const contract = await this.prisma.contract.create({
@@ -63,15 +78,16 @@ export class ContractsService {
           customerPhone: dto.customerPhone ?? user.phone,
           customerAddress: dto.customerAddress,
           productId: item.productId,
+          productItemId,
           eventId: item.eventId,
           vendorId: product.vendorId ?? '',
-          originalPrice: product.price,
+          originalPrice: price,
           depositAmount,
           remainAmount,
-          // status는 기본값 PENDING (계약금 결제 대기)
         },
         include: {
           product: true,
+          productItem: true,
         },
       });
 
@@ -111,7 +127,8 @@ export class ContractsService {
     return this.prisma.contract.findMany({
       where,
       include: {
-        product: true,       // 상품 정보
+        product: true,
+        productItem: true,
         event: {
           select: { id: true, title: true },
         },
@@ -129,6 +146,7 @@ export class ContractsService {
       where,
       include: {
         product: true,
+        productItem: true,
         customer: {
           select: { id: true, name: true, phone: true },
         },
@@ -146,6 +164,7 @@ export class ContractsService {
       where: { eventId },
       include: {
         product: true,
+        productItem: true,
         customer: {
           select: { id: true, name: true, phone: true },
         },
@@ -160,6 +179,7 @@ export class ContractsService {
       where: { id },
       include: {
         product: true,
+        productItem: true,
         customer: {
           select: { id: true, name: true, phone: true },
         },

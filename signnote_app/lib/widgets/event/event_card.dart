@@ -27,6 +27,7 @@ class EventCard extends StatelessWidget {
   final DateTime? endDate;        // 종료일 (null 가능)
   final VoidCallback? onTap;      // 카드 눌렀을 때
   final VoidCallback? onMoreTap;  // ⋮ 더보기 눌렀을 때
+  final Color? badgeColor;        // D-day 뱃지 색상 (역할별 커스텀)
 
   const EventCard({
     super.key,
@@ -37,6 +38,7 @@ class EventCard extends StatelessWidget {
     this.endDate,
     this.onTap,
     this.onMoreTap,
+    this.badgeColor,
   });
 
   @override
@@ -113,7 +115,7 @@ class EventCard extends StatelessWidget {
           Row(
             children: [
               if (startDate != null) ...[
-                DdayBadge(daysLeft: daysLeft),
+                DdayBadge(daysLeft: daysLeft, activeColor: badgeColor),
                 const SizedBox(width: 6),
               ],
               Expanded(
@@ -125,14 +127,20 @@ class EventCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // ⋮ 더보기 버튼
+              // ⋮ 더보기 버튼 (터치 영역 48px 확보)
               if (onMoreTap != null)
-                GestureDetector(
-                  onTap: onMoreTap,
-                  child: const Icon(
-                    Icons.more_vert,
-                    size: 18,
-                    color: AppColors.textSecondary,
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: IconButton(
+                    onPressed: onMoreTap,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(
+                      Icons.more_vert,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
             ],

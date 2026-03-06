@@ -7,16 +7,18 @@ import '../../../services/event_service.dart';
 // ============================================
 // 품목 관리 페이지 (Products Page)
 //
-// 구조:
+// 구조 (1뎁스/2뎁스 계층):
 // ┌─ 필터 바 ──────────────────────────────────┐
-// | [행사 선택 ▼]  [카테고리 ▼]  [검색어 입력]   |
+// | [행사 선택 ▼]  [검색어 입력]                  |
 // └────────────────────────────────────────────┘
 //
-// ┌─ 품목 테이블 ──────────────────────────────┐
-// | 상품명 | 카테고리 | 업체명 | 가격 | 행사    |
+// ┌─ 품목 테이블 (확장형) ───────────────────────┐
+// | ▶ 줄눈    | ○○업체 | 20% | 500,000원 | 창원 |
+// |   ├ A패키지     | 84A,84B  | 350,000원      |
+// |   └ B패키지     | 전체타입  | 500,000원      |
+// | ▶ 나노코팅 | △△업체 | 15% | 300,000원 | 창원 |
+// |   └ 기본        | 84A      | 200,000원      |
 // └────────────────────────────────────────────┘
-//
-// 데이터: ProductService.findAll (주관사 전용 API)
 // ============================================
 
 class ProductsPage extends StatefulWidget {
@@ -31,10 +33,9 @@ class _ProductsPageState extends State<ProductsPage> {
   final EventService _eventService = EventService();
 
   bool _isLoading = true;
-  List<dynamic> _products = [];        // 전체 상품 목록
+  List<dynamic> _products = [];        // 전체 품목 목록 (1뎁스 + items)
   List<dynamic> _events = [];          // 행사 목록 (필터용)
   String? _selectedEventId;            // 선택된 행사 필터
-  String? _selectedCategory;           // 선택된 카테고리 필터
   String _searchQuery = '';            // 검색어
 
   // 가격 포맷 (1000 → 1,000)
@@ -46,27 +47,24 @@ class _ProductsPageState extends State<ProductsPage> {
     _loadData();
   }
 
-  // 행사 목록 + 상품 목록 동시 로딩
+  // 행사 목록 + 품목 목록 동시 로딩
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
-    // 행사 목록 가져오기 (필터 드롭다운용)
     final eventResult = await _eventService.getEvents();
     if (eventResult['success'] == true) {
       _events = eventResult['events'] ?? [];
     }
 
-    // 상품 목록 가져오기
     await _loadProducts();
   }
 
-  // 상품 목록만 다시 불러오기 (필터 변경 시)
+  // 품목 목록만 다시 불러오기
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
 
     final result = await _productService.getAllProducts(
       eventId: _selectedEventId,
-      category: _selectedCategory,
     );
 
     if (mounted) {
@@ -79,7 +77,7 @@ class _ProductsPageState extends State<ProductsPage> {
     }
   }
 
-  // 검색어로 필터링된 상품 목록
+  // 검색어로 필터링된 품목 목록
   List<dynamic> get _filteredProducts {
     if (_searchQuery.isEmpty) return _products;
     final query = _searchQuery.toLowerCase();
@@ -87,15 +85,22 @@ class _ProductsPageState extends State<ProductsPage> {
       final name = (p['name'] ?? '').toString().toLowerCase();
       final vendor = (p['vendorName'] ?? '').toString().toLowerCase();
       final category = (p['category'] ?? '').toString().toLowerCase();
-      return name.contains(query) || vendor.contains(query) || category.contains(query);
+      // 2뎁스 아이템명도 검색
+      final items = p['items'] as List? ?? [];
+      final itemMatch = items.any((item) =>
+        (item['name'] ?? '').toString().toLowerCase().contains(query));
+      return name.contains(query) || vendor.contains(query) ||
+             category.contains(query) || itemMatch;
     }).toList();
   }
 
-  // 카테고리 목록 추출 (중복 제거)
-  List<String> get _categories {
-    final cats = _products.map((p) => p['category']?.toString() ?? '').toSet();
-    cats.remove('');
-    return cats.toList()..sort();
+  // 총 상세 품목 수 계산
+  int get _totalItemCount {
+    int count = 0;
+    for (final p in _filteredProducts) {
+      count += (p['items'] as List?)?.length ?? 0;
+    }
+    return count;
   }
 
   @override
@@ -112,7 +117,7 @@ class _ProductsPageState extends State<ProductsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '전체 ${_filteredProducts.length}개 품목',
+            '품목 ${_filteredProducts.length}개 · 상세 품목 $_totalItemCount개',
             style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
           const SizedBox(height: 20),
@@ -121,13 +126,13 @@ class _ProductsPageState extends State<ProductsPage> {
           _buildFilterBar(),
           const SizedBox(height: 16),
 
-          // ── 상품 테이블 ──
+          // ── 품목 테이블 (확장형) ──
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredProducts.isEmpty
                     ? const Center(child: Text('등록된 품목이 없습니다'))
-                    : _buildProductTable(),
+                    : _buildProductList(),
           ),
         ],
       ),
@@ -171,36 +176,13 @@ class _ProductsPageState extends State<ProductsPage> {
           ),
           const SizedBox(width: 12),
 
-          // 카테고리 필터 드롭다운
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedCategory,
-              decoration: const InputDecoration(
-                labelText: '카테고리',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('전체 카테고리')),
-                ..._categories.map((c) => DropdownMenuItem(
-                  value: c,
-                  child: Text(c),
-                )),
-              ],
-              onChanged: (value) {
-                setState(() => _selectedCategory = value);
-                _loadProducts();
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-
           // 검색어 입력
           Expanded(
+            flex: 2,
             child: TextField(
               decoration: const InputDecoration(
                 labelText: '검색',
-                hintText: '상품명, 업체명으로 검색',
+                hintText: '품목명, 업체명, 패키지명으로 검색',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.search),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -213,8 +195,8 @@ class _ProductsPageState extends State<ProductsPage> {
     );
   }
 
-  // 상품 테이블 위젯
-  Widget _buildProductTable() {
+  // 품목 목록 (1뎁스 확장 → 2뎁스 하위 행)
+  Widget _buildProductList() {
     final products = _filteredProducts;
 
     return Container(
@@ -226,33 +208,163 @@ class _ProductsPageState extends State<ProductsPage> {
         ],
       ),
       child: SingleChildScrollView(
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
-          columnSpacing: 24,
-          columns: const [
-            DataColumn(label: Text('상품명', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('카테고리', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('업체명', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('가격', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
-            DataColumn(label: Text('평형', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('행사', style: TextStyle(fontWeight: FontWeight.bold))),
+        child: Column(
+          children: [
+            // 테이블 헤더
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              ),
+              child: const Row(
+                children: [
+                  SizedBox(width: 32), // 확장 아이콘 공간
+                  Expanded(flex: 3, child: Text('품목명', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  Expanded(flex: 2, child: Text('배정 업체', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  Expanded(flex: 1, child: Text('수수료', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.center)),
+                  Expanded(flex: 2, child: Text('참가비', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.right)),
+                  Expanded(flex: 2, child: Text('행사', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.right)),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // 1뎁스 품목 행 (확장 가능)
+            ...products.map((product) => _buildProductRow(product)),
           ],
-          rows: products.map<DataRow>((p) {
-            final price = p['price'] ?? 0;
-            final housingTypes = (p['housingTypes'] as List?)?.join(', ') ?? '-';
-            final eventTitle = p['event']?['title'] ?? '-';
-
-            return DataRow(cells: [
-              DataCell(Text(p['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500))),
-              DataCell(_buildCategoryChip(p['category'] ?? '')),
-              DataCell(Text(p['vendorName'] ?? p['vendor']?['name'] ?? '-')),
-              DataCell(Text('${_priceFormat.format(price)}원',
-                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500))),
-              DataCell(Text(housingTypes, style: TextStyle(color: Colors.grey[600], fontSize: 13))),
-              DataCell(Text(eventTitle, overflow: TextOverflow.ellipsis)),
-            ]);
-          }).toList(),
         ),
+      ),
+    );
+  }
+
+  // 1뎁스 품목 행 (ExpansionTile)
+  Widget _buildProductRow(dynamic product) {
+    final items = product['items'] as List? ?? [];
+    final vendorName = product['vendorName'] ?? product['vendor']?['name'] ?? '미배정';
+    final commissionRate = product['commissionRate'];
+    final rateText = commissionRate is num ? '${(commissionRate * 100).toStringAsFixed(0)}%' : '0%';
+    final participationFee = product['participationFee'] ?? 0;
+    final eventTitle = product['event']?['title'] ?? '-';
+    final hasVendor = vendorName != null && vendorName != '미배정' && vendorName.toString().isNotEmpty;
+
+    return Column(
+      children: [
+        ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20),
+          childrenPadding: EdgeInsets.zero,
+          leading: Icon(
+            items.isNotEmpty ? Icons.expand_more : Icons.remove,
+            size: 20,
+            color: items.isNotEmpty ? AppColors.textPrimary : AppColors.textHint,
+          ),
+          title: Row(
+            children: [
+              // 품목명 + 카테고리 칩
+              Expanded(
+                flex: 3,
+                child: Row(
+                  children: [
+                    _buildCategoryChip(product['category'] ?? ''),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        product['name'] ?? '',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 배정 업체
+              Expanded(
+                flex: 2,
+                child: Text(
+                  hasVendor ? vendorName : '미배정',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: hasVendor ? AppColors.textPrimary : AppColors.textHint,
+                    fontWeight: hasVendor ? FontWeight.w500 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              // 수수료
+              Expanded(
+                flex: 1,
+                child: Text(rateText, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
+              ),
+              // 참가비
+              Expanded(
+                flex: 2,
+                child: Text(
+                  participationFee > 0 ? '${_priceFormat.format(participationFee)}원' : '-',
+                  style: const TextStyle(fontSize: 13),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+              // 행사
+              Expanded(
+                flex: 2,
+                child: Text(eventTitle, style: const TextStyle(fontSize: 13), textAlign: TextAlign.right, overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+          children: [
+            // 2뎁스 상세 품목 행들
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(72, 8, 20, 16),
+                child: Text(
+                  hasVendor ? '업체가 아직 상세 품목을 등록하지 않았습니다' : '업체 배정 후 상세 품목이 표시됩니다',
+                  style: const TextStyle(fontSize: 13, color: AppColors.textHint),
+                ),
+              )
+            else
+              ...items.map((item) => _buildItemRow(item)),
+          ],
+        ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+
+  // 2뎁스 상세 품목 행
+  Widget _buildItemRow(dynamic item) {
+    final price = item['price'] ?? 0;
+    final housingTypes = (item['housingTypes'] as List?)?.join(', ') ?? '-';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(72, 10, 20, 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFAFAFA),
+        border: Border(bottom: BorderSide(color: Color(0xFFF0F0F0))),
+      ),
+      child: Row(
+        children: [
+          // 들여쓰기 표시
+          const Text('└ ', style: TextStyle(color: AppColors.textHint)),
+          // 패키지명
+          Expanded(
+            flex: 3,
+            child: Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          ),
+          // 적용 타입
+          Expanded(
+            flex: 2,
+            child: Text(housingTypes, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+          ),
+          // 가격
+          Expanded(
+            flex: 2,
+            child: Text(
+              '${_priceFormat.format(price)}원',
+              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500, fontSize: 13),
+              textAlign: TextAlign.right,
+            ),
+          ),
+          // 설명 (tooltip)
+          const Expanded(flex: 2, child: SizedBox()),
+        ],
       ),
     );
   }
@@ -267,7 +379,7 @@ class _ProductsPageState extends State<ProductsPage> {
       ),
       child: Text(
         category,
-        style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w500),
+        style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w500),
       ),
     );
   }

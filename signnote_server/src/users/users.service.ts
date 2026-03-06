@@ -202,15 +202,59 @@ export class UsersService {
 
   // ---- 회원 강제 탈퇴 (관리자 전용) ----
   // 승인된 사용자도 관리자가 강제 탈퇴 가능
+  // 연관된 모든 데이터를 순서대로 삭제한 후 사용자 삭제
   async deleteUser(userId: string) {
     const user = await this.findById(userId);
     if (!user) {
       throw new NotFoundException('사용자를 찾을 수 없습니다');
     }
 
-    // 관련 참여 기록 삭제
+    // 1. 알림 삭제
+    await this.prisma.notification.deleteMany({ where: { userId } });
+    // 2. 장바구니 삭제
+    await this.prisma.cartItem.deleteMany({ where: { userId } });
+    // 3. 계약 관련 삭제 (결제 → 정산 → 계약 순서)
+    const contracts = await this.prisma.contract.findMany({
+      where: { customerId: userId },
+      select: { id: true },
+    });
+    const contractIds = contracts.map(c => c.id);
+    if (contractIds.length > 0) {
+      await this.prisma.payment.deleteMany({ where: { contractId: { in: contractIds } } });
+      await this.prisma.settlement.deleteMany({ where: { contractId: { in: contractIds } } });
+      await this.prisma.contract.deleteMany({ where: { customerId: userId } });
+    }
+    // 4. 업체가 등록한 상품의 vendorId를 null로 변경 (상품 자체는 유지)
+    await this.prisma.product.updateMany({
+      where: { vendorId: userId },
+      data: { vendorId: null, vendorName: null },
+    });
+    // 5. 행사 참여 기록 삭제
     await this.prisma.eventParticipant.deleteMany({ where: { userId } });
-    // 사용자 삭제
+    // 6. 주관사가 만든 행사가 있으면 관련 데이터 정리
+    const organizedEvents = await this.prisma.event.findMany({
+      where: { organizerId: userId },
+      select: { id: true },
+    });
+    if (organizedEvents.length > 0) {
+      const eventIds = organizedEvents.map(e => e.id);
+      await this.prisma.eventParticipant.deleteMany({ where: { eventId: { in: eventIds } } });
+      await this.prisma.cartItem.deleteMany({ where: { eventId: { in: eventIds } } });
+      // 행사의 계약/결제/정산 삭제
+      const eventContracts = await this.prisma.contract.findMany({
+        where: { eventId: { in: eventIds } },
+        select: { id: true },
+      });
+      const eventContractIds = eventContracts.map(c => c.id);
+      if (eventContractIds.length > 0) {
+        await this.prisma.payment.deleteMany({ where: { contractId: { in: eventContractIds } } });
+        await this.prisma.settlement.deleteMany({ where: { contractId: { in: eventContractIds } } });
+        await this.prisma.contract.deleteMany({ where: { eventId: { in: eventIds } } });
+      }
+      await this.prisma.product.deleteMany({ where: { eventId: { in: eventIds } } });
+      await this.prisma.event.deleteMany({ where: { organizerId: userId } });
+    }
+    // 7. 사용자 삭제
     await this.prisma.user.delete({ where: { id: userId } });
 
     return { message: `${user.name}이(가) 탈퇴 처리되었습니다` };

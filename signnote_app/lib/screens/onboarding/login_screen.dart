@@ -174,6 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: const InputDecoration(
                   hintText: '비밀번호',
                 ),
+                // 엔터키로 로그인 실행
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _handleLogin(),
               ),
               const SizedBox(height: 8),
 

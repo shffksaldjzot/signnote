@@ -1,12 +1,13 @@
 // ============================================
 // 상품 서비스 (Products Service)
-// 상품(품목) 데이터를 DB에서 조회/생성/수정하는 로직
+// Product(1뎁스) + ProductItem(2뎁스) 관리
 // ============================================
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductOrganizerDto } from './dto/create-product-organizer.dto';
+import { CreateProductItemDto } from './dto/create-product-item.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
@@ -16,42 +17,58 @@ export class ProductsService {
     private readonly activityLogs: ActivityLogsService,
   ) {}
 
-  // 행사별 상품 목록 조회 (카테고리별 그룹핑)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Product (1뎁스) 관련
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // 행사별 품목 목록 조회 (2뎁스 포함)
   async findByEvent(eventId: string, housingType?: string) {
-    const where: any = { eventId };
-    // 평형(타입) 필터가 있으면 해당 타입 포함된 상품만
+    const products = await this.prisma.product.findMany({
+      where: { eventId },
+      include: {
+        items: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: { category: 'asc' },
+    });
+
+    // housingType 필터가 있으면 해당 타입 포함된 아이템만
     if (housingType) {
-      where.housingTypes = { has: housingType };
+      return products.map(p => ({
+        ...p,
+        items: p.items.filter(item => item.housingTypes.includes(housingType)),
+      }));
     }
 
-    return this.prisma.product.findMany({
-      where,
-      orderBy: { category: 'asc' },  // 카테고리 순 정렬
-    });
+    return products;
   }
 
-  // 상품 상세 조회
+  // 품목 상세 조회 (2뎁스 포함)
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
         vendor: {
-          select: { id: true, name: true },  // 업체 정보
+          select: { id: true, name: true },
         },
         event: {
-          select: { id: true, title: true },  // 행사 정보
+          select: { id: true, title: true },
+        },
+        items: {
+          orderBy: { createdAt: 'asc' },
         },
       },
     });
 
     if (!product) {
-      throw new NotFoundException('상품을 찾을 수 없습니다');
+      throw new NotFoundException('품목을 찾을 수 없습니다');
     }
 
     return product;
   }
 
-  // 상품 등록 (업체)
+  // 상품 등록 (업체) — 레거시 호환용
   async create(vendorId: string, dto: CreateProductDto) {
     return this.prisma.product.create({
       data: {
@@ -60,21 +77,18 @@ export class ProductsService {
         eventId: dto.eventId,
         vendorId,
         vendorName: dto.vendorName,
-        housingTypes: dto.housingTypes,
         image: dto.image,
-        description: dto.description,
-        price: dto.price,
         commissionRate: dto.commissionRate ?? 0,
         participationFee: dto.participationFee ?? 0,
       },
     });
   }
 
-  // 상품 수정
+  // 품목 수정 (주관사/관리자)
   async update(id: string, dto: Partial<CreateProductDto>) {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) {
-      throw new NotFoundException('상품을 찾을 수 없습니다');
+      throw new NotFoundException('품목을 찾을 수 없습니다');
     }
 
     return this.prisma.product.update({
@@ -82,18 +96,14 @@ export class ProductsService {
       data: {
         ...(dto.name && { name: dto.name }),
         ...(dto.category && { category: dto.category }),
-        ...(dto.housingTypes && { housingTypes: dto.housingTypes }),
         ...(dto.image !== undefined && { image: dto.image }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.price !== undefined && { price: dto.price }),
         ...(dto.commissionRate !== undefined && { commissionRate: dto.commissionRate }),
         ...(dto.participationFee !== undefined && { participationFee: dto.participationFee }),
       },
     });
   }
 
-  // 전체 상품 목록 조회 (주관사/관리자용)
-  // eventId, category로 필터 가능
+  // 전체 품목 목록 조회 (주관사/관리자용, 2뎁스 포함)
   async findAll(eventId?: string, category?: string) {
     const where: any = {};
     if (eventId) where.eventId = eventId;
@@ -104,30 +114,37 @@ export class ProductsService {
       include: {
         vendor: { select: { id: true, name: true } },
         event: { select: { id: true, title: true } },
+        items: {
+          orderBy: { createdAt: 'asc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // 업체가 등록한 상품 목록
+  // 업체가 등록한 품목 목록 (배정된 품목, 2뎁스 포함)
   async findByVendor(vendorId: string, eventId?: string) {
     const where: any = { vendorId };
     if (eventId) where.eventId = eventId;
 
     return this.prisma.product.findMany({
       where,
+      include: {
+        items: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // ── 주관사용: 품목 등록 (vendorId 없이) ──
+  // ── 주관사용: 품목 등록 (1뎁스) ──
   async createByOrganizer(organizerId: string, dto: CreateProductOrganizerDto) {
     const product = await this.prisma.product.create({
       data: {
         name: dto.name,
-        category: dto.name,  // 품목명 = 카테고리 (주관사가 등록하는 품목은 카테고리 자체)
+        category: dto.name,  // 품목명 = 카테고리
         eventId: dto.eventId,
-        // vendorId는 null (아직 업체가 선점하지 않음)
         participationFee: dto.participationFee ?? 0,
         commissionRate: dto.commissionRate ?? 0,
         image: dto.image,
@@ -145,19 +162,18 @@ export class ProductsService {
     return product;
   }
 
-  // ── 업체용: 가용 품목 목록 (아직 선점 안 된 품목들) ──
+  // ── 업체용: 가용 품목 목록 (아직 업체 배정 안 된 품목들) ──
   async findAvailable(eventId: string) {
     return this.prisma.product.findMany({
       where: {
         eventId,
-        vendorId: null,  // 아직 업체가 없는 품목만
+        vendorId: null,
       },
       orderBy: { createdAt: 'asc' },
     });
   }
 
   // ── 업체용: 품목 선점 ──
-  // 업체가 품목을 선택하면 vendorId를 채워서 선점 처리
   async claimProduct(productId: string, vendorId: string, vendorName: string) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -167,22 +183,8 @@ export class ProductsService {
       throw new NotFoundException('품목을 찾을 수 없습니다');
     }
 
-    // 이미 다른 업체가 선점했으면 에러
     if (product.vendorId) {
       throw new BadRequestException('이미 다른 업체가 선점한 품목입니다');
-    }
-
-    // 1행사 1품목 제한: 같은 행사에서 이미 품목을 선점한 업체는 추가 선점 불가
-    const existingClaim = await this.prisma.product.findFirst({
-      where: {
-        eventId: product.eventId,
-        vendorId,
-      },
-    });
-    if (existingClaim) {
-      throw new BadRequestException(
-        `이미 이 행사에서 "${existingClaim.name}" 품목으로 참여 중입니다. 한 행사에 하나의 품목만 참여할 수 있습니다.`,
-      );
     }
 
     const updated = await this.prisma.product.update({
@@ -193,7 +195,6 @@ export class ProductsService {
       },
     });
 
-    // 품목 선점 로그
     await this.activityLogs.log({
       userId: vendorId,
       action: 'PRODUCT_CREATE',
@@ -204,7 +205,44 @@ export class ProductsService {
     return updated;
   }
 
-  // ── 주관사용: 업체 참가 취소 (품목에서 업체 해제) ──
+  // ── 주관사용: 업체를 품목에 배정 ──
+  async assignVendor(productId: string, vendorId: string, organizerId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException('품목을 찾을 수 없습니다');
+    }
+
+    const vendor = await this.prisma.user.findUnique({
+      where: { id: vendorId },
+      select: { id: true, name: true, role: true },
+    });
+
+    if (!vendor || vendor.role !== 'VENDOR') {
+      throw new BadRequestException('유효한 협력업체가 아닙니다');
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+      },
+    });
+
+    await this.activityLogs.log({
+      userId: organizerId,
+      action: 'PRODUCT_UPDATE',
+      target: productId,
+      detail: `업체 배정: ${product.name} → ${vendor.name}`,
+    });
+
+    return updated;
+  }
+
+  // ── 주관사용: 업체 참가 취소 ──
   async unclaimProduct(productId: string, organizerId: string) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -228,7 +266,6 @@ export class ProductsService {
       },
     });
 
-    // 참가 취소 로그
     await this.activityLogs.log({
       userId: organizerId,
       action: 'PRODUCT_UPDATE',
@@ -237,5 +274,131 @@ export class ProductsService {
     });
 
     return updated;
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ProductItem (2뎁스) 관련
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // 상세 품목 목록 조회 (특정 1뎁스 하위)
+  async findItemsByProduct(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product) {
+      throw new NotFoundException('품목을 찾을 수 없습니다');
+    }
+
+    return this.prisma.productItem.findMany({
+      where: { productId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  // 상세 품목 등록 (업체가 2뎁스 패키지 추가)
+  async createItem(productId: string, vendorId: string, dto: CreateProductItemDto) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException('품목을 찾을 수 없습니다');
+    }
+
+    // 이 품목에 배정된 업체만 상세 품목 추가 가능
+    if (product.vendorId !== vendorId) {
+      throw new BadRequestException('이 품목에 배정된 업체만 상세 품목을 추가할 수 있습니다');
+    }
+
+    const item = await this.prisma.productItem.create({
+      data: {
+        productId,
+        name: dto.name,
+        housingTypes: dto.housingTypes,
+        description: dto.description,
+        price: dto.price,
+        image: dto.image,
+      },
+    });
+
+    await this.activityLogs.log({
+      userId: vendorId,
+      action: 'PRODUCT_ITEM_CREATE',
+      target: item.id,
+      detail: `상세 품목 등록: ${product.name} > ${dto.name} (${dto.price}원)`,
+    });
+
+    return item;
+  }
+
+  // 상세 품목 수정
+  async updateItem(itemId: string, vendorId: string, dto: Partial<CreateProductItemDto>) {
+    const item = await this.prisma.productItem.findUnique({
+      where: { id: itemId },
+      include: { product: true },
+    });
+
+    if (!item) {
+      throw new NotFoundException('상세 품목을 찾을 수 없습니다');
+    }
+
+    // 배정된 업체 또는 주관사/관리자만 수정 가능 (vendorId로 체크)
+    if (item.product.vendorId !== vendorId) {
+      throw new BadRequestException('수정 권한이 없습니다');
+    }
+
+    return this.prisma.productItem.update({
+      where: { id: itemId },
+      data: {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.housingTypes && { housingTypes: dto.housingTypes }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.price !== undefined && { price: dto.price }),
+        ...(dto.image !== undefined && { image: dto.image }),
+      },
+    });
+  }
+
+  // 상세 품목 삭제
+  async deleteItem(itemId: string, userId: string) {
+    const item = await this.prisma.productItem.findUnique({
+      where: { id: itemId },
+      include: { product: true },
+    });
+
+    if (!item) {
+      throw new NotFoundException('상세 품목을 찾을 수 없습니다');
+    }
+
+    await this.prisma.productItem.delete({
+      where: { id: itemId },
+    });
+
+    await this.activityLogs.log({
+      userId,
+      action: 'PRODUCT_ITEM_DELETE',
+      target: itemId,
+      detail: `상세 품목 삭제: ${item.product.name} > ${item.name}`,
+    });
+
+    return { success: true };
+  }
+
+  // 상세 품목 단건 조회
+  async findOneItem(itemId: string) {
+    const item = await this.prisma.productItem.findUnique({
+      where: { id: itemId },
+      include: {
+        product: {
+          select: { id: true, name: true, category: true, vendorName: true },
+        },
+      },
+    });
+
+    if (!item) {
+      throw new NotFoundException('상세 품목을 찾을 수 없습니다');
+    }
+
+    return item;
   }
 }

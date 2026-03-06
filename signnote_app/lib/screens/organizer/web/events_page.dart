@@ -176,6 +176,54 @@ class _EventsPageState extends State<EventsPage> {
     });
   }
 
+  // ---- 행사 삭제 확인 다이얼로그 (관리자용) ----
+  void _confirmDeleteEvent(dynamic event) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('행사 삭제'),
+        content: Text(
+          '\'${event['title']}\' 행사를 삭제하시겠습니까?\n\n'
+          '삭제하면 관련된 모든 데이터가 삭제되며 복구할 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _executeDeleteEvent(event);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 행사 삭제 API 호출
+  Future<void> _executeDeleteEvent(dynamic event) async {
+    final eventId = event['id']?.toString() ?? '';
+    if (eventId.isEmpty) return;
+
+    final result = await _eventService.deleteEvent(eventId);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('\'${event['title']}\' 행사가 삭제되었습니다')),
+      );
+      _loadEvents(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '행사 삭제에 실패했습니다')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final numberFormat = NumberFormat('#,###');
@@ -324,6 +372,7 @@ class _EventsPageState extends State<EventsPage> {
                                 DataColumn(label: Text('세대수', style: TextStyle(fontWeight: FontWeight.w600))),
                                 DataColumn(label: Text('참여코드', style: TextStyle(fontWeight: FontWeight.w600))),
                                 DataColumn(label: Text('상태', style: TextStyle(fontWeight: FontWeight.w600))),
+                                DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.w600))),
                               ],
                               rows: _filteredEvents.map((event) {
                                 final status = _getEventStatus(event);
@@ -338,10 +387,30 @@ class _EventsPageState extends State<EventsPage> {
                                     context.go('/admin/events/$eventId');
                                   },
                                   cells: [
-                                    DataCell(Text(event['title'] ?? '-')),
+                                    // 행사명 — 최대 너비 제한 + 말줄임 + 툴팁
+                                    DataCell(Tooltip(
+                                      message: event['title'] ?? '-',
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 180),
+                                        child: Text(
+                                          event['title'] ?? '-',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )),
                                     // 주관사명 셀
                                     DataCell(Text(organizerName)),
-                                    DataCell(Text(event['siteName'] ?? '-')),
+                                    // 현장명 — 최대 너비 제한 + 말줄임 + 툴팁
+                                    DataCell(Tooltip(
+                                      message: event['siteName'] ?? '-',
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 160),
+                                        child: Text(
+                                          event['siteName'] ?? '-',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )),
                                     DataCell(Text(unitCount > 0 ? numberFormat.format(unitCount) : '-')),
                                     DataCell(Text(
                                       event['entryCode'] ?? '-',
@@ -367,6 +436,12 @@ class _EventsPageState extends State<EventsPage> {
                                         ),
                                       ),
                                     ),
+                                    // 관리 (삭제) 버튼
+                                    DataCell(IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                      tooltip: '행사 삭제',
+                                      onPressed: () => _confirmDeleteEvent(event),
+                                    )),
                                   ],
                                 );
                               }).toList(),
