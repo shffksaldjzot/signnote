@@ -6,7 +6,8 @@ import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
-import '../vendor/product_select_screen.dart';
+import '../../services/api_service.dart';
+import '../../services/user_service.dart';
 
 // ============================================
 // 참여 코드 입장 화면 (Entry Code Screen)
@@ -47,6 +48,52 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
   final AuthService _authService = AuthService();
 
   @override
+  void initState() {
+    super.initState();
+    // 주관사/관리자는 행사 참여코드가 필요 없으므로 즉시 홈으로 리다이렉트
+    _redirectIfNotEntryCodeRole();
+  }
+
+  // 주관사/관리자가 잘못 이 화면에 도달한 경우 즉시 홈으로 보내기
+  Future<void> _redirectIfNotEntryCodeRole() async {
+    // 1차: widget.role로 확인
+    String role = widget.role;
+
+    // 2차: 저장된 역할 정보 확인 (빈 문자열이거나 CUSTOMER인 경우)
+    if (role.isEmpty || role == 'CUSTOMER') {
+      final userInfo = await ApiService().getUserInfo();
+      role = userInfo?['role'] ?? role;
+    }
+
+    // 3차: 서버에서 프로필 조회하여 정확한 역할 확인
+    if (role.isEmpty || role == 'CUSTOMER') {
+      try {
+        final profileResult = await UserService().getMyProfile();
+        if (profileResult['success'] == true) {
+          final serverRole = profileResult['user']?['role'] as String?;
+          if (serverRole != null && serverRole.isNotEmpty) {
+            role = serverRole;
+            // 로컬 저장소에도 역할 정보 업데이트
+            await ApiService().saveUserInfo(
+              Map<String, dynamic>.from(profileResult['user']),
+            );
+          }
+        }
+      } catch (_) {
+        // 서버 조회 실패해도 계속 진행
+      }
+    }
+
+    if (!mounted) return;
+
+    if (role == AppConstants.roleOrganizer) {
+      context.go(AppRoutes.organizerHome);
+    } else if (role == AppConstants.roleAdmin) {
+      context.go(AppRoutes.organizerDashboard);
+    }
+  }
+
+  @override
   void dispose() {
     for (final c in _controllers) {
       c.dispose();
@@ -81,35 +128,16 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
-      final event = result['event'] as Map<String, dynamic>? ?? {};
-      final eventId = event['eventId']?.toString() ?? '';
-      final eventTitle = event['title']?.toString() ?? '행사';
-
-      // 업체: 품목 선택 화면을 먼저 거침
-      if (widget.role == AppConstants.roleVendor && eventId.isNotEmpty) {
-        await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (_) => VendorProductSelectScreen(
-              eventId: eventId,
-              eventTitle: eventTitle,
-            ),
-          ),
-        );
-
-        if (!mounted) return;
-
-        // 품목 선택 완료 또는 취소 후 홈으로 이동 (GoRouter)
-        context.go(AppRoutes.vendorHome);
-        return;
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('행사에 입장합니다!')),
       );
 
       // 역할별 홈 화면으로 이동 (GoRouter)
+      // 업체도 품목 선택 없이 바로 홈으로 (품목 배정은 주관사가 함)
       if (widget.role == AppConstants.roleOrganizer) {
         context.go(AppRoutes.organizerHome);
+      } else if (widget.role == AppConstants.roleVendor) {
+        context.go(AppRoutes.vendorHome);
       } else {
         context.go(AppRoutes.customerHome);
       }
@@ -274,35 +302,48 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
       width: 48,
       height: 52,
       margin: const EdgeInsets.symmetric(horizontal: 4),
-      child: TextField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,  // 숫자 키패드만 표시
-        // maxLength 제거 — 붙여넣기 시 여러 글자 수신 위해
-        style: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
-        decoration: InputDecoration(
-          counterText: '',  // 글자수 표시 숨기기
-          filled: true,
-          fillColor: AppColors.background,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.primary, width: 2),
-          ),
-        ),
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,  // 숫자만 입력 가능
-        ],
-        onChanged: (value) {
-          _handlePasteOrInput(value, index);
+      child: KeyboardListener(
+        focusNode: FocusNode(), // 키보드 이벤트 수신용
+        onKeyEvent: (event) {
+          // 백스페이스 처리: 현재 칸이 비어있으면 이전 칸으로 이동 후 삭제
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.backspace) {
+            if (_controllers[index].text.isEmpty && index > 0) {
+              _controllers[index - 1].clear();
+              _focusNodes[index - 1].requestFocus();
+              setState(() {});
+            }
+          }
         },
+        child: TextField(
+          controller: _controllers[index],
+          focusNode: _focusNodes[index],
+          textAlign: TextAlign.center,
+          keyboardType: TextInputType.number,  // 숫자 키패드만 표시
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            counterText: '',  // 글자수 표시 숨기기
+            filled: true,
+            fillColor: AppColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+          ),
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,  // 숫자만 입력 가능
+          ],
+          onChanged: (value) {
+            _handlePasteOrInput(value, index);
+          },
+        ),
       ),
     );
   }

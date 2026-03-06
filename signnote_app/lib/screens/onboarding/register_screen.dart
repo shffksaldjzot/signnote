@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/common/app_button.dart';
@@ -43,6 +45,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _authService = AuthService();  // 인증 API 서비스
   String _selectedRole = AppConstants.roleCustomer;  // 기본: 고객
   bool _isLoading = false;
+  String? _businessLicenseBase64;  // 사업자등록증 base64 데이터
+  String? _businessLicenseFileName;  // 파일명 표시용
 
   @override
   void dispose() {
@@ -109,6 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       businessAddress: _isBusinessRole
           ? _businessAddressController.text.trim()
           : null,
+      businessLicenseImage: _businessLicenseBase64,
     );
 
     setState(() => _isLoading = false);
@@ -399,38 +404,84 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // 사업자등록증 이미지 선택
+  Future<void> _pickBusinessLicenseImage() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 70,
+      );
+
+      if (picked == null) return;
+
+      // 이미지를 base64로 변환하여 저장
+      final bytes = await picked.readAsBytes();
+      final base64String = base64Encode(bytes);
+      final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+      setState(() {
+        _businessLicenseBase64 = 'data:$mimeType;base64,$base64String';
+        _businessLicenseFileName = picked.name;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미지 선택에 실패했습니다')),
+      );
+    }
+  }
+
   // 사업자등록증 이미지 업로드 영역
   Widget _buildImageUploadArea() {
+    final hasImage = _businessLicenseBase64 != null;
+
     return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지 업로드 기능은 추후 추가됩니다')),
-        );
-      },
+      onTap: _pickBusinessLicenseImage,
       child: Container(
         width: double.infinity,
         height: 120,
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: hasImage ? const Color(0xFFE8F5E9) : AppColors.background,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: hasImage ? const Color(0xFF81C784) : AppColors.border),
         ),
-        child: const Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.upload_file, size: 36, color: AppColors.textHint),
-            SizedBox(height: 8),
-            Text(
-              '사업자등록증 이미지 첨부',
-              style: TextStyle(fontSize: 13, color: AppColors.textHint),
-            ),
-            SizedBox(height: 4),
-            Text(
-              '(jpg, png, pdf)',
-              style: TextStyle(fontSize: 11, color: AppColors.textHint),
-            ),
-          ],
-        ),
+        child: hasImage
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_circle, size: 36, color: Color(0xFF4CAF50)),
+                  const SizedBox(height: 8),
+                  Text(
+                    _businessLicenseFileName ?? '이미지 첨부됨',
+                    style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '탭하여 변경',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                ],
+              )
+            : const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.upload_file, size: 36, color: AppColors.textHint),
+                  SizedBox(height: 8),
+                  Text(
+                    '사업자등록증 이미지 첨부',
+                    style: TextStyle(fontSize: 13, color: AppColors.textHint),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '(jpg, png)',
+                    style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                  ),
+                ],
+              ),
       ),
     );
   }

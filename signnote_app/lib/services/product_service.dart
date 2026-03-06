@@ -203,6 +203,28 @@ class ProductService {
     }
   }
 
+  // 품목 순서 변경 (주관사용)
+  Future<Map<String, dynamic>> reorderProducts(
+    String eventId,
+    List<String> productIds,
+  ) async {
+    try {
+      final response = await _api.patch(
+        '/events/$eventId/products/reorder',
+        data: {'productIds': productIds},
+      );
+      return {
+        'success': true,
+        'result': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '순서 변경에 실패했습니다',
+      };
+    }
+  }
+
   // 주관사용 업체 참가 취소 (품목에서 업체 해제)
   Future<Map<String, dynamic>> unclaimProduct(String productId) async {
     try {

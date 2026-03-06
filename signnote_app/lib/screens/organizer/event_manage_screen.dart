@@ -202,15 +202,23 @@ class _OrganizerEventManageScreenState
             ],
           ),
         ),
-        // 총 N 품목
+        // 총 N 품목 + 색상 범례
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '총 ${_products.length} 품목',
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
+          child: Row(
+            children: [
+              Text(
+                '총 ${_products.length} 품목',
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const Spacer(),
+              // 색상 범례
+              _colorLegend(const Color(0xFFF5F5F5), '미배정'),
+              const SizedBox(width: 8),
+              _colorLegend(const Color(0xFFFFF3E0), '배정'),
+              const SizedBox(width: 8),
+              _colorLegend(const Color(0xFFE8F5E9), '등록완료'),
+            ],
           ),
         ),
         // 아코디언 품목 목록
@@ -282,6 +290,20 @@ class _OrganizerEventManageScreenState
     );
   }
 
+  // 품목 3단계 색상 결정
+  // 1단계: 업체 미배정 → 밝은 회색
+  // 2단계: 업체 배정됨, 상세품목 없음 → 연한 주황
+  // 3단계: 업체 배정 + 상세품목 등록 완료 → 연한 초록
+  Color _getAccordionColor(Map<String, dynamic> product) {
+    final vendorName = product['vendorName'] as String? ?? '';
+    final items = product['items'] as List? ?? [];
+    final hasVendor = vendorName.isNotEmpty;
+
+    if (!hasVendor) return const Color(0xFFF5F5F5); // 밝은 회색 (미배정)
+    if (items.isEmpty) return const Color(0xFFFFF3E0); // 연한 주황 (업체만 배정)
+    return const Color(0xFFE8F5E9); // 연한 초록 (상세품목 등록 완료)
+  }
+
   // 아코디언 품목 아이템
   Widget _buildAccordionItem(Map<String, dynamic> product) {
     final name = product['name'] ?? '';
@@ -291,18 +313,48 @@ class _OrganizerEventManageScreenState
     final ratePercent = rate is num ? (rate * 100).toStringAsFixed(0) : '0';
     final formattedFee = NumberFormat('#,###').format(fee);
     final hasVendor = vendorName.isNotEmpty;
+    final items = product['items'] as List? ?? [];
+    final productIndex = _products.indexOf(product);
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       elevation: 0,
+      color: _getAccordionColor(product),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(
+          color: !hasVendor ? AppColors.border
+              : items.isEmpty ? const Color(0xFFFFCC80)   // 주황 테두리
+              : const Color(0xFF81C784),                   // 초록 테두리
+        ),
       ),
       child: ExpansionTile(
-        title: Text(
-          name,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              ),
+            ),
+            // 순서 변경 버튼 (위/아래)
+            if (productIndex > 0)
+              GestureDetector(
+                onTap: () => _moveProduct(productIndex, productIndex - 1),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(Icons.arrow_upward, size: 18, color: AppColors.textSecondary),
+                ),
+              ),
+            if (productIndex < _products.length - 1)
+              GestureDetector(
+                onTap: () => _moveProduct(productIndex, productIndex + 1),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(Icons.arrow_downward, size: 18, color: AppColors.textSecondary),
+                ),
+              ),
+          ],
         ),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -382,27 +434,32 @@ class _OrganizerEventManageScreenState
           ...items.map((item) {
             final formattedPrice = NumberFormat('#,###').format(item['price'] ?? 0);
             final types = (item['housingTypes'] as List?)?.join(', ') ?? '';
-            return Container(
-              margin: const EdgeInsets.only(bottom: 6, left: 92),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                        if (types.isNotEmpty)
-                          Text(types, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                      ],
+            return GestureDetector(
+              onTap: () => _showItemDetailDialog(item, product['name'] ?? ''),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6, left: 92),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          if (types.isNotEmpty)
+                            Text(types, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        ],
+                      ),
                     ),
-                  ),
-                  Text('$formattedPrice원', style: const TextStyle(fontSize: 13, color: AppColors.priceRed, fontWeight: FontWeight.w600)),
-                ],
+                    Text('$formattedPrice원', style: const TextStyle(fontSize: 13, color: AppColors.priceRed, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right, size: 16, color: AppColors.textHint),
+                  ],
+                ),
               ),
             );
           }),
@@ -586,6 +643,21 @@ class _OrganizerEventManageScreenState
   // 공통 위젯
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+  // 색상 범례 아이콘
+  Widget _colorLegend(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10, height: 10,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2), border: Border.all(color: AppColors.border)),
+        ),
+        const SizedBox(width: 3),
+        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+      ],
+    );
+  }
+
   // 초대 버튼
   Widget _buildInviteButton() {
     return GestureDetector(
@@ -747,6 +819,18 @@ class _OrganizerEventManageScreenState
     );
   }
 
+  // 품목 순서 변경 (위/아래 이동)
+  Future<void> _moveProduct(int from, int to) async {
+    setState(() {
+      final item = _products.removeAt(from);
+      _products.insert(to, item);
+    });
+
+    // 서버에 새 순서 저장
+    final productIds = _products.map((p) => p['id'].toString()).toList();
+    await _productService.reorderProducts(widget.eventId, productIds);
+  }
+
   // 업체 배정 API 호출
   Future<void> _assignVendor(String productId, String vendorId) async {
     final result = await _productService.assignVendor(
@@ -878,6 +962,65 @@ class _OrganizerEventManageScreenState
     }
   }
 
+  // 상세 품목 상세보기 다이얼로그 (#7)
+  void _showItemDetailDialog(Map<String, dynamic> item, String productName) {
+    final formattedPrice = NumberFormat('#,###').format(item['price'] ?? 0);
+    final types = (item['housingTypes'] as List?)?.join(', ') ?? '전체';
+    final description = item['description'] as String? ?? '';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          item['name'] ?? '상세 품목',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 상위 품목명
+            _detailInfoRow('품목', productName),
+            const SizedBox(height: 8),
+            // 적용 타입
+            _detailInfoRow('적용 타입', types),
+            const SizedBox(height: 8),
+            // 가격
+            _detailInfoRow('가격', '$formattedPrice원'),
+            // 설명
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _detailInfoRow('설명', description),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 상세보기 정보 행
+  Widget _detailInfoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 70,
+          child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        ),
+        Expanded(
+          child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        ),
+      ],
+    );
+  }
+
   // 업체 참가 취소 확인
   void _showUnclaimConfirmDialog(Map<String, dynamic> product) {
     final productName = product['name'] ?? '품목';
@@ -889,7 +1032,7 @@ class _OrganizerEventManageScreenState
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text('참가 취소', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         content: Text(
-          '"$productName" 품목에서\n"$vendorName" 업체의 참가를 취소하시겠습니까?\n\n취소하면 해당 품목은 다시 미배정 상태가 됩니다.',
+          '"$productName" 품목에서\n"$vendorName" 업체의 참가를 취소하시겠습니까?\n\n⚠️ 업체가 등록한 상세 품목이 모두 삭제됩니다.',
           style: const TextStyle(fontSize: 14, height: 1.5),
         ),
         actions: [
