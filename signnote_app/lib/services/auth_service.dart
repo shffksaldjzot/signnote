@@ -41,7 +41,9 @@ class AuthService {
   }
 
   // 회원가입
+  // representativeName: 대표자 성명 (업체/주관사)
   // businessNumber: 사업자등록번호 (업체/주관사)
+  // businessAddress: 사업장 주소 (업체/주관사)
   // businessLicenseImage: 사업자등록증 이미지 URL (업체/주관사)
   Future<Map<String, dynamic>> register({
     required String email,
@@ -49,7 +51,9 @@ class AuthService {
     required String name,
     required String phone,
     required String role,
+    String? representativeName,
     String? businessNumber,
+    String? businessAddress,
     String? businessLicenseImage,
   }) async {
     try {
@@ -59,7 +63,9 @@ class AuthService {
         'name': name,
         'phone': phone,
         'role': role,
+        if (representativeName != null) 'representativeName': representativeName,
         if (businessNumber != null) 'businessNumber': businessNumber,
+        if (businessAddress != null) 'businessAddress': businessAddress,
         if (businessLicenseImage != null) 'businessLicenseImage': businessLicenseImage,
       });
 

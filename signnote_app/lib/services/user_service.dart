@@ -107,6 +107,56 @@ class UserService {
     }
   }
 
+  // ---- 내 프로필 조회 (본인 전체 정보) ----
+  Future<Map<String, dynamic>> getMyProfile() async {
+    try {
+      final response = await _api.get('/users/me');
+      return {
+        'success': true,
+        'user': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '프로필 정보를 불러올 수 없습니다',
+      };
+    }
+  }
+
+  // ---- 내 프로필 수정 (본인 정보 변경) ----
+  Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final response = await _api.patch('/users/me', data: data);
+      return {
+        'success': true,
+        'user': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '프로필 수정에 실패했습니다',
+      };
+    }
+  }
+
+  // ---- 일괄 회원 탈퇴 (관리자 전용) ----
+  Future<Map<String, dynamic>> batchDeleteUsers(List<String> userIds) async {
+    try {
+      final response = await _api.post('/users/batch-delete', data: {
+        'userIds': userIds,
+      });
+      return {
+        'success': true,
+        'message': response.data['message'],
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '일괄 탈퇴 처리에 실패했습니다',
+      };
+    }
+  }
+
   // ---- 회원 강제 탈퇴 (관리자 전용) ----
   // 승인된 사용자도 관리자가 강제로 탈퇴시킬 수 있음
   Future<Map<String, dynamic>> deleteUser(String userId) async {

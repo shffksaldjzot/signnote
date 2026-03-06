@@ -37,6 +37,7 @@ class _UsersPageState extends State<UsersPage> {
   String? _selectedRole;              // 선택된 역할 필터
   String _searchQuery = '';           // 검색어
   String _currentUserRole = '';       // 현재 로그인한 사용자의 역할
+  Set<String> _selectedUserIds = {};  // 선택된 사용자 ID (일괄 삭제용)
 
   // 날짜 포맷
   final _dateFormat = DateFormat('yyyy-MM-dd');
@@ -216,6 +217,48 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
+  // ---- 일괄 회원 탈퇴 (관리자 전용) ----
+  Future<void> _batchDeleteUsers() async {
+    if (_selectedUserIds.isEmpty) return;
+
+    final count = _selectedUserIds.length;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('일괄 회원 탈퇴'),
+        content: Text(
+          '선택한 $count명을 모두 탈퇴시키겠습니까?\n\n'
+          '탈퇴하면 해당 사용자들의 모든 데이터가 삭제되며 복구할 수 없습니다.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('일괄 탈퇴'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final result = await _userService.batchDeleteUsers(_selectedUserIds.toList());
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? '일괄 탈퇴 처리되었습니다')),
+      );
+      setState(() => _selectedUserIds.clear());
+      _loadUsers();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '일괄 탈퇴 처리에 실패했습니다')),
+      );
+    }
+  }
+
   // ---- 비밀번호 초기화 (관리자 전용) ----
   Future<void> _resetUserPassword(dynamic user) async {
     // 확인 다이얼로그
@@ -336,7 +379,9 @@ class _UsersPageState extends State<UsersPage> {
                 const SizedBox(height: 8),
                 const Divider(),
                 const SizedBox(height: 8),
+                _buildDetailRow('대표자 성명', user['representativeName'] ?? '미등록'),
                 _buildDetailRow('사업자등록번호', user['businessNumber'] ?? '미등록'),
+                _buildDetailRow('사업장 주소', user['businessAddress'] ?? '미등록'),
 
                 // 사업자등록증 이미지
                 const SizedBox(height: 12),
@@ -491,6 +536,35 @@ class _UsersPageState extends State<UsersPage> {
           _buildFilterBar(),
           const SizedBox(height: 16),
 
+          // ── 일괄 삭제 버튼 (선택된 사용자가 있을 때, 관리자만) ──
+          if (_isAdmin && _selectedUserIds.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Text(
+                    '${_selectedUserIds.length}명 선택됨',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: _batchDeleteUsers,
+                    icon: const Icon(Icons.delete, size: 18),
+                    label: const Text('일괄 탈퇴'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => setState(() => _selectedUserIds.clear()),
+                    child: const Text('선택 해제'),
+                  ),
+                ],
+              ),
+            ),
+
           // ── 사용자 테이블 ──
           Expanded(
             child: _isLoading
@@ -599,14 +673,33 @@ class _UsersPageState extends State<UsersPage> {
           child: DataTable(
             headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
             columnSpacing: 32,
-            columns: const [
-              DataColumn(label: Text('이름/업체명', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('승인', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.bold))),
+            columns: [
+              // 관리자만 체크박스 컬럼 표시
+              if (_isAdmin)
+                DataColumn(
+                  label: Checkbox(
+                    value: _selectedUserIds.length == users.length && users.isNotEmpty,
+                    tristate: true,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value == true) {
+                          // 전체 선택
+                          _selectedUserIds = users.map<String>((u) => u['id'].toString()).toSet();
+                        } else {
+                          // 전체 해제
+                          _selectedUserIds.clear();
+                        }
+                      });
+                    },
+                  ),
+                ),
+              const DataColumn(label: Text('이름/업체명', style: TextStyle(fontWeight: FontWeight.bold))),
+              const DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold))),
+              const DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold))),
+              const DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold))),
+              const DataColumn(label: Text('승인', style: TextStyle(fontWeight: FontWeight.bold))),
+              const DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold))),
+              const DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.bold))),
             ],
             rows: users.map<DataRow>((u) {
               final role = u['role'] ?? 'CUSTOMER';
@@ -617,7 +710,23 @@ class _UsersPageState extends State<UsersPage> {
                   ? _dateFormat.format(DateTime.parse(u['createdAt']))
                   : '-';
 
+              final userId = u['id']?.toString() ?? '';
+
               return DataRow(cells: [
+                // 체크박스 (관리자만)
+                if (_isAdmin)
+                  DataCell(Checkbox(
+                    value: _selectedUserIds.contains(userId),
+                    onChanged: (value) {
+                      setState(() {
+                        if (value == true) {
+                          _selectedUserIds.add(userId);
+                        } else {
+                          _selectedUserIds.remove(userId);
+                        }
+                      });
+                    },
+                  )),
                 // 이름/업체명 — 고정 너비 + 말줄임
                 DataCell(SizedBox(
                   width: 140,

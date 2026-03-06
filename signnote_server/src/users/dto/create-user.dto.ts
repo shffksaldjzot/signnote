@@ -40,7 +40,15 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
+  representativeName?: string;  // 대표자 성명 (업체/주관사)
+
+  @IsOptional()
+  @IsString()
   businessNumber?: string;     // 사업자번호 (업체/주관사)
+
+  @IsOptional()
+  @IsString()
+  businessAddress?: string;    // 사업장 주소 (업체/주관사)
 
   @IsOptional()
   @IsString()

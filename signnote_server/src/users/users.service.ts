@@ -40,7 +40,9 @@ export class UsersService {
         name: true,
         phone: true,
         role: true,
+        representativeName: true,     // 대표자 성명
         businessNumber: true,
+        businessAddress: true,        // 사업장 주소
         businessLicenseImage: true,   // 사업자등록증 이미지
         isApproved: true,             // 승인 여부
         createdAt: true,
@@ -77,7 +79,9 @@ export class UsersService {
             name: true,
             phone: true,
             role: true,
+            representativeName: true,
             businessNumber: true,
+            businessAddress: true,
             businessLicenseImage: true,
             isApproved: true,
             createdAt: true,
@@ -118,7 +122,9 @@ export class UsersService {
         name: dto.name,
         phone: dto.phone,
         role: dto.role,
+        representativeName: dto.representativeName,
         businessNumber: dto.businessNumber,
+        businessAddress: dto.businessAddress,
         businessLicenseImage: dto.businessLicenseImage,
         bankAccount: dto.bankAccount,
         isApproved: !needsApproval,  // 업체/주관사는 false, 고객은 true
@@ -128,6 +134,112 @@ export class UsersService {
     // 비밀번호는 빼고 반환 (보안)
     const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
+  }
+
+  // ---- 내 프로필 조회 (본인 전체 정보) ----
+  async getMyProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        representativeName: true,
+        businessNumber: true,
+        businessAddress: true,
+        businessLicenseImage: true,
+        bankAccount: true,
+        createdAt: true,
+        // 고객인 경우 참여 행사의 동/호수/타입도 조회
+        participatedEvents: {
+          select: {
+            dong: true,
+            ho: true,
+            housingType: true,
+            eventId: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다');
+    }
+
+    return user;
+  }
+
+  // ---- 내 프로필 수정 (본인 정보 변경) ----
+  async updateProfile(userId: string, data: {
+    name?: string;
+    phone?: string;
+    representativeName?: string;
+    businessNumber?: string;
+    businessAddress?: string;
+    // 비밀번호 변경 (선택)
+    currentPassword?: string;
+    newPassword?: string;
+  }) {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다');
+    }
+
+    // 비밀번호 변경 요청이 있으면 현재 비밀번호 확인
+    if (data.newPassword) {
+      if (!data.currentPassword) {
+        throw new BadRequestException('현재 비밀번호를 입력해 주세요');
+      }
+      const isValid = await bcrypt.compare(data.currentPassword, user.password);
+      if (!isValid) {
+        throw new BadRequestException('현재 비밀번호가 올바르지 않습니다');
+      }
+      if (data.newPassword.length < 6) {
+        throw new BadRequestException('새 비밀번호는 6자 이상이어야 합니다');
+      }
+    }
+
+    // 업데이트할 데이터 구성
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.representativeName !== undefined) updateData.representativeName = data.representativeName;
+    if (data.businessNumber !== undefined) updateData.businessNumber = data.businessNumber;
+    if (data.businessAddress !== undefined) updateData.businessAddress = data.businessAddress;
+    if (data.newPassword) {
+      updateData.password = await bcrypt.hash(data.newPassword, 10);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    const { password: _, ...userWithoutPassword } = updated;
+    return userWithoutPassword;
+  }
+
+  // ---- 일괄 회원 탈퇴 (관리자 전용) ----
+  // 여러 사용자를 한 번에 삭제
+  async batchDeleteUsers(userIds: string[]) {
+    const results: { id: string; success: boolean; error?: string }[] = [];
+
+    for (const userId of userIds) {
+      try {
+        await this.deleteUser(userId);
+        results.push({ id: userId, success: true });
+      } catch (e) {
+        results.push({ id: userId, success: false, error: e.message });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    return {
+      message: `${successCount}명이 탈퇴 처리되었습니다`,
+      results,
+    };
   }
 
   // ---- 사용자 승인 (관리자 전용) ----

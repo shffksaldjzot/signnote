@@ -16,6 +16,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Param,
@@ -50,6 +51,31 @@ export class UsersController {
     return this.usersService.findAll(role || undefined);
   }
 
+  // ---- 내 프로필 조회 (로그인한 사용자 본인 정보) ----
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getMyProfile(@Request() req: any) {
+    return this.usersService.getMyProfile(req.user.id);
+  }
+
+  // ---- 내 프로필 수정 (로그인한 사용자 본인 정보 변경) ----
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  async updateProfile(
+    @Request() req: any,
+    @Body() body: {
+      name?: string;
+      phone?: string;
+      representativeName?: string;
+      businessNumber?: string;
+      businessAddress?: string;
+      currentPassword?: string;
+      newPassword?: string;
+    },
+  ) {
+    return this.usersService.updateProfile(req.user.id, body);
+  }
+
   // ---- 본인 비밀번호 변경 (로그인한 모든 사용자) ----
   // 현재 비밀번호 확인 후 새 비밀번호로 변경
   @UseGuards(JwtAuthGuard)
@@ -63,6 +89,14 @@ export class UsersController {
       body.currentPassword,
       body.newPassword,
     );
+  }
+
+  // ---- 일괄 회원 탈퇴 (관리자 전용) ----
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('batch-delete')
+  async batchDeleteUsers(@Body() body: { userIds: string[] }) {
+    return this.usersService.batchDeleteUsers(body.userIds);
   }
 
   // 사용자 상세 (주관사/관리자만)

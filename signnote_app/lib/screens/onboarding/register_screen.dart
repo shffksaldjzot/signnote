@@ -35,8 +35,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _passwordConfirmController = TextEditingController();
   final _nameController = TextEditingController();
+  final _representativeNameController = TextEditingController(); // 대표자 성명
   final _phoneController = TextEditingController();
   final _businessNumberController = TextEditingController();
+  final _businessAddressController = TextEditingController(); // 사업장 주소
 
   final _authService = AuthService();  // 인증 API 서비스
   String _selectedRole = AppConstants.roleCustomer;  // 기본: 고객
@@ -48,8 +50,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _passwordConfirmController.dispose();
     _nameController.dispose();
+    _representativeNameController.dispose();
     _phoneController.dispose();
     _businessNumberController.dispose();
+    _businessAddressController.dispose();
     super.dispose();
   }
 
@@ -96,8 +100,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       name: _nameController.text.trim(),
       phone: _phoneController.text.trim(),
       role: _selectedRole,
+      representativeName: _isBusinessRole
+          ? _representativeNameController.text.trim()
+          : null,
       businessNumber: _isBusinessRole
           ? _businessNumberController.text.trim()
+          : null,
+      businessAddress: _isBusinessRole
+          ? _businessAddressController.text.trim()
           : null,
     );
 
@@ -269,6 +279,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
 
+              // ──────── 4-1. 대표자 성명 (협력업체/주관사만) ────────
+              if (_isBusinessRole) ...[
+                const _SectionLabel(text: '대표자 성명'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _representativeNameController,
+                  decoration: const InputDecoration(hintText: '대표자 성명을 입력해 주세요'),
+                ),
+                const SizedBox(height: 20),
+              ],
+
               // ──────── 5. 전화번호 (010-0000-0000) ────────
               const _SectionLabel(text: '전화번호'),
               const SizedBox(height: 8),
@@ -289,6 +310,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.number,
                   inputFormatters: [_BusinessNumberFormatter()],
                   decoration: const InputDecoration(hintText: '000-00-00000'),
+                ),
+                const SizedBox(height: 20),
+
+                // ──────── 6-1. 사업장 주소 (협력업체/주관사만) ────────
+                const _SectionLabel(text: '사업장 주소'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _businessAddressController,
+                  decoration: const InputDecoration(hintText: '사업장 주소를 입력해 주세요'),
                 ),
                 const SizedBox(height: 20),
 
