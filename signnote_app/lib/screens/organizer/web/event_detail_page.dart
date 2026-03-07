@@ -277,7 +277,7 @@ class _EventDetailPageState extends State<EventDetailPage>
               labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               tabs: [
                 Tab(text: '품목관리 (${_products.length})'),
-                Tab(text: '고객관리 (${_participants.where((p) => p['user']?['role'] == 'CUSTOMER').length})'),
+                Tab(text: '고객관리 (${_participants.where((p) => (p['role'] ?? p['user']?['role']) == 'CUSTOMER').length})'),
                 Tab(text: '계약현황 (${_contracts.length})'),
                 Tab(text: '정산관리 (${_settlements.length})'),
                 Tab(text: '알림 (${_notifications.length})'),
@@ -392,7 +392,10 @@ class _EventDetailPageState extends State<EventDetailPage>
   // 탭 2: 고객관리 — 참여 고객 리스트
   // ═══════════════════════════════════════════
   Widget _buildCustomersTab() {
-    final customers = _participants.where((p) => p['user']?['role'] == 'CUSTOMER').toList();
+    // 플랫 구조(role 직접) 또는 중첩 구조(user.role) 모두 지원
+    final customers = _participants.where((p) =>
+      (p['role'] ?? p['user']?['role']) == 'CUSTOMER'
+    ).toList();
 
     if (customers.isEmpty) {
       return const Center(child: Text('참여한 고객이 없습니다', style: TextStyle(color: AppColors.textSecondary)));
@@ -416,10 +419,9 @@ class _EventDetailPageState extends State<EventDetailPage>
               DataColumn(label: Text('참여일', style: TextStyle(fontWeight: FontWeight.w600))),
             ],
             rows: customers.map((p) {
-              final user = p['user'] as Map<String, dynamic>? ?? {};
               return DataRow(cells: [
-                DataCell(Text(user['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500))),
-                DataCell(Text(user['phone'] ?? '-')),
+                DataCell(Text(p['name'] ?? p['user']?['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500))),
+                DataCell(Text(p['phone'] ?? p['user']?['phone'] ?? '-')),
                 DataCell(Text(p['dong'] ?? '-')),
                 DataCell(Text(p['ho'] ?? '-')),
                 DataCell(Text(p['housingType'] ?? '-')),

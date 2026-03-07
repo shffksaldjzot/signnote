@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../config/theme.dart';
 import '../../../services/event_service.dart';
+import '../../../services/user_service.dart';
 
 // ============================================
 // 고객 관리 페이지 (Customers Page)
@@ -18,6 +19,7 @@ class CustomersPage extends StatefulWidget {
 
 class _CustomersPageState extends State<CustomersPage> {
   final EventService _eventService = EventService();
+  final UserService _userService = UserService();
   final _dateFormat = DateFormat('yyyy-MM-dd');
 
   bool _isLoading = true;
@@ -67,19 +69,53 @@ class _CustomersPageState extends State<CustomersPage> {
     }
   }
 
-  // 검색 필터
+  // 검색 필터 (서버 응답이 플랫 구조: name, phone이 직접 참여자 객체에 있음)
   List<dynamic> get _filteredCustomers {
     if (_searchQuery.isEmpty) return _customers;
     final query = _searchQuery.toLowerCase();
     return _customers.where((p) {
-      final user = p['user'] as Map<String, dynamic>? ?? {};
-      final name = (user['name'] ?? '').toString().toLowerCase();
-      final phone = (user['phone'] ?? '').toString().toLowerCase();
+      // 플랫 구조 (서버가 user 풀어서 반환) 또는 중첩 구조 (user 포함) 모두 지원
+      final name = (p['name'] ?? p['user']?['name'] ?? '').toString().toLowerCase();
+      final phone = (p['phone'] ?? p['user']?['phone'] ?? '').toString().toLowerCase();
       final dong = (p['dong'] ?? '').toString().toLowerCase();
       final ho = (p['ho'] ?? '').toString().toLowerCase();
       return name.contains(query) || phone.contains(query) ||
              dong.contains(query) || ho.contains(query);
     }).toList();
+  }
+
+  // 고객 강제 탈퇴 확인 다이얼로그
+  void _confirmDeleteCustomer(String userId, String name) {
+    if (userId.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('고객 탈퇴'),
+        content: Text('$name 고객을 탈퇴시키겠습니까?\n\n탈퇴하면 관련 데이터가 삭제됩니다.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final result = await _userService.deleteUser(userId);
+              if (!mounted) return;
+              if (result['success'] == true) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('$name 고객이 탈퇴 처리되었습니다')),
+                );
+                _loadCustomers();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result['error'] ?? '탈퇴 처리에 실패했습니다')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('탈퇴'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -177,20 +213,31 @@ class _CustomersPageState extends State<CustomersPage> {
                                     DataColumn(label: Text('호', style: TextStyle(fontWeight: FontWeight.w600))),
                                     DataColumn(label: Text('타입', style: TextStyle(fontWeight: FontWeight.w600))),
                                     DataColumn(label: Text('참여일', style: TextStyle(fontWeight: FontWeight.w600))),
+                                    DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.w600))),
                                   ],
                                   rows: customers.map<DataRow>((p) {
-                                    final user = p['user'] as Map<String, dynamic>? ?? {};
+                                    // 플랫 구조/중첩 구조 모두 지원
+                                    final name = p['name'] ?? p['user']?['name'] ?? '-';
+                                    final phone = p['phone'] ?? p['user']?['phone'] ?? '-';
+                                    final email = p['email'] ?? p['user']?['email'] ?? '-';
                                     final joinedAt = p['joinedAt'] != null
                                         ? _dateFormat.format(DateTime.parse(p['joinedAt']))
                                         : '-';
+                                    final userId = p['id'] ?? p['user']?['id'] ?? '';
                                     return DataRow(cells: [
-                                      DataCell(Text(user['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500))),
-                                      DataCell(Text(user['phone'] ?? '-')),
-                                      DataCell(Text(user['email'] ?? '-')),
+                                      DataCell(Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
+                                      DataCell(Text(phone)),
+                                      DataCell(Text(email)),
                                       DataCell(Text(p['dong'] ?? '-')),
                                       DataCell(Text(p['ho'] ?? '-')),
                                       DataCell(Text(p['housingType'] ?? '-')),
                                       DataCell(Text(joinedAt, style: TextStyle(color: AppColors.textSecondary))),
+                                      // 관리 버튼 (강제 탈퇴)
+                                      DataCell(IconButton(
+                                        icon: const Icon(Icons.person_remove_outlined, size: 18, color: Colors.red),
+                                        tooltip: '고객 탈퇴',
+                                        onPressed: () => _confirmDeleteCustomer(userId, name),
+                                      )),
                                     ]);
                                   }).toList(),
                                 ),
