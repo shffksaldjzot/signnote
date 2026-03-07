@@ -139,6 +139,24 @@ class UserService {
     }
   }
 
+  // ---- 일괄 승인 (관리자 전용) ----
+  Future<Map<String, dynamic>> batchApproveUsers(List<String> userIds) async {
+    try {
+      final response = await _api.post('/users/batch-approve', data: {
+        'userIds': userIds,
+      });
+      return {
+        'success': true,
+        'message': response.data['message'],
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '일괄 승인 처리에 실패했습니다',
+      };
+    }
+  }
+
   // ---- 일괄 회원 탈퇴 (관리자 전용) ----
   Future<Map<String, dynamic>> batchDeleteUsers(List<String> userIds) async {
     try {

@@ -63,6 +63,7 @@ class EventService {
     String? coverImage,
     String? contractMethod,
     bool? allowOnlineContract,
+    double? depositRate,
     String? cancelDeadlineStart,
     String? cancelDeadlineEnd,
   }) async {
@@ -78,6 +79,7 @@ class EventService {
         if (coverImage != null) 'coverImage': coverImage,
         if (contractMethod != null) 'contractMethod': contractMethod,
         if (allowOnlineContract != null) 'allowOnlineContract': allowOnlineContract,
+        if (depositRate != null) 'depositRate': depositRate,
         if (cancelDeadlineStart != null) 'cancelDeadlineStart': cancelDeadlineStart,
         if (cancelDeadlineEnd != null) 'cancelDeadlineEnd': cancelDeadlineEnd,
       });

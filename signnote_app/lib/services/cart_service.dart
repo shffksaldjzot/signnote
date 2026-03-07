@@ -39,11 +39,13 @@ class CartService {
   Future<Map<String, dynamic>> addItem({
     required String productId,
     required String eventId,
+    String? productItemId,
   }) async {
     try {
       final response = await _api.post('/cart/items', data: {
         'productId': productId,
         'eventId': eventId,
+        if (productItemId != null) 'productItemId': productItemId,
       });
       return {
         'success': true,

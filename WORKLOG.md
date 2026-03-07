@@ -1493,3 +1493,69 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] Flutter 웹 빌드 성공
 - [x] Cloudflare Pages 배포 완료
 
+---
+
+### 2026-03-07 — 피드백 13건 일괄 구현 (세션 13)
+
+> FEEDBACK.md 13건 분석 후 전체 구현
+
+#### 구현 완료 (13/13)
+
+**#1. 한글 폰트 깨짐/로딩 화면 ✅**
+- `web/index.html` — Google Fonts preconnect + Inter/Noto Sans KR CSS 프리로드 추가
+- `lib/config/theme.dart` — fontFamilyFallback에 'Noto Sans KR' 추가
+
+**#2. 관리자 사용자관리 일괄 승인 버튼 ✅**
+- `users_page.dart` — 일괄 승인 버튼 UI + `_batchApproveUsers()` 메서드 추가
+- `user_service.dart` — `batchApproveUsers()` API 호출 메서드 추가
+- `users.controller.ts` — `POST /users/batch-approve` 엔드포인트 추가
+- `users.service.ts` — `batchApproveUsers()` 서비스 메서드 추가
+
+**#3. 주소검색기 아래 상세주소 입력필드 ✅** (이전 세션에서 구현)
+
+**#4. 주관사 업체배정 시 아코디언 접히는 문제 ✅** (이전 세션에서 구현)
+
+**#5. 아코디언 접힌 상태 입금/미입금 배지 ✅** (이전 세션에서 구현)
+
+**#6. 주관사 알림 기능 — 행사별 빨간 뱃지 ✅**
+- `notifications.service.ts` — VENDOR_JOINED, PRODUCT_REGISTERED, PRODUCT_UPDATED 타입 추가
+- `notifications.service.ts` — `getUnreadCountByEvents()` 행사별 알림 수 집계
+- `notifications.controller.ts` — `GET /notifications/unread-by-events` 엔드포인트
+- `products.service.ts` — 업체참여/품목등록/품목수정 시 주관사에게 알림 발송
+- `notification_service.dart` — `getUnreadCountByEvents()` 클라이언트 메서드
+- `home_screen.dart` — 행사별 알림 개수 로드 + EventCard에 전달
+- `event_card.dart` — `notificationCount` 파라미터 + 빨간 뱃지 UI
+
+**#7. 업체 타입 선택 칩 V자 제거 ✅** (이전 세션에서 구현)
+
+**#8. 미배정 업체 품목추가 시 알림 ✅** (이전 세션에서 구현)
+
+**#9. 드롭다운 선택 항목 맨 윗줄 표시 ✅**
+- 전체 드롭다운 감사 완료 — 모두 이미 올바르게 value 바인딩됨
+
+**#10. 고객 행사 상세 아코디언 기본 접힘 ✅** (이전 세션에서 구현)
+
+**#11. 고객 장바구니 V아이콘 토글 (제거) ✅**
+- `event_detail_screen.dart` — `_toggleCart()`, `_removeFromCart()` 메서드 추가
+- V 아이콘 탭 시 장바구니에서 제거 가능 (토글)
+
+**#12. 장바구니 금액 0원 버그 + 품목↔장바구니 연동 ✅**
+- `cart_service.dart` — `addItem()`에 `productItemId` 파라미터 추가
+- `cart_screen.dart` — 가격을 `productItem.price`에서 가져오도록 수정 (핵심 버그)
+- `add-cart-item.dto.ts` — `productItemId` 필드 추가
+- `carts.service.ts` — `productItemId` 저장 + `productItem` include
+
+**#13. 계약금 비율 커스텀 (30% → 행사별 설정) ✅**
+- `schema.prisma` — Event 모델에 `depositRate Float @default(0.3)` 추가
+- `contracts.service.ts` — 행사별 depositRate 사용
+- `event_form_screen.dart` — 계약금 비율(%) 입력 필드 추가
+- `cart_screen.dart` — 행사별 depositRate 로드 + 동적 퍼센트 표시
+
+### 수정 파일: 백엔드 10개 + 프론트엔드 12개
+
+### 빌드 & 배포
+
+- [x] Prisma db push 성공 (depositRate)
+- [x] TypeScript 에러 0건 / Flutter 에러 0건
+- [x] Cloudflare Pages 배포 완료
+

@@ -227,6 +227,13 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
             height: 52,
             child: ElevatedButton(
               onPressed: () async {
+                // 배정된 품목이 없으면 알림만 표시
+                if (_products.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('배정된 품목이 없습니다. 주관사에게 품목 배정을 요청하세요.')),
+                  );
+                  return;
+                }
                 final result = await Navigator.of(context).push<bool>(
                   MaterialPageRoute(
                     builder: (_) => VendorProductFormScreen(eventId: widget.eventId),

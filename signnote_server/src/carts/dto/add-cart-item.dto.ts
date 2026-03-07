@@ -8,11 +8,15 @@ import { IsNotEmpty, IsString, IsInt, IsOptional, Min } from 'class-validator';
 export class AddCartItemDto {
   @IsString()
   @IsNotEmpty({ message: '상품 ID를 입력해 주세요' })
-  productId: string;    // 장바구니에 담을 상품 ID
+  productId: string;    // 장바구니에 담을 품목 ID (1뎁스)
 
   @IsString()
   @IsNotEmpty({ message: '행사 ID를 입력해 주세요' })
   eventId: string;      // 해당 행사 ID
+
+  @IsOptional()
+  @IsString()
+  productItemId?: string;  // 상세 품목 ID (2뎁스) — 실제 가격이 여기에 있음
 
   @IsOptional()
   @IsInt()

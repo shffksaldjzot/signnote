@@ -19,9 +19,6 @@ import { NotificationsService, NotificationType } from '../notifications/notific
 
 @Injectable()
 export class ContractsService {
-  // 계약금 비율 (30%)
-  private readonly DEPOSIT_RATE = 0.3;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
@@ -51,6 +48,13 @@ export class ContractsService {
         throw new NotFoundException(`품목(${item.productId})을 찾을 수 없습니다`);
       }
 
+      // 해당 행사의 계약금 비율 가져오기 (기본 30%)
+      const event = await this.prisma.event.findUnique({
+        where: { id: item.eventId },
+        select: { depositRate: true },
+      });
+      const depositRate = event?.depositRate ?? 0.3;
+
       // 상세 품목(2뎁스)에서 가격 가져오기
       let price = 0;
       let productItemId: string | null = null;
@@ -67,7 +71,7 @@ export class ContractsService {
       }
 
       // 계약금과 잔금 계산
-      const depositAmount = Math.round(price * this.DEPOSIT_RATE);
+      const depositAmount = Math.round(price * depositRate);
       const remainAmount = price - depositAmount;
 
       // 계약 생성

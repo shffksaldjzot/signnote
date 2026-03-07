@@ -109,6 +109,7 @@ model Event {
   cancelDeadlineStart DateTime?                       // 취소 지정 기간 시작
   cancelDeadlineEnd   DateTime?                       // 취소 지정 기간 종료
   allowOnlineContract Boolean     @default(false)     // 취소기간에도 온라인 계약 허용?
+  depositRate         Float       @default(0.3)       // 계약금 비율 (기본 30%)
   entryCode           String      @unique             // 고객 참여 코드 (6자리, 중복 불가)
   vendorEntryCode     String?     @unique             // 협력업체 참여 코드 (6자리, 별도 생성)
   status              EventStatus @default(UPCOMING)  // 행사 상태

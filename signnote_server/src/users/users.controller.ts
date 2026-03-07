@@ -99,6 +99,14 @@ export class UsersController {
     return this.usersService.batchDeleteUsers(body.userIds);
   }
 
+  // ---- 일괄 승인 (관리자 전용) ----
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('batch-approve')
+  async batchApproveUsers(@Body() body: { userIds: string[] }) {
+    return this.usersService.batchApproveUsers(body.userIds);
+  }
+
   // 사용자 상세 (주관사/관리자만)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ORGANIZER', 'ADMIN')

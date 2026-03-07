@@ -50,6 +50,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   // 장바구니에 담긴 productItemId 집합
   final Set<String> _cartItemIds = {};
+  // productItemId → cartItemId 매핑 (삭제용)
+  final Map<String, String> _cartItemIdMap = {};
 
   final ProductService _productService = ProductService();
   final CartService _cartService = CartService();
@@ -130,9 +132,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final items = List<Map<String, dynamic>>.from(result['items'] ?? []);
       setState(() {
         _cartItemIds.clear();
+        _cartItemIdMap.clear();
         for (final item in items) {
+          // productItemId(2뎁스)를 우선 사용, 없으면 productId(1뎁스)
           final itemId = item['productItemId']?.toString() ?? item['productId']?.toString() ?? '';
-          if (itemId.isNotEmpty) _cartItemIds.add(itemId);
+          final cartId = item['id']?.toString() ?? '';
+          if (itemId.isNotEmpty) {
+            _cartItemIds.add(itemId);
+            if (cartId.isNotEmpty) _cartItemIdMap[itemId] = cartId;
+          }
         }
       });
     }
@@ -140,15 +148,47 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   // 장바구니에 추가 (productItemId 기준)
   Future<void> _addToCart(Map<String, dynamic> item) async {
-    final itemId = item['id'] as String;
-    final productId = item['productId'] as String;
+    final itemId = item['id'] as String;       // 2뎁스 상세 품목 ID
+    final productId = item['productId'] as String; // 1뎁스 품목 ID
 
     setState(() => _cartItemIds.add(itemId));
 
-    await _cartService.addItem(
+    final result = await _cartService.addItem(
       productId: productId,
       eventId: widget.eventId,
+      productItemId: itemId,  // 2뎁스 ID도 전송 (가격 연결용)
     );
+
+    // 서버 응답에서 cartItemId 저장 (삭제용)
+    if (result['success'] == true && result['item'] != null) {
+      final cartId = result['item']['id']?.toString() ?? '';
+      if (cartId.isNotEmpty) {
+        _cartItemIdMap[itemId] = cartId;
+      }
+    }
+  }
+
+  // 장바구니에서 제거
+  Future<void> _removeFromCart(String itemId) async {
+    final cartItemId = _cartItemIdMap[itemId];
+    if (cartItemId == null) return;
+
+    setState(() {
+      _cartItemIds.remove(itemId);
+      _cartItemIdMap.remove(itemId);
+    });
+
+    await _cartService.removeItem(cartItemId);
+  }
+
+  // 장바구니 토글 (담기/빼기)
+  Future<void> _toggleCart(Map<String, dynamic> item) async {
+    final itemId = item['id'] as String;
+    if (_cartItemIds.contains(itemId)) {
+      await _removeFromCart(itemId);
+    } else {
+      await _addToCart(item);
+    }
   }
 
   // 품목 상세 팝업 (디자인: 6.고객용-품목 상세.jpg)
@@ -216,23 +256,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ]),
             ),
             const SizedBox(height: 24),
-            // 장바구니 담기 버튼
+            // 장바구니 담기/빼기 버튼
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: isInCart ? null : () {
-                  _addToCart(item);
+                onPressed: () {
+                  _toggleCart(item);
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: isInCart ? AppColors.textSecondary : AppColors.primary,
                   foregroundColor: AppColors.white,
-                  disabledBackgroundColor: AppColors.textHint,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-                child: Text(isInCart ? '이미 담겨있습니다' : '장바구니 담기'),
+                child: Text(isInCart ? '장바구니에서 빼기' : '장바구니 담기'),
               ),
             ),
             const SizedBox(height: 8),
@@ -426,7 +465,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         title: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        initiallyExpanded: true,
+        initiallyExpanded: false, // 기본 접힘 상태
         children: [
           if (items.isEmpty)
             const Padding(
@@ -505,9 +544,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         TextSpan(text: '$formattedPrice원', style: const TextStyle(fontSize: 14, color: AppColors.priceRed, fontWeight: FontWeight.w700)),
                       ]),
                     ),
-                    // 장바구니 담기 / 파란 V 체크
+                    // 장바구니 담기 / 파란 V 체크 (탭으로 토글)
                     GestureDetector(
-                      onTap: isInCart ? null : () => _addToCart(item),
+                      onTap: () => _toggleCart(item),
                       child: isInCart
                           ? Container(
                               width: 28,

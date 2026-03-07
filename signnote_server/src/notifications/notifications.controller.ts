@@ -41,6 +41,13 @@ export class NotificationsController {
     return { count };
   }
 
+  // 행사별 안 읽은 알림 개수 (주관사 홈에서 빨간 뱃지용)
+  @UseGuards(JwtAuthGuard)
+  @Get('unread-by-events')
+  async getUnreadCountByEvents(@Request() req: any) {
+    return this.notificationsService.getUnreadCountByEvents(req.user.id);
+  }
+
   // 알림 읽음 처리
   @UseGuards(JwtAuthGuard)
   @Put(':id/read')

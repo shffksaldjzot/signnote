@@ -50,6 +50,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   // 계약 방식
   String _contractMethod = 'integrated';
   bool _allowOnlineContract = true;
+  late final TextEditingController _depositRateController;
 
   // 커버 이미지
   String? _coverImageBase64;
@@ -67,6 +68,12 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
       text: widget.event?['unitCount']?.toString() ?? '',
     );
     _selectedTypes = List<String>.from(widget.event?['housingTypes'] ?? []);
+
+    // 계약금 비율 컨트롤러 (기본 30%)
+    final rate = widget.event?['depositRate'];
+    _depositRateController = TextEditingController(
+      text: rate != null ? ((rate as num) * 100).round().toString() : '30',
+    );
 
     if (widget.event != null) {
       _startDate = widget.event!['startDate'];
@@ -91,6 +98,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     _siteNameController.dispose();
     _unitCountController.dispose();
     _typeInputController.dispose();
+    _depositRateController.dispose();
     super.dispose();
   }
 
@@ -207,6 +215,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           'housingTypes': _selectedTypes.toList(),
           'contractMethod': _contractMethod,
           'allowOnlineContract': _allowOnlineContract,
+          'depositRate': (int.tryParse(_depositRateController.text) ?? 30) / 100,
           if (_coverImageBase64 != null)
             'coverImage': _coverImageBase64,
           if (_cancelDeadlineStart != null)
@@ -231,6 +240,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
         coverImage: _coverImageBase64,
         contractMethod: _contractMethod,
         allowOnlineContract: _allowOnlineContract,
+        depositRate: (int.tryParse(_depositRateController.text) ?? 30) / 100,
         cancelDeadlineStart: _cancelDeadlineStart != null
             ? _toIsoDate(_cancelDeadlineStart!)
             : null,
@@ -479,6 +489,26 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                     onChanged: (v) => setState(() => _allowOnlineContract = v!),
                   ),
                 ],
+              ),
+              const SizedBox(height: 20),
+
+              // ── 계약금 비율 ──
+              _buildLabel('계약금 비율'),
+              const SizedBox(height: 8),
+              _buildTextField(
+                controller: _depositRateController,
+                hint: '30',
+                keyboardType: TextInputType.number,
+                suffixText: '%',
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
+                validator: (v) {
+                  if (v == null || v.isEmpty) return '계약금 비율을 입력해 주세요';
+                  final rate = int.tryParse(v) ?? 0;
+                  if (rate < 1 || rate > 100) return '1~100 사이의 값을 입력해 주세요';
+                  return null;
+                },
               ),
               const SizedBox(height: 32),
 

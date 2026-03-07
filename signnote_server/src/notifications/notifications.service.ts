@@ -23,6 +23,9 @@ export const NotificationType = {
   PAYMENT_COMPLETED: 'PAYMENT_COMPLETED',         // 결제 완료
   PAYMENT_REFUNDED: 'PAYMENT_REFUNDED',           // 결제 환불됨
   EVENT_CREATED: 'EVENT_CREATED',                 // 행사 생성됨
+  VENDOR_JOINED: 'VENDOR_JOINED',                 // 업체 참여
+  PRODUCT_REGISTERED: 'PRODUCT_REGISTERED',       // 품목 등록됨
+  PRODUCT_UPDATED: 'PRODUCT_UPDATED',             // 품목 수정됨
 };
 
 // 알림 전송 요청 데이터
@@ -101,6 +104,24 @@ export class NotificationsService {
     return this.prisma.notification.count({
       where: { userId, isRead: false },
     });
+  }
+
+  // ── 행사별 안 읽은 알림 개수 (주관사용) ──
+  async getUnreadCountByEvents(userId: string) {
+    // data JSON에 eventId가 포함된 알림을 행사별로 집계
+    const unreadNotifications = await this.prisma.notification.findMany({
+      where: { userId, isRead: false },
+      select: { data: true },
+    });
+
+    const eventCounts: Record<string, number> = {};
+    for (const n of unreadNotifications) {
+      const eventId = (n.data as any)?.eventId;
+      if (eventId) {
+        eventCounts[eventId] = (eventCounts[eventId] || 0) + 1;
+      }
+    }
+    return eventCounts;
   }
 
   // ── FCM 토큰 등록/갱신 ──

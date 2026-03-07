@@ -44,6 +44,23 @@ class NotificationService {
     }
   }
 
+  // 행사별 안 읽은 알림 개수 (주관사 홈 빨간 뱃지용)
+  Future<Map<String, dynamic>> getUnreadCountByEvents() async {
+    try {
+      final response = await _api.get('/notifications/unread-by-events');
+      return {
+        'success': true,
+        'counts': response.data, // { eventId: count, ... }
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'counts': {},
+        'error': e.response?.data['message'] ?? '알림 개수를 확인할 수 없습니다',
+      };
+    }
+  }
+
   // 알림 읽음 처리
   Future<Map<String, dynamic>> markAsRead(String notificationId) async {
     try {

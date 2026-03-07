@@ -42,6 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneController = TextEditingController();
   final _businessNumberController = TextEditingController();
   final _businessAddressController = TextEditingController(); // 사업장 주소
+  final _businessAddressDetailController = TextEditingController(); // 상세주소
 
   final _authService = AuthService();  // 인증 API 서비스
   String _selectedRole = AppConstants.roleCustomer;  // 기본: 고객
@@ -59,6 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _phoneController.dispose();
     _businessNumberController.dispose();
     _businessAddressController.dispose();
+    _businessAddressDetailController.dispose();
     super.dispose();
   }
 
@@ -112,7 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ? _businessNumberController.text.trim()
           : null,
       businessAddress: _isBusinessRole
-          ? _businessAddressController.text.trim()
+          ? '${_businessAddressController.text.trim()} ${_businessAddressDetailController.text.trim()}'.trim()
           : null,
       businessLicenseImage: _businessLicenseBase64,
     );
@@ -364,6 +366,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                // 상세주소 입력
+                TextField(
+                  controller: _businessAddressDetailController,
+                  decoration: const InputDecoration(hintText: '상세주소 입력 (동/호수 등)'),
                 ),
                 const SizedBox(height: 20),
 

@@ -8,6 +8,7 @@ import '../../widgets/common/app_card.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../services/cart_service.dart';
 import '../../services/contract_service.dart';
+import '../../services/event_service.dart';
 import 'payment_screen.dart';
 
 // ============================================
@@ -37,6 +38,7 @@ class CartScreen extends StatefulWidget {
 class _CartScreenState extends State<CartScreen> {
   final CartService _cartService = CartService();
   final ContractService _contractService = ContractService();
+  final EventService _eventService = EventService();
 
   // 장바구니 항목 목록 (서버에서 불러옴)
   List<Map<String, dynamic>> _cartItems = [];
@@ -45,11 +47,26 @@ class _CartScreenState extends State<CartScreen> {
   bool _isLoading = true;
   bool _isContractLoading = false;
   String? _error;
+  double _depositRate = AppConstants.depositRate; // 행사별 계약금 비율
 
   @override
   void initState() {
     super.initState();
     _loadCartItems();
+    _loadEventDepositRate();
+  }
+
+  // 행사의 계약금 비율 가져오기
+  Future<void> _loadEventDepositRate() async {
+    final result = await _eventService.getEventDetail(widget.eventId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      final event = result['event'] as Map<String, dynamic>? ?? {};
+      final rate = event['depositRate'];
+      if (rate != null) {
+        setState(() => _depositRate = (rate as num).toDouble());
+      }
+    }
   }
 
   // 서버에서 장바구니 목록 불러오기
@@ -67,14 +84,19 @@ class _CartScreenState extends State<CartScreen> {
       final items = List<Map<String, dynamic>>.from(result['items'] ?? []);
       setState(() {
         _cartItems = items.map((item) {
+          // 2뎁스 상세품목(productItem)이 있으면 거기서 가격/이름 가져오기
+          final productItem = item['productItem'] as Map<String, dynamic>?;
+          final product = item['product'] as Map<String, dynamic>?;
           return {
             'id': item['id']?.toString() ?? '',
             'productId': item['productId']?.toString() ?? '',
-            'vendorName': item['product']?['vendorName'] ?? '업체명 없음',
-            'productName': item['product']?['name'] ?? '상품명 없음',
-            'description': item['product']?['description'] ?? '',
-            'price': item['product']?['price'] ?? 0,
-            'imageUrl': item['product']?['image'],
+            'productItemId': item['productItemId']?.toString(),
+            'vendorName': product?['vendorName'] ?? '업체명 없음',
+            'productName': productItem?['name'] ?? product?['name'] ?? '상품명 없음',
+            'description': productItem?['description'] ?? product?['description'] ?? '',
+            'price': productItem?['price'] ?? product?['price'] ?? 0,
+            'imageUrl': productItem?['image'] ?? product?['image'],
+            'categoryName': product?['name'] ?? '',  // 1뎁스 품목명
           };
         }).toList();
         // 처음엔 모두 선택
@@ -97,10 +119,13 @@ class _CartScreenState extends State<CartScreen> {
         .fold(0, (sum, item) => sum + (item['price'] as int));
   }
 
-  // 계약금 (30%)
+  // 계약금 (행사별 비율 적용)
   int get _depositAmount {
-    return (_totalPrice * AppConstants.depositRate).round();
+    return (_totalPrice * _depositRate).round();
   }
+
+  // 계약금 비율 퍼센트 표시
+  int get _depositPercent => (_depositRate * 100).round();
 
   // 숫자를 콤마 표시
   String _formatPrice(int price) {
@@ -170,7 +195,7 @@ class _CartScreenState extends State<CartScreen> {
             Text('합계: ${_formatPrice(_totalPrice)}원'),
             const SizedBox(height: 4),
             Text(
-              '계약금(30%): ${_formatPrice(_depositAmount)}원',
+              '계약금($_depositPercent%): ${_formatPrice(_depositAmount)}원',
               style: const TextStyle(
                 color: AppColors.priceRed,
                 fontWeight: FontWeight.w600,
@@ -213,6 +238,8 @@ class _CartScreenState extends State<CartScreen> {
         .map((item) => {
               'productId': item['productId'] as String,
               'eventId': widget.eventId,
+              if (item['productItemId'] != null)
+                'productItemId': item['productItemId'] as String,
             })
         .toList();
 
@@ -395,7 +422,7 @@ class _CartScreenState extends State<CartScreen> {
             _buildSummaryRow('합계', '${_formatPrice(_totalPrice)}원', isBold: true),
             const SizedBox(height: 4),
             _buildSummaryRow(
-              '계약금(30%)',
+              '계약금($_depositPercent%)',
               '${_formatPrice(_depositAmount)}원',
               valueColor: AppColors.priceRed,
             ),

@@ -26,7 +26,8 @@ export class CartsService {
     return this.prisma.cartItem.findMany({
       where,
       include: {
-        product: true,    // 상품 상세 정보 포함
+        product: true,       // 1뎁스 품목 정보
+        productItem: true,   // 2뎁스 상세 품목 정보 (가격 포함)
         event: {
           select: { id: true, title: true },  // 행사 이름
         },
@@ -37,13 +38,18 @@ export class CartsService {
 
   // 장바구니에 상품 추가
   async addItem(userId: string, dto: AddCartItemDto) {
-    // 이미 장바구니에 있는지 확인
+    // productItemId가 있으면 상세 품목 기준, 없으면 1뎁스 기준으로 중복 체크
+    const whereCondition: any = {
+      userId,
+      productId: dto.productId,
+      eventId: dto.eventId,
+    };
+    if (dto.productItemId) {
+      whereCondition.productItemId = dto.productItemId;
+    }
+
     const existing = await this.prisma.cartItem.findFirst({
-      where: {
-        userId,
-        productId: dto.productId,
-        eventId: dto.eventId,
-      },
+      where: whereCondition,
     });
 
     if (existing) {
@@ -63,11 +69,13 @@ export class CartsService {
       data: {
         userId,
         productId: dto.productId,
+        productItemId: dto.productItemId ?? null,
         eventId: dto.eventId,
         quantity: dto.quantity ?? 1,
       },
       include: {
         product: true,
+        productItem: true,
       },
     });
   }

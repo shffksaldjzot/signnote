@@ -57,6 +57,9 @@ class _OrganizerEventManageScreenState
   // 행사 정보 카드 표시 여부 (스크롤로 접히기)
   bool _showInfoCard = true;
 
+  // 아코디언 펼침 상태 유지 (리빌드 시에도 유지)
+  final Set<String> _expandedProductIds = {};
+
   final ProductService _productService = ProductService();
   final EventService _eventService = EventService();
 
@@ -434,8 +437,17 @@ class _OrganizerEventManageScreenState
         ),
       ),
       child: ExpansionTile(
+        key: PageStorageKey(product['id']), // 상태 유지용 키
         shape: const Border(), // 펼쳤을 때 까만 줄 제거
         collapsedShape: const Border(), // 접혔을 때 까만 줄 제거
+        initiallyExpanded: _expandedProductIds.contains(product['id']),
+        onExpansionChanged: (expanded) {
+          if (expanded) {
+            _expandedProductIds.add(product['id']);
+          } else {
+            _expandedProductIds.remove(product['id']);
+          }
+        },
         title: Row(
           children: [
             Expanded(
@@ -444,6 +456,28 @@ class _OrganizerEventManageScreenState
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
               ),
             ),
+            // 입금 상태 배지 (접혀있을 때도 보임)
+            if (hasVendor && fee > 0)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: product['feePaymentConfirmed'] == true
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  product['feePaymentConfirmed'] == true ? '입금' : '미입금',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: product['feePaymentConfirmed'] == true
+                        ? const Color(0xFF4CAF50)
+                        : Colors.red,
+                  ),
+                ),
+              ),
             // 순서 변경 버튼 (위/아래)
             if (productIndex > 0)
               GestureDetector(

@@ -9,12 +9,14 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductOrganizerDto } from './dto/create-product-organizer.dto';
 import { CreateProductItemDto } from './dto/create-product-item.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
 @Injectable()
 export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -221,6 +223,21 @@ export class ProductsService {
       detail: `품목 선점: ${product.name} (업체: ${vendorName})`,
     });
 
+    // 주관사에게 업체 참여 알림 전송
+    const event = await this.prisma.event.findUnique({
+      where: { id: product.eventId },
+      select: { organizerId: true, title: true },
+    });
+    if (event) {
+      await this.notifications.send({
+        userId: event.organizerId,
+        type: NotificationType.VENDOR_JOINED,
+        title: '업체가 품목에 참여했습니다',
+        body: `${vendorName}이(가) '${product.name}'에 참여했습니다.`,
+        data: { eventId: product.eventId, productId },
+      });
+    }
+
     return updated;
   }
 
@@ -366,26 +383,41 @@ export class ProductsService {
       detail: `상세 품목 등록: ${product.name} > ${dto.name} (${dto.price}원)`,
     });
 
+    // 주관사에게 품목 등록 알림 전송
+    const event = await this.prisma.event.findUnique({
+      where: { id: product.eventId },
+      select: { organizerId: true },
+    });
+    if (event) {
+      await this.notifications.send({
+        userId: event.organizerId,
+        type: NotificationType.PRODUCT_REGISTERED,
+        title: '새 품목이 등록되었습니다',
+        body: `${product.vendorName ?? '업체'}가 '${product.name}'에 '${dto.name}'을(를) 등록했습니다.`,
+        data: { eventId: product.eventId, productId },
+      });
+    }
+
     return item;
   }
 
   // 상세 품목 수정
   async updateItem(itemId: string, vendorId: string, dto: Partial<CreateProductItemDto>) {
-    const item = await this.prisma.productItem.findUnique({
+    const existingItem = await this.prisma.productItem.findUnique({
       where: { id: itemId },
       include: { product: true },
     });
 
-    if (!item) {
+    if (!existingItem) {
       throw new NotFoundException('상세 품목을 찾을 수 없습니다');
     }
 
     // 배정된 업체 또는 주관사/관리자만 수정 가능 (vendorId로 체크)
-    if (item.product.vendorId !== vendorId) {
+    if (existingItem.product.vendorId !== vendorId) {
       throw new BadRequestException('수정 권한이 없습니다');
     }
 
-    return this.prisma.productItem.update({
+    const updated = await this.prisma.productItem.update({
       where: { id: itemId },
       data: {
         ...(dto.name && { name: dto.name }),
@@ -395,6 +427,23 @@ export class ProductsService {
         ...(dto.image !== undefined && { image: dto.image }),
       },
     });
+
+    // 주관사에게 품목 수정 알림 전송
+    const event = await this.prisma.event.findUnique({
+      where: { id: existingItem.product.eventId },
+      select: { organizerId: true },
+    });
+    if (event) {
+      await this.notifications.send({
+        userId: event.organizerId,
+        type: NotificationType.PRODUCT_UPDATED,
+        title: '품목이 수정되었습니다',
+        body: `${existingItem.product.vendorName ?? '업체'}가 '${existingItem.product.name}'의 '${existingItem.name}'을(를) 수정했습니다.`,
+        data: { eventId: existingItem.product.eventId, productId: existingItem.productId },
+      });
+    }
+
+    return updated;
   }
 
   // 상세 품목 삭제

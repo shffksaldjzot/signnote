@@ -7,6 +7,7 @@ import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import 'event_form_screen.dart';
 import 'event_manage_screen.dart';
 
@@ -37,12 +38,29 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
 
   final EventService _eventService = EventService();
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService();
+
+  // 행사별 안 읽은 알림 개수 { eventId: count }
+  Map<String, int> _unreadCounts = {};
 
   @override
   void initState() {
     super.initState();
     _loadUserRole();
     _loadEvents();
+    _loadUnreadCounts();
+  }
+
+  // 행사별 안 읽은 알림 개수 가져오기
+  Future<void> _loadUnreadCounts() async {
+    final result = await _notificationService.getUnreadCountByEvents();
+    if (!mounted) return;
+    if (result['success'] == true) {
+      final counts = result['counts'] as Map<String, dynamic>? ?? {};
+      setState(() {
+        _unreadCounts = counts.map((k, v) => MapEntry(k, (v as num).toInt()));
+      });
+    }
   }
 
   // 저장된 사용자 역할 가져오기
@@ -217,6 +235,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
         }
 
         final event = _events[index - 1];
+        final eventId = event['id'] as String;
         return EventCard(
           title: event['title'],
           organizerName: event['organizerName'],
@@ -224,17 +243,18 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           startDate: event['startDate'],
           endDate: event['endDate'],
           badgeColor: AppColors.organizer, // 주황색 D-day 뱃지
+          notificationCount: _unreadCounts[eventId] ?? 0,
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => OrganizerEventManageScreen(
-                  eventId: event['id'],
+                  eventId: eventId,
                   eventTitle: event['title'],
                   entryCode: event['entryCode'],
                   vendorEntryCode: event['vendorEntryCode'],
                 ),
               ),
-            );
+            ).then((_) => _loadUnreadCounts());
           },
           onMoreTap: () => _showEventMenu(event),
         );

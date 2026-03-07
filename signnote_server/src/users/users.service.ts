@@ -244,6 +244,26 @@ export class UsersService {
 
   // ---- 사용자 승인 (관리자 전용) ----
   // 업체/주관사가 가입 신청하면, 관리자가 승인해야 로그인 가능
+  // ---- 일괄 승인 (관리자 전용) ----
+  async batchApproveUsers(userIds: string[]) {
+    const results: { id: string; success: boolean; error?: string }[] = [];
+
+    for (const userId of userIds) {
+      try {
+        await this.approveUser(userId);
+        results.push({ id: userId, success: true });
+      } catch (e) {
+        results.push({ id: userId, success: false, error: e.message });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    return {
+      message: `${successCount}명이 승인되었습니다`,
+      results,
+    };
+  }
+
   async approveUser(userId: string) {
     const user = await this.findById(userId);
     if (!user) {

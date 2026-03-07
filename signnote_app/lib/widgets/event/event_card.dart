@@ -28,6 +28,7 @@ class EventCard extends StatelessWidget {
   final VoidCallback? onTap;      // 카드 눌렀을 때
   final VoidCallback? onMoreTap;  // ⋮ 더보기 눌렀을 때
   final Color? badgeColor;        // D-day 뱃지 색상 (역할별 커스텀)
+  final int notificationCount;    // 안 읽은 알림 수 (0이면 표시 안 함)
 
   const EventCard({
     super.key,
@@ -39,6 +40,7 @@ class EventCard extends StatelessWidget {
     this.onTap,
     this.onMoreTap,
     this.badgeColor,
+    this.notificationCount = 0,
   });
 
   @override
@@ -59,31 +61,56 @@ class EventCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 커버 이미지 (정사각형, 둥근 모서리)
-          AspectRatio(
-            aspectRatio: 1,  // 1:1 정사각형
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: AppColors.background,
-                image: coverImageUrl != null
-                    ? DecorationImage(
-                        image: _resolveImage(coverImageUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
+          // 커버 이미지 (정사각형, 둥근 모서리) + 알림 빨간 뱃지
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 1,  // 1:1 정사각형
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.background,
+                    image: coverImageUrl != null
+                        ? DecorationImage(
+                            image: _resolveImage(coverImageUrl!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  // 이미지가 없으면 기본 아이콘 표시
+                  child: coverImageUrl == null
+                      ? const Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            size: 40,
+                            color: AppColors.textHint,
+                          ),
+                        )
+                      : null,
+                ),
               ),
-              // 이미지가 없으면 기본 아이콘 표시
-              child: coverImageUrl == null
-                  ? const Center(
-                      child: Icon(
-                        Icons.image_outlined,
-                        size: 40,
-                        color: AppColors.textHint,
+              // 안 읽은 알림 빨간 뱃지
+              if (notificationCount > 0)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.badgeRed,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      notificationCount > 99 ? '99+' : '$notificationCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
                       ),
-                    )
-                  : null,
-            ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           // 행사명

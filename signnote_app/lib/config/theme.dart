@@ -41,8 +41,10 @@ class AppColors {
 /// 앱에서 사용하는 테마 (MaterialApp에 적용)
 class AppTheme {
   static ThemeData get lightTheme {
-    // Inter 폰트 기본 텍스트 테마
-    final textTheme = GoogleFonts.interTextTheme();
+    // Inter 폰트 + Noto Sans KR 한글 폴백 (한글 깨짐 방지)
+    final textTheme = GoogleFonts.interTextTheme().apply(
+      fontFamilyFallback: ['Noto Sans KR', 'sans-serif'],
+    );
 
     return ThemeData(
       // 기본 색상 설정

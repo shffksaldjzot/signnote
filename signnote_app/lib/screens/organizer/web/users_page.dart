@@ -259,6 +259,45 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
+  // ---- 일괄 승인 (관리자 전용) ----
+  Future<void> _batchApproveUsers() async {
+    if (_selectedUserIds.isEmpty) return;
+
+    final count = _selectedUserIds.length;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('일괄 승인'),
+        content: Text('선택한 $count명을 모두 승인하시겠습니까?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.green),
+            child: const Text('일괄 승인'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final result = await _userService.batchApproveUsers(_selectedUserIds.toList());
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? '일괄 승인 처리되었습니다')),
+      );
+      setState(() => _selectedUserIds.clear());
+      _loadUsers();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '일괄 승인 처리에 실패했습니다')),
+      );
+    }
+  }
+
   // ---- 비밀번호 초기화 (관리자 전용) ----
   Future<void> _resetUserPassword(dynamic user) async {
     // 확인 다이얼로그
@@ -577,6 +616,38 @@ class _UsersPageState extends State<UsersPage> {
           ],
 
           const Spacer(),
+
+          // 선택 승인 버튼 (뱃지 크기)
+          InkWell(
+            onTap: _selectedUserIds.isNotEmpty ? _batchApproveUsers : null,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _selectedUserIds.isNotEmpty ? Colors.green : Colors.grey[300],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle_outline, size: 14,
+                      color: _selectedUserIds.isNotEmpty ? Colors.white : Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text(
+                    _selectedUserIds.isNotEmpty
+                        ? '승인 (${_selectedUserIds.length})'
+                        : '승인',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _selectedUserIds.isNotEmpty ? Colors.white : Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
 
           // 선택 삭제 버튼 (검색창 옆, 뱃지 크기)
           InkWell(

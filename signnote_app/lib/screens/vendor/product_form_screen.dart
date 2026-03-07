@@ -316,6 +316,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         return FilterChip(
           label: Text(type),
           selected: isSelected,
+          showCheckmark: false, // V자 대신 색상만 변경
           onSelected: (selected) {
             setState(() {
               if (selected) {
