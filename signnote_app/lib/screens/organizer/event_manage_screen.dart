@@ -1076,6 +1076,22 @@ class _OrganizerEventManageScreenState
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 탭 4: 알림
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 전체 읽음 처리
+  Future<void> _markAllNotificationsAsRead() async {
+    final result = await _notificationService.markAllAsRead();
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        for (int i = 0; i < _notifications.length; i++) {
+          _notifications[i] = {..._notifications[i], 'isRead': true};
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('모든 알림을 읽음으로 표시했습니다')),
+      );
+    }
+  }
+
   Widget _buildNotificationTab() {
     if (_isLoadingNotifications) {
       return const Center(child: CircularProgressIndicator(color: AppColors.organizer));
@@ -1094,7 +1110,26 @@ class _OrganizerEventManageScreenState
       );
     }
 
-    return ListView.builder(
+    // 읽지 않은 알림이 있는지 확인
+    final hasUnread = _notifications.any((n) => n['isRead'] != true);
+
+    return Column(
+      children: [
+        // 전체 읽음 버튼
+        if (hasUnread)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _markAllNotificationsAsRead,
+                icon: const Icon(Icons.done_all, size: 16),
+                label: const Text('전부 읽음으로 표시', style: TextStyle(fontSize: 13)),
+                style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
+              ),
+            ),
+          ),
+        Expanded(child: ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: _notifications.length,
       itemBuilder: (context, index) {
@@ -1199,6 +1234,8 @@ class _OrganizerEventManageScreenState
           ),
         );
       },
+    )),
+      ],
     );
   }
 

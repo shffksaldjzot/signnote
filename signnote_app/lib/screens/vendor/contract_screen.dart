@@ -8,6 +8,7 @@ import '../../widgets/contract/contract_card.dart';
 import '../../widgets/common/app_card.dart';
 import '../../services/contract_service.dart';
 import 'home_screen.dart';
+import 'contract_detail_screen.dart';
 
 // ============================================
 // 업체용 계약함 화면
@@ -58,16 +59,29 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
       final List contracts = result['contracts'] ?? [];
       setState(() {
         _contracts = contracts.map<Map<String, dynamic>>((c) {
+          final customer = c['customer'] as Map<String, dynamic>?;
+          final event = c['event'] as Map<String, dynamic>?;
           return {
             'id': c['id']?.toString() ?? '',
-            'customerName': c['customerName'] ?? c['customer']?['name'] ?? '고객',
-            'customerAddress': c['customerAddress'] ?? c['customer']?['address'] ?? '',
-            'customerPhone': c['customerPhone'] ?? c['customer']?['phone'] ?? '',
-            'productName': c['productName'] ?? c['product']?['name'] ?? '상품명 없음',
-            'description': c['productDescription'] ?? c['product']?['description'] ?? '',
-            'price': c['price'] ?? c['product']?['price'] ?? 0,
+            'customerName': c['customerName'] ?? customer?['name'] ?? '고객',
+            'customerAddress': c['customerAddress'] ?? '',
+            'customerPhone': c['customerPhone'] ?? customer?['phone'] ?? '',
+            'customerEmail': customer?['email'] ?? '',
+            'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? '상품명 없음',
+            'productCategory': c['product']?['category'] ?? '',
+            'description': c['productItem']?['description'] ?? c['product']?['description'] ?? '',
+            'price': c['originalPrice'] ?? c['price'] ?? c['product']?['price'] ?? 0,
+            'originalPrice': c['originalPrice'] ?? 0,
             'depositAmount': c['depositAmount'] ?? 0,
+            'remainAmount': c['remainAmount'] ?? 0,
             'status': c['status'] ?? 'CONFIRMED',
+            // 행사/주관사 정보
+            'eventTitle': event?['title'] ?? '',
+            'siteName': event?['siteName'] ?? '',
+            'organizerName': event?['organizer']?['name'] ?? '',
+            // 업체 정보 (본인)
+            'vendorName': c['product']?['vendorName'] ?? '',
+            'vendorPhone': c['product']?['vendor']?['phone'] ?? '',
           };
         }).toList();
         _isLoading = false;
@@ -325,9 +339,14 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
                 depositAmount: contract['depositAmount'],
                 status: _parseStatus(contract['status']),
                 onDetailTap: () {
-                  // 계약 상세 (카드에 주요 정보가 이미 표시됨)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${contract['customerName']}님의 ${contract['productName']} 계약')),
+                  // 계약 상세 화면으로 이동
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => VendorContractDetailScreen(
+                        contract: contract,
+                        categoryName: contract['productCategory'] ?? '계약 상세',
+                      ),
+                    ),
                   );
                 },
                 // 확정/대기 상태일 때 업체 직접 취소 버튼 표시

@@ -1756,3 +1756,67 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] Flutter 빌드 에러 0건
 - [x] Cloudflare Pages 프론트엔드 배포 완료
 
+---
+
+### 2026-03-07 — 피드백 19건 전체 처리 완료 (세션 계속)
+
+**배치 1: 14건 일괄 구현 ✅**
+- [x] #12 보안: 역할별 참여코드 분리 검증 (고객→entryCode, 업체→vendorEntryCode)
+- [x] #4/#18 활동 로그: ContractsService에 ActivityLogsService 추가 (계약생성/취소요청/취소승인)
+- [x] #15 알림 배치: 계약 N건 → 업체별 1개 알림으로 묶어서 발송
+- [x] #1 행사 수정 폼: 취소지정기간/계약금비율 기존값 유지 (_tryParseDate 헬퍼)
+- [x] #3 대시보드 카드 클릭: 행사→events, 업체→users, 계약→events 페이지 이동
+- [x] #5 체크박스 제거: DataRow.onSelectChanged → DataCell.onTap으로 변경
+- [x] #7 업체 승인 버튼: 미승인 업체 선택 시에만 활성화
+- [x] #9-1 초대 팝업: 고객코드 + 업체코드 모두 표시, 행사 생성 직후에도 표시
+- [x] #10 업체 계약함: eventId 필터 적용
+- [x] #11 스크롤 복원: ScrollEndNotification으로 페이지 최상단 감지 → 정보카드 표시
+- [x] #13 아코디언 기본상태: 모든 품목 첫 1개 상세품목 보이는 상태로 열림
+- [x] #14 장바구니: PopScope + bottomNavigationBar 추가, 안드로이드 뒤로가기 보호
+- [x] #19 계약함 총금액: totalPrice 컬럼 + depositRate 퍼센트 표시
+
+**배치 2: 2건 수정 ✅**
+- [x] #6 고객관리 데이터: 플랫/중첩 구조 모두 지원 (p['name'] ?? p['user']?['name'])
+- [x] #8 고객 삭제: customers_page.dart에 강제 탈퇴 버튼 + 확인 다이얼로그
+
+**배치 3: 3건 마무리 ✅**
+- [x] #2 사이드바 폴더형: 관리(행사/업체/고객) + 시스템(활동 로그) 접기/펼치기 트리 구조
+- [x] #9-2 드롭다운 첫줄: 미배정/품목 선택/미지정 등 null 옵션 추가 (6개 파일)
+- [x] #16 업체 알림 가드: 빈 vendorId 건너뛰기 + 기존 업체별 그룹 알림 확인
+
+**#17 (폴링) — 보류**: 30초 폴링은 성능/배터리 영향 고려하여 보류
+
+### 수정 파일
+**백엔드 (1개):** contracts.service.ts
+**프론트엔드 (7개):** web_shell.dart, event_manage_screen.dart, product_select_screen.dart, product_form_screen.dart, profile_edit_screen.dart, customers_page.dart, event_detail_page.dart
+
+### 빌드 & 배포
+- [x] Flutter 빌드 에러 0건 (3회 빌드 모두 성공)
+- [x] Git push 3회 → Render 서버 자동 배포
+- [x] Cloudflare Pages 프론트엔드 3회 배포 완료
+
+---
+
+### 2026-03-07 — 피드백 3건: 계약 상세 정보 확장 + 다운로드 + 알림 전체 읽음
+
+**#1 계약 상세보기 정보 확장 ✅**
+- [x] 백엔드: contracts.service.ts — findByCustomer/findByVendor/findOne에 event(title, siteName, organizer.name) + product.vendor 상세 정보 include 확장
+- [x] 고객 계약 목록: contract_screen.dart — vendorRepresentative, vendorBusinessNumber, vendorBusinessAddress, eventTitle, siteName, organizerName 필드 추가
+- [x] 고객 계약 상세: contract_detail_screen.dart — 행사 정보/업체 정보/고객 정보/계약 내용/계약 금액 5개 섹션 전면 리라이트
+- [x] 업체 계약 목록: vendor/contract_screen.dart — eventTitle, siteName, organizerName, vendorName 등 확장 필드 매핑
+
+**#2 업체 계약서 다운로드 구현 ✅**
+- [x] vendor/contract_detail_screen.dart 전면 리라이트: RepaintBoundary 캡처 + 이미지 다운로드
+- [x] 행사 정보/고객 정보/업체 정보/계약 내용/계약 금액 5개 섹션 + 환불 안내
+- [x] "준비중" 스낵바 → 실제 다운로드 기능으로 교체
+- [x] vendor/contract_screen.dart onDetailTap: 스낵바 → 상세 화면 네비게이션으로 변경
+
+**#3 알림 "전부 읽음으로 표시" 추가 ✅**
+- [x] 주관사 모바일: event_manage_screen.dart 알림 탭에 markAllNotificationsAsRead + "전부 읽음으로 표시" 버튼
+- [x] 관리자 웹: event_detail_page.dart 알림 탭에 동일 기능 추가
+- [x] 읽지 않은 알림이 있을 때만 버튼 표시
+
+### 수정 파일
+**백엔드 (1개):** contracts.service.ts
+**프론트엔드 (4개):** vendor/contract_detail_screen.dart, vendor/contract_screen.dart, event_manage_screen.dart, event_detail_page.dart
+

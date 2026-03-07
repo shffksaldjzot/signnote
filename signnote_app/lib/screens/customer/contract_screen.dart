@@ -53,10 +53,15 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
       final contracts = List<Map<String, dynamic>>.from(result['contracts'] ?? []);
       setState(() {
         _contracts = contracts.map((c) {
+          final vendor = c['product']?['vendor'] as Map<String, dynamic>?;
+          final event = c['event'] as Map<String, dynamic>?;
           return {
             'id': c['id']?.toString() ?? '',
-            'vendorName': c['product']?['vendorName'] ?? c['vendorName'] ?? '업체명 없음',
-            'vendorPhone': c['product']?['vendor']?['phone'] ?? '',
+            'vendorName': c['product']?['vendorName'] ?? vendor?['name'] ?? '업체명 없음',
+            'vendorPhone': vendor?['phone'] ?? '',
+            'vendorRepresentative': vendor?['representativeName'] ?? '',
+            'vendorBusinessNumber': vendor?['businessNumber'] ?? '',
+            'vendorBusinessAddress': vendor?['businessAddress'] ?? '',
             'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? c['productName'] ?? '상품명 없음',
             'productCategory': c['product']?['category'] ?? c['productCategory'] ?? '기타',
             'description': c['productItem']?['description'] ?? c['product']?['description'] ?? '',
@@ -65,6 +70,14 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             'depositAmount': c['depositAmount'] ?? 0,
             'remainAmount': c['remainAmount'] ?? 0,
             'status': c['status'] ?? 'PENDING',
+            // 행사/주관사 정보
+            'eventTitle': event?['title'] ?? '',
+            'siteName': event?['siteName'] ?? '',
+            'organizerName': event?['organizer']?['name'] ?? '',
+            // 고객 정보 (본인)
+            'customerName': c['customerName'] ?? '',
+            'customerPhone': c['customerPhone'] ?? '',
+            'customerAddress': c['customerAddress'] ?? '',
           };
         }).toList();
         _isLoading = false;

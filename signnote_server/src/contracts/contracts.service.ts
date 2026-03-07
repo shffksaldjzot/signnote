@@ -168,7 +168,7 @@ export class ContractsService {
     return contracts;
   }
 
-  // 고객의 계약 목록 조회
+  // 고객의 계약 목록 조회 (행사/주관사/업체 정보 포함)
   async findByCustomer(userId: string, eventId?: string) {
     const where: any = { customerId: userId };
     if (eventId) where.eventId = eventId;
@@ -176,17 +176,26 @@ export class ContractsService {
     return this.prisma.contract.findMany({
       where,
       include: {
-        product: true,
+        product: {
+          include: {
+            vendor: {
+              select: { id: true, name: true, phone: true, representativeName: true, businessNumber: true, businessAddress: true },
+            },
+          },
+        },
         productItem: true,
         event: {
-          select: { id: true, title: true },
+          select: {
+            id: true, title: true, siteName: true,
+            organizer: { select: { id: true, name: true } },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // 업체의 계약 목록 조회 (내 상품에 대한 계약)
+  // 업체의 계약 목록 조회 (행사/주관사/고객 정보 포함)
   async findByVendor(vendorId: string, eventId?: string) {
     const where: any = { vendorId };
     if (eventId) where.eventId = eventId;
@@ -197,10 +206,13 @@ export class ContractsService {
         product: true,
         productItem: true,
         customer: {
-          select: { id: true, name: true, phone: true },
+          select: { id: true, name: true, phone: true, email: true },
         },
         event: {
-          select: { id: true, title: true },
+          select: {
+            id: true, title: true, siteName: true,
+            organizer: { select: { id: true, name: true } },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -222,18 +234,27 @@ export class ContractsService {
     });
   }
 
-  // 계약 상세 조회
+  // 계약 상세 조회 (행사/주관사/업체 전체 정보 포함)
   async findOne(id: string) {
     const contract = await this.prisma.contract.findUnique({
       where: { id },
       include: {
-        product: true,
+        product: {
+          include: {
+            vendor: {
+              select: { id: true, name: true, phone: true, representativeName: true, businessNumber: true, businessAddress: true },
+            },
+          },
+        },
         productItem: true,
         customer: {
-          select: { id: true, name: true, phone: true },
+          select: { id: true, name: true, phone: true, email: true },
         },
         event: {
-          select: { id: true, title: true },
+          select: {
+            id: true, title: true, siteName: true, depositRate: true,
+            organizer: { select: { id: true, name: true } },
+          },
         },
         payments: true,
       },

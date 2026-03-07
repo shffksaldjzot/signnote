@@ -8,9 +8,8 @@ import '../../utils/image_download.dart';
 // ============================================
 // 고객용 계약 상세보기 화면
 //
-// 디자인 참고: 8.고객용-계약 상세보기.jpg
-// - 업체 정보 / 계약 내용 / 계약 금액 / 환불 안내
-// - 하단 "다운로드" 버튼 (이미지 파일로 저장)
+// 행사 정보 / 업체 정보 / 고객 정보 / 계약 내용 / 계약 금액 / 환불 안내
+// 하단 "다운로드" 버튼 (이미지 파일로 저장)
 // ============================================
 
 class CustomerContractDetailScreen extends StatelessWidget {
@@ -70,10 +69,32 @@ class CustomerContractDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
+                // 행사 정보
+                _buildSection('행사 정보', [
+                  _buildInfoLine('행사명', contract['eventTitle'] ?? '-'),
+                  _buildInfoLine('현장명', contract['siteName'] ?? '-'),
+                  _buildInfoLine('주관사', contract['organizerName'] ?? '-'),
+                ]),
+                const SizedBox(height: 16),
+
                 // 업체 정보
                 _buildSection('업체 정보', [
                   _buildInfoLine('업체명', contract['vendorName'] ?? '-'),
+                  _buildInfoLine('대표자', contract['vendorRepresentative'] ?? '-'),
                   _buildInfoLine('연락처', contract['vendorPhone'] ?? '-'),
+                  if ((contract['vendorBusinessNumber'] as String?)?.isNotEmpty == true)
+                    _buildInfoLine('사업자번호', contract['vendorBusinessNumber']),
+                  if ((contract['vendorBusinessAddress'] as String?)?.isNotEmpty == true)
+                    _buildInfoLine('사업장 주소', contract['vendorBusinessAddress']),
+                ]),
+                const SizedBox(height: 16),
+
+                // 고객 정보
+                _buildSection('고객 정보', [
+                  _buildInfoLine('고객명', contract['customerName'] ?? '-'),
+                  _buildInfoLine('연락처', contract['customerPhone'] ?? '-'),
+                  if ((contract['customerAddress'] as String?)?.isNotEmpty == true)
+                    _buildInfoLine('주소', contract['customerAddress']),
                 ]),
                 const SizedBox(height: 16),
 

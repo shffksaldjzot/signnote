@@ -540,30 +540,69 @@ class _EventDetailPageState extends State<EventDetailPage>
   // ═══════════════════════════════════════════
   // 탭 5: 알림
   // ═══════════════════════════════════════════
+  // 전체 읽음 처리
+  Future<void> _markAllNotificationsAsRead() async {
+    final result = await _notificationService.markAllAsRead();
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        for (int i = 0; i < _notifications.length; i++) {
+          _notifications[i] = {..._notifications[i], 'isRead': true};
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('모든 알림을 읽음으로 표시했습니다')),
+      );
+    }
+  }
+
   Widget _buildNotificationsTab() {
     if (_notifications.isEmpty) {
       return const Center(child: Text('알림이 없습니다', style: TextStyle(color: AppColors.textSecondary)));
     }
 
-    return ListView.separated(
-      itemCount: _notifications.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final n = _notifications[index];
-        final isRead = n['isRead'] == true;
-        return ListTile(
-          leading: Icon(
-            isRead ? Icons.notifications_none : Icons.notifications_active,
-            color: isRead ? AppColors.textHint : AppColors.primary,
+    // 읽지 않은 알림이 있는지 확인
+    final hasUnread = _notifications.any((n) => n['isRead'] != true);
+
+    return Column(
+      children: [
+        // 전체 읽음 버튼
+        if (hasUnread)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _markAllNotificationsAsRead,
+                icon: const Icon(Icons.done_all, size: 16),
+                label: const Text('전부 읽음으로 표시', style: TextStyle(fontSize: 13)),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+              ),
+            ),
           ),
-          title: Text(n['title'] ?? '', style: TextStyle(
-            fontWeight: isRead ? FontWeight.w400 : FontWeight.w600,
-            fontSize: 14,
-          )),
-          subtitle: Text(n['body'] ?? '', style: const TextStyle(fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
-          trailing: Text(_formatDate(n['createdAt']?.toString()), style: const TextStyle(fontSize: 12, color: AppColors.textHint)),
-        );
-      },
+        Expanded(
+          child: ListView.separated(
+            itemCount: _notifications.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final n = _notifications[index];
+              final isRead = n['isRead'] == true;
+              return ListTile(
+                leading: Icon(
+                  isRead ? Icons.notifications_none : Icons.notifications_active,
+                  color: isRead ? AppColors.textHint : AppColors.primary,
+                ),
+                title: Text(n['title'] ?? '', style: TextStyle(
+                  fontWeight: isRead ? FontWeight.w400 : FontWeight.w600,
+                  fontSize: 14,
+                )),
+                subtitle: Text(n['body'] ?? '', style: const TextStyle(fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                trailing: Text(_formatDate(n['createdAt']?.toString()), style: const TextStyle(fontSize: 12, color: AppColors.textHint)),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
