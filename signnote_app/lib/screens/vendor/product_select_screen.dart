@@ -212,27 +212,27 @@ class _VendorProductSelectScreenState extends State<VendorProductSelectScreen> {
             borderRadius: BorderRadius.circular(10),
           ),
           child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
+            child: DropdownButton<String?>(
               value: _selectedProductId,
               isExpanded: true,
               icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
-              hint: const Text(
-                '품목을 선택해 주세요',
-                style: TextStyle(color: AppColors.textHint),
-              ),
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
               ),
-              items: _availableProducts.map((product) {
-                final fee = product['participationFee'] ?? 0;
-                final feeText = fee > 0 ? ' (참가비: ${_formatPrice(fee)}원)' : '';
-                return DropdownMenuItem(
-                  value: product['id']?.toString(),
-                  child: Text('${product['name']}$feeText'),
-                );
-              }).toList(),
+              items: [
+                // 첫 번째 줄: 미선택 상태
+                const DropdownMenuItem<String>(value: null, child: Text('품목을 선택해 주세요', style: TextStyle(color: AppColors.textHint))),
+                ..._availableProducts.map((product) {
+                  final fee = product['participationFee'] ?? 0;
+                  final feeText = fee > 0 ? ' (참가비: ${_formatPrice(fee)}원)' : '';
+                  return DropdownMenuItem<String?>(
+                    value: product['id']?.toString(),
+                    child: Text('${product['name']}$feeText'),
+                  );
+                }),
+              ],
               onChanged: (value) {
                 setState(() => _selectedProductId = value);
               },

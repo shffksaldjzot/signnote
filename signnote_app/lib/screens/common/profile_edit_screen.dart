@@ -354,9 +354,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                               : null,
                           hint: const Text('타입 선택', style: TextStyle(color: AppColors.textHint)),
                           isExpanded: true,
-                          items: _availableHousingTypes.map((type) {
-                            return DropdownMenuItem(value: type, child: Text(type));
-                          }).toList(),
+                          items: [
+                            // 첫 번째 줄: 미지정 상태
+                            const DropdownMenuItem<String>(value: null, child: Text('미지정', style: TextStyle(color: AppColors.textHint))),
+                            ..._availableHousingTypes.map((type) {
+                              return DropdownMenuItem<String>(value: type, child: Text(type));
+                            }),
+                          ],
                           onChanged: (v) => setState(() => _selectedHousingType = v),
                         ),
                       ),

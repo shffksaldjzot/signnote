@@ -14,9 +14,12 @@ import '../../../services/api_service.dart';
 // |  [관리자] 뱃지    |   오른쪽에 각 페이지 내용   |
 // |                  |                           |
 // |  대시보드         |                           |
-// |  행사 관리        |                           |
-// |  업체 관리        |                           |
-// |  고객 관리        |                           |
+// |  ▸ 관리          |                           |
+// |    행사 관리      |                           |
+// |    업체 관리      |                           |
+// |    고객 관리      |                           |
+// |  ▸ 시스템 (어드민)|                           |
+// |    활동 로그      |                           |
 // |  ─────────      |                           |
 // |  로그아웃         |                           |
 // +------------------+---------------------------+
@@ -49,7 +52,7 @@ class WebShell extends StatelessWidget {
   }
 }
 
-/// 사이드바 위젯 — 역할에 따라 뱃지/메뉴 동적 표시
+/// 사이드바 위젯 — 폴더형 트리 구조
 class _Sidebar extends StatefulWidget {
   @override
   State<_Sidebar> createState() => _SidebarState();
@@ -58,15 +61,9 @@ class _Sidebar extends StatefulWidget {
 class _SidebarState extends State<_Sidebar> {
   String _currentRole = '';  // 현재 로그인한 사용자 역할
 
-  // 전체 메뉴 항목 (어드민은 전부 표시, 주관사는 일부 제한)
-  static const _allMenuItems = [
-    _MenuItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: '대시보드', path: AppRoutes.organizerDashboard, adminOnly: false),
-    _MenuItem(icon: Icons.event_outlined, activeIcon: Icons.event, label: '행사 관리', path: AppRoutes.organizerWebEvents, adminOnly: false),
-    _MenuItem(icon: Icons.business_outlined, activeIcon: Icons.business, label: '업체 관리', path: AppRoutes.organizerWebUsers, adminOnly: false),
-    _MenuItem(icon: Icons.people_outline, activeIcon: Icons.people, label: '고객 관리', path: AppRoutes.organizerWebCustomers, adminOnly: false),
-    _MenuItem(icon: Icons.history_outlined, activeIcon: Icons.history, label: '활동 로그', path: AppRoutes.organizerWebLogs, adminOnly: true),
-    _MenuItem(icon: Icons.person_outline, activeIcon: Icons.person, label: '마이페이지', path: AppRoutes.organizerWebMypage, adminOnly: false),
-  ];
+  // 폴더 펼침 상태 (기본: 펼침)
+  bool _managementExpanded = true;
+  bool _systemExpanded = true;
 
   @override
   void initState() {
@@ -87,13 +84,6 @@ class _SidebarState extends State<_Sidebar> {
   // 역할에 따른 뱃지 정보
   String get _badgeText => _isAdmin ? '관리자' : '주관사';
   Color get _badgeColor => _isAdmin ? Colors.red : AppColors.primary;
-
-  // 역할에 따라 표시할 메뉴 필터링
-  List<_MenuItem> get _menuItems {
-    if (_isAdmin) return _allMenuItems;
-    // 주관사는 adminOnly가 아닌 메뉴만 표시
-    return _allMenuItems.where((m) => !m.adminOnly).toList();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,24 +127,64 @@ class _SidebarState extends State<_Sidebar> {
             ),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
-          // ── 메뉴 항목들 ──
-          ...List.generate(_menuItems.length, (index) {
-            final item = _menuItems[index];
-            // 행사 상세/품목 상세 페이지에서도 "행사 관리" 메뉴가 활성화되도록
-            final isActive = currentPath.startsWith(item.path) ||
-                (item.path == AppRoutes.organizerWebEvents && currentPath.startsWith('/admin/events'));
-            return _buildMenuItem(
+          // ── 대시보드 (단독 메뉴) ──
+          _buildMenuItem(
+            context: context,
+            icon: Icons.dashboard_outlined,
+            activeIcon: Icons.dashboard,
+            label: '대시보드',
+            path: AppRoutes.organizerDashboard,
+            currentPath: currentPath,
+          ),
+
+          const SizedBox(height: 4),
+
+          // ── 관리 폴더 (행사/업체/고객) ──
+          _buildFolder(
+            context: context,
+            icon: Icons.folder_outlined,
+            activeIcon: Icons.folder,
+            label: '관리',
+            expanded: _managementExpanded,
+            onToggle: () => setState(() => _managementExpanded = !_managementExpanded),
+            currentPath: currentPath,
+            children: [
+              _FolderChild(icon: Icons.event_outlined, label: '행사 관리', path: AppRoutes.organizerWebEvents),
+              _FolderChild(icon: Icons.business_outlined, label: '업체 관리', path: AppRoutes.organizerWebUsers),
+              _FolderChild(icon: Icons.people_outline, label: '고객 관리', path: AppRoutes.organizerWebCustomers),
+            ],
+          ),
+
+          // ── 시스템 폴더 (활동 로그 — 관리자 전용) ──
+          if (_isAdmin) ...[
+            const SizedBox(height: 4),
+            _buildFolder(
               context: context,
-              icon: isActive ? item.activeIcon : item.icon,
-              label: item.label,
-              isActive: isActive,
-              onTap: () => context.go(item.path),
-            );
-          }),
+              icon: Icons.folder_outlined,
+              activeIcon: Icons.folder,
+              label: '시스템',
+              expanded: _systemExpanded,
+              onToggle: () => setState(() => _systemExpanded = !_systemExpanded),
+              currentPath: currentPath,
+              children: [
+                _FolderChild(icon: Icons.history_outlined, label: '활동 로그', path: AppRoutes.organizerWebLogs),
+              ],
+            ),
+          ],
 
           const Spacer(),
+
+          // ── 마이페이지 ──
+          _buildMenuItem(
+            context: context,
+            icon: Icons.person_outline,
+            activeIcon: Icons.person,
+            label: '마이페이지',
+            path: AppRoutes.organizerWebMypage,
+            currentPath: currentPath,
+          ),
 
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
@@ -162,11 +192,10 @@ class _SidebarState extends State<_Sidebar> {
           ),
 
           // ── 로그아웃 ──
-          _buildMenuItem(
+          _buildActionItem(
             context: context,
             icon: Icons.logout,
             label: '로그아웃',
-            isActive: false,
             onTap: () async {
               await AuthService().logout();
               if (context.mounted) context.go(AppRoutes.login);
@@ -179,12 +208,161 @@ class _SidebarState extends State<_Sidebar> {
     );
   }
 
-  /// 사이드바 메뉴 항목 위젯
+  /// 단독 메뉴 항목 (대시보드, 마이페이지)
   Widget _buildMenuItem({
     required BuildContext context,
     required IconData icon,
+    required IconData activeIcon,
     required String label,
-    required bool isActive,
+    required String path,
+    required String currentPath,
+  }) {
+    final isActive = currentPath.startsWith(path);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () => context.go(path),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(isActive ? activeIcon : icon, size: 20,
+                  color: isActive ? AppColors.white : AppColors.textSecondary),
+                const SizedBox(width: 12),
+                Text(label, style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? AppColors.white : AppColors.textPrimary,
+                )),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 폴더 (접기/펼치기 가능한 그룹)
+  Widget _buildFolder({
+    required BuildContext context,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required String currentPath,
+    required List<_FolderChild> children,
+  }) {
+    // 자식 중 하나라도 활성화면 폴더 강조
+    final hasActiveChild = children.any((c) =>
+      currentPath.startsWith(c.path) ||
+      (c.path == AppRoutes.organizerWebEvents && currentPath.startsWith('/admin/events')));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 폴더 헤더 (클릭하면 펼치기/접기)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              onTap: onToggle,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                child: Row(
+                  children: [
+                    // 펼침/접힘 화살표
+                    Icon(
+                      expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                      size: 18,
+                      color: hasActiveChild ? AppColors.primary : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    // 폴더 아이콘
+                    Icon(
+                      expanded ? activeIcon : icon,
+                      size: 18,
+                      color: hasActiveChild ? AppColors.primary : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(label, style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: hasActiveChild ? AppColors.primary : AppColors.textSecondary,
+                      letterSpacing: 0.5,
+                    )),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // 자식 메뉴들 (펼쳐진 상태에서만 표시)
+        if (expanded) ...children.map((child) {
+          final isActive = currentPath.startsWith(child.path) ||
+              (child.path == AppRoutes.organizerWebEvents && currentPath.startsWith('/admin/events'));
+          return Padding(
+            padding: const EdgeInsets.only(left: 24, right: 12, top: 1, bottom: 1),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: () => context.go(child.path),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      // 트리 연결선 느낌의 세로선
+                      Container(
+                        width: 2,
+                        height: 16,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          color: isActive ? AppColors.primary : AppColors.border,
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                      Icon(child.icon, size: 18,
+                        color: isActive ? AppColors.primary : AppColors.textSecondary),
+                      const SizedBox(width: 8),
+                      Text(child.label, style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                        color: isActive ? AppColors.primary : AppColors.textPrimary,
+                      )),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  /// 액션 항목 (로그아웃 등 — 경로 없이 콜백만)
+  Widget _buildActionItem({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
     required VoidCallback onTap,
   }) {
     return Padding(
@@ -197,35 +375,15 @@ class _SidebarState extends State<_Sidebar> {
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              // 선택된 메뉴: primary 배경색
-              color: isActive
-                  ? AppColors.primary
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  // 선택된 메뉴: 흰 아이콘, 미선택: 회색 아이콘
-                  color: isActive
-                      ? AppColors.white
-                      : AppColors.textSecondary,
-                ),
+                Icon(icon, size: 20, color: AppColors.textSecondary),
                 const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                    // 선택된 메뉴: 흰 글씨, 미선택: 검정 글씨
-                    color: isActive
-                        ? AppColors.white
-                        : AppColors.textPrimary,
-                  ),
-                ),
+                Text(label, style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.textPrimary,
+                )),
               ],
             ),
           ),
@@ -235,19 +393,11 @@ class _SidebarState extends State<_Sidebar> {
   }
 }
 
-/// 메뉴 항목 데이터 클래스
-class _MenuItem {
-  final IconData icon;        // 기본 아이콘
-  final IconData activeIcon;  // 선택된 상태 아이콘
-  final String label;         // 메뉴 이름
-  final String path;          // URL 경로
-  final bool adminOnly;       // 관리자 전용 메뉴 여부
+/// 폴더 자식 항목 데이터 클래스
+class _FolderChild {
+  final IconData icon;
+  final String label;
+  final String path;
 
-  const _MenuItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-    required this.path,
-    this.adminOnly = false,
-  });
+  const _FolderChild({required this.icon, required this.label, required this.path});
 }

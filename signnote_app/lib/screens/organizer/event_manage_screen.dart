@@ -1371,14 +1371,18 @@ class _OrganizerEventManageScreenState
                 ),
                 isExpanded: true,
                 icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-                items: _vendors.map((vendor) {
-                  return DropdownMenuItem<String>(
-                    value: vendor['id'],
-                    child: Text(vendor['name'], style: const TextStyle(fontSize: 14)),
-                  );
-                }).toList(),
+                items: [
+                  // 미배정 옵션 (첫 번째 줄)
+                  const DropdownMenuItem<String>(value: '', child: Text('미배정', style: TextStyle(fontSize: 14, color: AppColors.textHint))),
+                  ..._vendors.map((vendor) {
+                    return DropdownMenuItem<String>(
+                      value: vendor['id'],
+                      child: Text(vendor['name'], style: const TextStyle(fontSize: 14)),
+                    );
+                  }),
+                ],
                 onChanged: (vendorId) {
-                  if (vendorId != null) {
+                  if (vendorId != null && vendorId.isNotEmpty) {
                     _assignVendor(productId, vendorId);
                   }
                 },

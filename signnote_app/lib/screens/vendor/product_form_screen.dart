@@ -282,20 +282,23 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
+        child: DropdownButton<String?>(
           value: _selectedProductId != null &&
                   _assignedProducts.any((p) => p['id'] == _selectedProductId)
               ? _selectedProductId
               : null,
-          hint: const Text('품목', style: TextStyle(fontSize: 14, color: AppColors.textHint)),
           isExpanded: true,
           icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-          items: _assignedProducts.map((product) {
-            return DropdownMenuItem<String>(
-              value: product['id'],
-              child: Text(product['name'], style: const TextStyle(fontSize: 14)),
-            );
-          }).toList(),
+          items: [
+            // 첫 번째 줄: 미선택 상태
+            const DropdownMenuItem<String?>(value: null, child: Text('품목 선택', style: TextStyle(fontSize: 14, color: AppColors.textHint))),
+            ..._assignedProducts.map((product) {
+              return DropdownMenuItem<String?>(
+                value: product['id'],
+                child: Text(product['name'], style: const TextStyle(fontSize: 14)),
+              );
+            }),
+          ],
           onChanged: _isEditMode ? null : (value) {
             setState(() => _selectedProductId = value);
           },

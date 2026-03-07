@@ -148,17 +148,21 @@ class _CustomersPageState extends State<CustomersPage> {
               children: [
                 // 행사 드롭다운
                 Expanded(
-                  child: DropdownButtonFormField<String>(
+                  child: DropdownButtonFormField<String?>(
                     value: _selectedEventId,
                     decoration: const InputDecoration(
                       labelText: '행사 선택',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
-                    items: _events.map((e) => DropdownMenuItem(
-                      value: e['id']?.toString(),
-                      child: Text(e['title'] ?? '', overflow: TextOverflow.ellipsis),
-                    )).toList(),
+                    items: [
+                      // 첫 번째 줄: 전체/미선택
+                      const DropdownMenuItem<String?>(value: null, child: Text('행사를 선택해주세요', style: TextStyle(color: AppColors.textHint))),
+                      ..._events.map((e) => DropdownMenuItem<String?>(
+                        value: e['id']?.toString(),
+                        child: Text(e['title'] ?? '', overflow: TextOverflow.ellipsis),
+                      )),
+                    ],
                     onChanged: (value) {
                       _selectedEventId = value;
                       _loadCustomers();

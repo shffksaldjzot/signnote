@@ -110,8 +110,9 @@ export class ContractsService {
         vendorGroups[vid].push((contract as any).product?.name ?? '품목');
       }
 
-      // 업체별 1개 알림
+      // 업체별 1개 알림 (빈 vendorId는 건너뛰기)
       for (const [vendorId, productNames] of Object.entries(vendorGroups)) {
+        if (!vendorId) continue;
         await this.notifications.send({
           userId: vendorId,
           type: NotificationType.CONTRACT_CREATED,
