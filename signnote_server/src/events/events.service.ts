@@ -67,8 +67,9 @@ export class EventsService {
 
   // 행사 생성 (주관사만 가능)
   async create(organizerId: string, dto: CreateEventDto) {
-    // 참여 코드 자동 생성 (숫자 6자리)
+    // 고객용/업체용 참여 코드 각각 생성 (숫자 6자리, 서로 다른 값)
     const entryCode = await this.generateUniqueEntryCode();
+    const vendorEntryCode = await this.generateUniqueEntryCode(entryCode);
 
     const event = await this.prisma.event.create({
       data: {
@@ -88,6 +89,7 @@ export class EventsService {
           ? new Date(dto.cancelDeadlineEnd) : null,
         allowOnlineContract: dto.allowOnlineContract ?? false,
         entryCode,
+        vendorEntryCode,
       },
     });
 
@@ -265,7 +267,8 @@ export class EventsService {
   }
 
   // 중복 없는 참여 코드 생성 (숫자 6자리)
-  private async generateUniqueEntryCode(): Promise<string> {
+  // excludeCode: 이 값과 다른 코드 생성 (고객/업체 코드 분리용)
+  private async generateUniqueEntryCode(excludeCode?: string): Promise<string> {
     let code: string;
     let exists: boolean;
 
@@ -274,11 +277,19 @@ export class EventsService {
       code = Math.floor(Math.random() * 1000000)
         .toString()
         .padStart(6, '0');
-      // DB에 이미 있는지 확인
-      const existing = await this.prisma.event.findUnique({
+      // 제외 코드와 같으면 다시 생성
+      if (excludeCode && code === excludeCode) {
+        exists = true;
+        continue;
+      }
+      // DB에 이미 있는지 확인 (고객코드 + 업체코드 모두 체크)
+      const existingEntry = await this.prisma.event.findUnique({
         where: { entryCode: code },
       });
-      exists = !!existing;
+      const existingVendor = await this.prisma.event.findFirst({
+        where: { vendorEntryCode: code },
+      });
+      exists = !!existingEntry || !!existingVendor;
     } while (exists);
 
     return code;

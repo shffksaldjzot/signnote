@@ -250,6 +250,8 @@ class _ProductsPageState extends State<ProductsPage> {
     return Column(
       children: [
         ExpansionTile(
+          shape: const Border(), // 펼쳤을 때 까만 줄 제거
+          collapsedShape: const Border(), // 접혔을 때 까만 줄 제거
           tilePadding: const EdgeInsets.symmetric(horizontal: 20),
           childrenPadding: EdgeInsets.zero,
           leading: Icon(

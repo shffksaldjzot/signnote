@@ -117,6 +117,7 @@ export class ProductsService {
         ...(dto.image !== undefined && { image: dto.image }),
         ...(dto.commissionRate !== undefined && { commissionRate: dto.commissionRate }),
         ...(dto.participationFee !== undefined && { participationFee: dto.participationFee }),
+        ...((dto as any).feePaymentConfirmed !== undefined && { feePaymentConfirmed: (dto as any).feePaymentConfirmed }),
       },
     });
   }

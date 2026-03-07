@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
@@ -40,7 +38,6 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
   late final TextEditingController _nameController;        // 품목명
   late final TextEditingController _feeController;         // 참가비
   late final TextEditingController _commissionController;  // 수수료
-  String? _imageBase64;   // 품목 설명 이미지 (base64)
   bool _isSubmitting = false;
 
   // 수정 모드인지 여부
@@ -62,7 +59,6 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
     final rate = widget.product?['commissionRate'];
     final ratePercent = rate is num ? (rate * 100).toStringAsFixed(0) : '';
     _commissionController = TextEditingController(text: ratePercent);
-    _imageBase64 = widget.product?['imageUrl'];
   }
 
   @override
@@ -71,23 +67,6 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
     _feeController.dispose();
     _commissionController.dispose();
     super.dispose();
-  }
-
-  // 이미지 선택 (갤러리에서)
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      imageQuality: 80,
-    );
-
-    if (picked != null) {
-      final bytes = await picked.readAsBytes();
-      setState(() {
-        _imageBase64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-      });
-    }
   }
 
   // 품목 등록/수정 API 호출
@@ -124,7 +103,6 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
         name: name,
         participationFee: fee,
         commissionRate: commission / 100, // % → 소수 (예: 20 → 0.2)
-        image: _imageBase64,
       );
     }
 
@@ -242,37 +220,6 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
               ),
             ),
             const SizedBox(height: 24),
-
-            // 품목 설명 이미지
-            const Text('품목 설명 이미지', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                width: double.infinity,
-                height: 180,
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: _imageBase64 != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.memory(
-                          base64Decode(_imageBase64!.split(',').last),
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      )
-                    : const Center(
-                        child: Icon(
-                          Icons.image_outlined,
-                          size: 48,
-                          color: AppColors.textHint,
-                        ),
-                      ),
-              ),
-            ),
           ],
         ),
       ),

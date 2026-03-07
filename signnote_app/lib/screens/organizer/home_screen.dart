@@ -231,6 +231,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
                   eventId: event['id'],
                   eventTitle: event['title'],
                   entryCode: event['entryCode'],
+                  vendorEntryCode: event['vendorEntryCode'],
                 ),
               ),
             );

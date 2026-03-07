@@ -536,35 +536,6 @@ class _UsersPageState extends State<UsersPage> {
           _buildFilterBar(),
           const SizedBox(height: 16),
 
-          // ── 일괄 삭제 버튼 (선택된 사용자가 있을 때, 관리자만) ──
-          if (_isAdmin && _selectedUserIds.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Text(
-                    '${_selectedUserIds.length}명 선택됨',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _batchDeleteUsers,
-                    icon: const Icon(Icons.delete, size: 18),
-                    label: const Text('일괄 탈퇴'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () => setState(() => _selectedUserIds.clear()),
-                    child: const Text('선택 해제'),
-                  ),
-                ],
-              ),
-            ),
-
           // ── 사용자 테이블 ──
           Expanded(
             child: _isLoading
@@ -606,6 +577,38 @@ class _UsersPageState extends State<UsersPage> {
           ],
 
           const Spacer(),
+
+          // 선택 삭제 버튼 (검색창 옆, 뱃지 크기)
+          InkWell(
+            onTap: _selectedUserIds.isNotEmpty ? _batchDeleteUsers : null,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _selectedUserIds.isNotEmpty ? Colors.red : Colors.grey[300],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.delete_outline, size: 14,
+                      color: _selectedUserIds.isNotEmpty ? Colors.white : Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text(
+                    _selectedUserIds.isNotEmpty
+                        ? '삭제 (${_selectedUserIds.length})'
+                        : '삭제',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _selectedUserIds.isNotEmpty ? Colors.white : Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
 
           // 검색어 입력
           SizedBox(
@@ -654,7 +657,7 @@ class _UsersPageState extends State<UsersPage> {
     );
   }
 
-  // 사용자 테이블 위젯
+  // 사용자 테이블 위젯 (가로스크롤 없이 화면에 맞춤)
   Widget _buildUserTable() {
     final users = _filteredUsers;
 
@@ -666,117 +669,110 @@ class _UsersPageState extends State<UsersPage> {
           BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4),
         ],
       ),
-      // 가로 스크롤 가능하게 (컬럼이 많아 좁은 화면에서 겹침 방지)
       child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
-            columnSpacing: 32,
-            columns: [
-              // 관리자만 체크박스 컬럼 표시
-              if (_isAdmin)
-                DataColumn(
-                  label: Checkbox(
-                    value: _selectedUserIds.length == users.length && users.isNotEmpty,
-                    tristate: true,
-                    onChanged: (value) {
-                      setState(() {
-                        if (value == true) {
-                          // 전체 선택
-                          _selectedUserIds = users.map<String>((u) => u['id'].toString()).toSet();
-                        } else {
-                          // 전체 해제
-                          _selectedUserIds.clear();
-                        }
-                      });
-                    },
-                  ),
-                ),
-              const DataColumn(label: Text('이름/업체명', style: TextStyle(fontWeight: FontWeight.bold))),
-              const DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold))),
-              const DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold))),
-              const DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold))),
-              const DataColumn(label: Text('승인', style: TextStyle(fontWeight: FontWeight.bold))),
-              const DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold))),
-              const DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.bold))),
-            ],
-            rows: users.map<DataRow>((u) {
-              final role = u['role'] ?? 'CUSTOMER';
-              final roleName = _roleNames[role] ?? role;
-              final roleColor = _roleColors[role] ?? Colors.grey;
-              final isApproved = u['isApproved'] ?? true;
-              final createdAt = u['createdAt'] != null
-                  ? _dateFormat.format(DateTime.parse(u['createdAt']))
-                  : '-';
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
+          columnSpacing: 16,
+          horizontalMargin: 12,
+          columns: [
+            // 체크박스 컬럼 (항상 표시)
+            DataColumn(
+              label: Checkbox(
+                value: users.isNotEmpty && _selectedUserIds.length == users.length,
+                tristate: true,
+                onChanged: (value) {
+                  setState(() {
+                    if (value == true) {
+                      _selectedUserIds = users.map<String>((u) => u['id'].toString()).toSet();
+                    } else {
+                      _selectedUserIds.clear();
+                    }
+                  });
+                },
+              ),
+            ),
+            const DataColumn(label: Text('이름/업체명', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            const DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            const DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            const DataColumn(label: Text('역할', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            const DataColumn(label: Text('승인', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            const DataColumn(label: Text('가입일', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            const DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+          ],
+          rows: users.map<DataRow>((u) {
+            final role = u['role'] ?? 'CUSTOMER';
+            final roleName = _roleNames[role] ?? role;
+            final roleColor = _roleColors[role] ?? Colors.grey;
+            final isApproved = u['isApproved'] ?? true;
+            final createdAt = u['createdAt'] != null
+                ? _dateFormat.format(DateTime.parse(u['createdAt']))
+                : '-';
+            final userId = u['id']?.toString() ?? '';
 
-              final userId = u['id']?.toString() ?? '';
-
-              return DataRow(cells: [
-                // 체크박스 (관리자만)
-                if (_isAdmin)
-                  DataCell(Checkbox(
-                    value: _selectedUserIds.contains(userId),
-                    onChanged: (value) {
-                      setState(() {
-                        if (value == true) {
-                          _selectedUserIds.add(userId);
-                        } else {
-                          _selectedUserIds.remove(userId);
-                        }
-                      });
-                    },
-                  )),
-                // 이름/업체명 — 고정 너비 + 말줄임
-                DataCell(SizedBox(
-                  width: 140,
-                  child: Text(
-                    u['name'] ?? '-',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            return DataRow(
+              selected: _selectedUserIds.contains(userId),
+              cells: [
+                // 체크박스 (항상 표시)
+                DataCell(Checkbox(
+                  value: _selectedUserIds.contains(userId),
+                  onChanged: (value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedUserIds.add(userId);
+                      } else {
+                        _selectedUserIds.remove(userId);
+                      }
+                    });
+                  },
                 )),
-                // 이메일 — 고정 너비 + 말줄임
-                DataCell(SizedBox(
-                  width: 200,
-                  child: Text(
-                    u['email'] ?? '-',
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                // 이름/업체명
+                DataCell(Text(
+                  u['name'] ?? '-',
+                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
                 )),
-                DataCell(Text(u['phone'] ?? '-')),
+                // 이메일
+                DataCell(Text(
+                  u['email'] ?? '-',
+                  style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                )),
+                DataCell(Text(u['phone'] ?? '-', style: const TextStyle(fontSize: 13))),
                 DataCell(_buildRoleBadge(roleName, roleColor)),
-                // 승인 상태 표시
                 DataCell(_buildApprovalBadge(isApproved)),
-                DataCell(Text(createdAt, style: TextStyle(color: Colors.grey[600]))),
-                // 관리 버튼 (상세보기 + 승인/거부)
+                DataCell(Text(createdAt, style: TextStyle(color: Colors.grey[600], fontSize: 13))),
+                // 관리 버튼
                 DataCell(Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 상세보기 버튼
                     IconButton(
-                      icon: const Icon(Icons.visibility, size: 20),
+                      icon: const Icon(Icons.visibility, size: 18),
                       tooltip: '상세보기',
                       onPressed: () => _showUserDetail(u),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     ),
-                    // 승인 버튼 (관리자 + 미승인 사용자만)
                     if (_isAdmin && !isApproved) ...[
                       IconButton(
-                        icon: const Icon(Icons.check_circle, size: 20, color: Colors.green),
+                        icon: const Icon(Icons.check_circle, size: 18, color: Colors.green),
                         tooltip: '승인',
                         onPressed: () => _approveUser(u),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
+                        icon: const Icon(Icons.cancel, size: 18, color: Colors.red),
                         tooltip: '거부',
                         onPressed: () => _rejectUser(u),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       ),
                     ],
                   ],
                 )),
-              ]);
-            }).toList(),
-          ),
+              ],
+            );
+          }).toList(),
         ),
       ),
     );

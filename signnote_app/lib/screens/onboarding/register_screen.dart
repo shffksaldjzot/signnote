@@ -6,6 +6,7 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
+import '../../utils/kakao_address.dart';
 import 'entry_code_screen.dart';
 import 'login_screen.dart';
 import '../organizer/home_screen.dart';
@@ -205,6 +206,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // 카카오(다음) 주소검색 팝업 열기
+  Future<void> _openAddressSearch() async {
+    final address = await openKakaoAddressSearch();
+    if (!mounted) return;
+    if (address != null && address.isNotEmpty) {
+      setState(() {
+        _businessAddressController.text = address;
+      });
+    } else {
+      // 웹이 아닌 환경이거나 취소한 경우
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('주소를 선택해 주세요')),
+      );
+    }
+  }
+
   // 에러/안내 메시지 표시
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -321,9 +338,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 // ──────── 6-1. 사업장 주소 (협력업체/주관사만) ────────
                 const _SectionLabel(text: '사업장 주소'),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _businessAddressController,
-                  decoration: const InputDecoration(hintText: '사업장 주소를 입력해 주세요'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _businessAddressController,
+                        readOnly: true, // 직접 입력 불가 (검색으로만 입력)
+                        decoration: const InputDecoration(hintText: '주소 검색을 눌러주세요'),
+                        onTap: _openAddressSearch,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: _openAddressSearch,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.textPrimary,
+                          foregroundColor: AppColors.white,
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('주소 검색', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
 

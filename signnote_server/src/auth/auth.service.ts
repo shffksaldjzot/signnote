@@ -112,33 +112,48 @@ export class AuthService {
   }
 
   // ---- 행사 입장 (참여 코드) ----
+  // 고객코드(entryCode)와 업체코드(vendorEntryCode) 모두 검색
   // userId가 있으면 EventParticipant에 참여 기록 저장
   async enterEvent(dto: EnterEventDto, userId?: string) {
-    // 참여 코드로 행사 찾기
-    const event = await this.prisma.event.findUnique({
+    // 고객 코드로 검색
+    let event = await this.prisma.event.findUnique({
       where: { entryCode: dto.entryCode },
     });
+
+    // 고객 코드에 없으면 업체 코드로 검색
+    if (!event) {
+      event = await this.prisma.event.findFirst({
+        where: { vendorEntryCode: dto.entryCode },
+      });
+    }
 
     if (!event) {
       throw new NotFoundException('유효하지 않은 참여 코드입니다');
     }
 
-    // 로그인한 사용자가 있으면 참여 기록 저장 (중복 시 무시)
-    // 업체(VENDOR)도 품목 유무와 관계없이 무조건 참가 가능
+    // 로그인한 사용자가 있으면 중복 참가 체크 + 참여 기록 저장
     if (userId) {
-      try {
-        await this.prisma.eventParticipant.upsert({
-          where: {
-            eventId_userId: {
-              eventId: event.id,
-              userId: userId,
-            },
-          },
-          create: {
+      // 이미 참여한 행사인지 확인
+      const existing = await this.prisma.eventParticipant.findUnique({
+        where: {
+          eventId_userId: {
             eventId: event.id,
             userId: userId,
           },
-          update: {},  // 이미 있으면 아무것도 안 함
+        },
+      });
+
+      if (existing) {
+        throw new ForbiddenException('이미 참여한 행사입니다');
+      }
+
+      // 참여 기록 저장
+      try {
+        await this.prisma.eventParticipant.create({
+          data: {
+            eventId: event.id,
+            userId: userId,
+          },
         });
       } catch (e) {
         // 참여 기록 저장 실패해도 행사 입장은 진행

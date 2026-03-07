@@ -1397,3 +1397,99 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] Flutter 웹 빌드 성공
 - [x] Cloudflare Pages 배포 완료
 
+---
+
+## 2026-03-06 — 피드백 9건 + 보안 요구사항 1건 반영 (세션 11)
+
+> FEEDBACK.md 전체 9건 처리 + 추가 보안 요구사항: "다른 업체가 다른 품목 참가비를 절대 모르게"
+
+### 보안 강화: 업체 간 가격 정보 차단
+
+- [x] 백엔드 `findByEvent()`에 `vendorId` 파라미터 추가 — 업체(VENDOR) 조회 시 다른 업체의 참가비/수수료/가격 정보 0으로 마스킹
+- [x] 컨트롤러에서 `req.user.role === 'VENDOR'`일 때 자동으로 vendorId 전달
+
+### 처리 내용
+
+| # | 피드백 | 처리 | 수정 파일 |
+|---|--------|------|-----------|
+| 1 | 사업장 주소 입력 필드 | 회원가입에서 이미 구현되어 있던 기능 — 확인 완료 | - |
+| 2 | 사업자등록증 업로드 기능 | ImagePicker → base64 변환 → 서버 전송, 업로드 성공 시 녹색 배경+체크 표시 | `register_screen.dart` |
+| 3 | 행사코드 백스페이스 개선 | KeyboardListener로 백스페이스 감지 → 현재 칸 비어있으면 이전 칸으로 이동+삭제 | `entry_code_screen.dart` |
+| 4 | 업체 참가 프로세스 변경 | 서버: 업체 가용 품목 체크 제거 (무조건 참가 가능). 클라이언트: 품목 선택 화면 제거 → 바로 홈 이동 | `auth.service.ts`, `entry_code_screen.dart` |
+| 5 | 품목 위치 변경 기능 | DB에 sortOrder 필드 추가 + 순서 변경 API (PATCH /events/:eventId/products/reorder) + UI에 ↑↓ 화살표 | `schema.prisma`, `products.service.ts`, `products.controller.ts`, `event_manage_screen.dart`, `product_service.dart` |
+| 6 | 품목 3단계 색상 구분 | 밝은 회색(미배정) / 연한 주황(업체만 배정) / 연한 초록(상세품목 등록 완료) + 범례 표시 | `event_manage_screen.dart` |
+| 7 | 주관사 상세품목 보기 | 아코디언에서 상세품목 탭 → 상세 다이얼로그(품목명/적용타입/가격/설명) | `event_manage_screen.dart` |
+| 8 | 업체 참가취소 시 상세품목 초기화 | unclaim 시 해당 품목의 ProductItem 전체 삭제 + 확인 다이얼로그에 경고 문구 | `products.service.ts`, `event_manage_screen.dart` |
+| 9 | 주관사 미승인 로그인 차단 | 이전 세션에서 이미 구현 완료 — 확인 완료 | - |
+
+### 수정 파일 목록
+
+**백엔드 (4개):**
+- `signnote_server/src/auth/auth.service.ts` — 업체 가용 품목 체크 제거
+- `signnote_server/src/products/products.service.ts` — 업체 간 가격 마스킹 + sortOrder 정렬 + unclaim 시 상세품목 삭제 + reorderProducts()
+- `signnote_server/src/products/products.controller.ts` — reorder 엔드포인트 + vendorId 전달
+- `signnote_server/prisma/schema.prisma` — Product.sortOrder 필드 추가
+
+**프론트엔드 (4개):**
+- `signnote_app/lib/screens/onboarding/entry_code_screen.dart` — 주관사 리다이렉트 + 백스페이스 개선 + 품목선택 제거
+- `signnote_app/lib/screens/onboarding/register_screen.dart` — 사업자등록증 이미지 업로드 (ImagePicker + base64)
+- `signnote_app/lib/screens/organizer/event_manage_screen.dart` — 3단계 색상 + ↑↓순서 + 상세보기 + unclaim 경고
+- `signnote_app/lib/services/product_service.dart` — reorderProducts() 메서드 추가
+
+### 빌드 & 배포
+
+- [x] 서버: GitHub push → Render 자동 배포 (커밋 `3af076a`)
+- [x] 클라이언트: Flutter 웹 빌드 성공 → Cloudflare Pages 배포 완료 (커밋 `05a1e69`)
+- [x] Prisma db push 성공 (sortOrder 필드)
+
+---
+
+## 2026-03-07 — 피드백 8건 반영 (세션 12)
+
+> 참가비 입금확인 / PNG아이콘 / 행사정보카드 / 아코디언 까만줄 / 주소검색기 / 중복참가알림 / 품목이미지제거 / 고객-업체코드분리
+
+### 처리 내용
+
+| # | 피드백 | 처리 | 수정 파일 |
+|---|--------|------|-----------|
+| 1 | 참가비 입금 확인 기능 | DB: Product에 `feePaymentConfirmed` 필드 추가. 주관사 아코디언에 입금확인 체크 토글 추가 (업체 배정+참가비 있을 때만 표시). 초록 체크/회색 원 아이콘으로 상태 표시 | `schema.prisma`, `products.service.ts`, `event_manage_screen.dart` |
+| 2 | PNG 아이콘 활용 | 주관사 행사 상세 홈 아이콘을 `assets/icons/organizer/home_active.png`로 교체 | `event_manage_screen.dart` |
+| 3 | 행사 정보 카드 | 행사 제목과 탭 사이에 정보 카드 추가 (현장명/기간/세대수/평형/계약방식). 위로 스크롤 시 `AnimatedSize`로 접히고, 아래로 스크롤 시 다시 나타남 | `event_manage_screen.dart` |
+| 4 | 아코디언 까만 줄 제거 | 전체 ExpansionTile에 `shape: const Border()` + `collapsedShape: const Border()` 적용 | `event_manage_screen.dart`, `vendor/event_detail_screen.dart`, `customer/event_detail_screen.dart`, `web/products_page.dart` |
+| 5 | 사업장 주소 검색기 | 카카오 다음 주소 API 연동. 조건부 임포트로 웹/모바일 분기 처리 (`kakao_address.dart` + `_web.dart` + `_stub.dart`) | `register_screen.dart`, `web/index.html`, `kakao_address*.dart` (신규 3개) |
+| 6 | 중복 행사 참가 알림 | 서버: `enterEvent()`에서 이미 참여한 행사코드 입력 시 `ForbiddenException('이미 참여한 행사입니다')` 반환. 기존 upsert → findUnique+create로 변경 | `auth.service.ts` |
+| 7 | 품목 설명 이미지 제거 | 주관사 품목 추가에서 이미지 업로드 관련 코드 전부 삭제 (import, 변수, 메서드, UI, API 파라미터) | `product_add_screen.dart` |
+| 8 | 고객/업체 코드 분리 | DB: Event에 `vendorEntryCode` 필드 추가 (nullable unique). 행사 생성 시 고객용/업체용 6자리 코드 별도 생성. 입장 시 양쪽 모두 검색. 초대 다이얼로그에서 고객코드/업체코드 별도 표시 | `schema.prisma`, `events.service.ts`, `auth.service.ts`, `event_manage_screen.dart`, `home_screen.dart` |
+
+### 신규 파일
+
+- `signnote_app/lib/utils/kakao_address.dart` — 주소 검색 조건부 임포트 배럴
+- `signnote_app/lib/utils/kakao_address_stub.dart` — 모바일용 스텁 (null 반환)
+- `signnote_app/lib/utils/kakao_address_web.dart` — 웹용 dart:js_interop 구현
+
+### 수정 파일 목록
+
+**백엔드 (3개):**
+- `signnote_server/prisma/schema.prisma` — vendorEntryCode + feePaymentConfirmed
+- `signnote_server/src/auth/auth.service.ts` — 중복참가 체크 + 양쪽코드 검색
+- `signnote_server/src/events/events.service.ts` — 별도 코드 생성
+- `signnote_server/src/products/products.service.ts` — feePaymentConfirmed 업데이트 지원
+
+**프론트엔드 (8개, 신규 3개):**
+- `signnote_app/lib/screens/organizer/event_manage_screen.dart` — 정보카드 + 입금확인 + PNG아이콘 + 코드분리 + 까만줄
+- `signnote_app/lib/screens/organizer/home_screen.dart` — vendorEntryCode 전달
+- `signnote_app/lib/screens/organizer/product_add_screen.dart` — 이미지 업로드 제거
+- `signnote_app/lib/screens/vendor/event_detail_screen.dart` — 까만줄 수정
+- `signnote_app/lib/screens/customer/event_detail_screen.dart` — 까만줄 수정
+- `signnote_app/lib/screens/organizer/web/products_page.dart` — 까만줄 수정
+- `signnote_app/lib/screens/onboarding/register_screen.dart` — 주소검색 버튼
+- `signnote_app/web/index.html` — 카카오 주소 API 스크립트
+
+### 빌드 & 배포
+
+- [x] Prisma db push 성공 (vendorEntryCode + feePaymentConfirmed)
+- [x] TypeScript 빌드 에러 0건
+- [x] Flutter analyze — info 4건 (error/warning 0건)
+- [x] Flutter 웹 빌드 성공
+- [x] Cloudflare Pages 배포 완료
+

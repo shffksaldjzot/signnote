@@ -22,12 +22,14 @@ class OrganizerEventManageScreen extends StatefulWidget {
   final String eventId;
   final String eventTitle;
   final String? entryCode;
+  final String? vendorEntryCode; // 협력업체 전용 참여 코드
 
   const OrganizerEventManageScreen({
     super.key,
     required this.eventId,
     required this.eventTitle,
     this.entryCode,
+    this.vendorEntryCode,
   });
 
   @override
@@ -49,6 +51,12 @@ class _OrganizerEventManageScreenState
   // 행사에 참여한 업체 목록 (드롭다운용)
   List<Map<String, dynamic>> _vendors = [];
 
+  // 행사 상세 정보 (정보 카드용)
+  Map<String, dynamic>? _eventDetail;
+
+  // 행사 정보 카드 표시 여부 (스크롤로 접히기)
+  bool _showInfoCard = true;
+
   final ProductService _productService = ProductService();
   final EventService _eventService = EventService();
 
@@ -58,6 +66,7 @@ class _OrganizerEventManageScreenState
     _tabController = TabController(length: 4, vsync: this);
     _loadProducts();
     _loadVendors();
+    _loadEventDetail();
   }
 
   @override
@@ -95,6 +104,7 @@ class _OrganizerEventManageScreenState
             'imageUrl': p['image'],
             'participationFee': p['participationFee'] ?? 0,
             'commissionRate': p['commissionRate'] ?? 0,
+            'feePaymentConfirmed': p['feePaymentConfirmed'] ?? false, // 참가비 입금 확인
             'items': items,
           };
         }).toList();
@@ -106,6 +116,30 @@ class _OrganizerEventManageScreenState
         _isLoading = false;
       });
     }
+  }
+
+  // 행사 상세 정보 가져오기 (정보 카드용)
+  Future<void> _loadEventDetail() async {
+    final result = await _eventService.getEventDetail(widget.eventId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        _eventDetail = result['event'] as Map<String, dynamic>?;
+      });
+    }
+  }
+
+  // 스크롤 방향 감지 → 정보 카드 접기/펼치기
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0;
+      if (delta > 2 && _showInfoCard) {
+        setState(() => _showInfoCard = false); // 위로 스크롤 → 카드 숨김
+      } else if (delta < -2 && !_showInfoCard) {
+        setState(() => _showInfoCard = true); // 아래로 스크롤 → 카드 표시
+      }
+    }
+    return false;
   }
 
   // 행사에 참여한 업체 목록 가져오기 (드롭다운용)
@@ -132,9 +166,9 @@ class _OrganizerEventManageScreenState
         backgroundColor: AppColors.white,
         elevation: 0,
         centerTitle: true,
-        // 홈 아이콘 (뒤로가기)
+        // 홈 아이콘 (PNG 에셋 사용)
         leading: IconButton(
-          icon: const Icon(Icons.home_outlined, size: 26),
+          icon: Image.asset('assets/icons/organizer/home_active.png', width: 26, height: 26),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -149,36 +183,107 @@ class _OrganizerEventManageScreenState
             onPressed: () => context.push(AppRoutes.mypage, extra: 'ORGANIZER'),
           ),
         ],
-        // 4개 탭
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.organizer,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.organizer,
-          indicatorWeight: 2,
-          labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
-          tabs: const [
-            Tab(text: '품목 관리'),
-            Tab(text: '고객관리'),
-            Tab(text: '계약함'),
-            Tab(text: '알림'),
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          // 탭 1: 품목 관리
-          _buildProductTab(),
-          // 탭 2: 고객관리
-          _buildCustomerTab(),
-          // 탭 3: 계약함
-          _buildContractTab(),
-          // 탭 4: 알림
-          _buildNotificationTab(),
+          // 행사 정보 카드 (스크롤 시 접힘/펼침)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: _showInfoCard ? _buildEventInfoCard() : const SizedBox.shrink(),
+          ),
+          // 4개 탭
+          TabBar(
+            controller: _tabController,
+            labelColor: AppColors.organizer,
+            unselectedLabelColor: AppColors.textSecondary,
+            indicatorColor: AppColors.organizer,
+            indicatorWeight: 2,
+            labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+            tabs: const [
+              Tab(text: '품목 관리'),
+              Tab(text: '고객관리'),
+              Tab(text: '계약함'),
+              Tab(text: '알림'),
+            ],
+          ),
+          // 탭 내용
+          Expanded(
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleScrollNotification,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildProductTab(),
+                  _buildCustomerTab(),
+                  _buildContractTab(),
+                  _buildNotificationTab(),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  // 행사 정보 카드 (제목과 탭 사이)
+  Widget _buildEventInfoCard() {
+    if (_eventDetail == null) return const SizedBox.shrink();
+
+    final siteName = _eventDetail!['siteName'] ?? '';
+    final unitCount = _eventDetail!['unitCount'] ?? 0;
+    final housingTypes = (_eventDetail!['housingTypes'] as List?)?.join(', ') ?? '';
+    final startDate = _eventDetail!['startDate']?.toString().substring(0, 10) ?? '';
+    final endDate = _eventDetail!['endDate']?.toString().substring(0, 10) ?? '';
+    final contractMethod = _eventDetail!['contractMethod'] == 'integrated' ? '통합계약' : '개별계약';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8F0), // 연한 주황 배경
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFE0B2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (siteName.isNotEmpty) ...[
+            _infoRow('현장명', siteName),
+            const SizedBox(height: 6),
+          ],
+          if (startDate.isNotEmpty)
+            _infoRow('기  간', '$startDate ~ $endDate'),
+          const SizedBox(height: 6),
+          if (unitCount > 0)
+            _infoRow('세대수', '${NumberFormat('#,###').format(unitCount)} 세대'),
+          if (housingTypes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _infoRow('평  형', housingTypes),
+          ],
+          const SizedBox(height: 6),
+          _infoRow('계약방식', contractMethod),
+        ],
+      ),
+    );
+  }
+
+  // 정보 카드 행 (라벨 + 값)
+  Widget _infoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(value, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+        ),
+      ],
     );
   }
 
@@ -329,6 +434,8 @@ class _OrganizerEventManageScreenState
         ),
       ),
       child: ExpansionTile(
+        shape: const Border(), // 펼쳤을 때 까만 줄 제거
+        collapsedShape: const Border(), // 접혔을 때 까만 줄 제거
         title: Row(
           children: [
             Expanded(
@@ -378,6 +485,62 @@ class _OrganizerEventManageScreenState
             onEdit: () => _editField(product, '참가비', 'participationFee', fee.toString()),
           ),
           const SizedBox(height: 10),
+          // 참가비 입금 확인 체크박스
+          if (hasVendor && fee > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 80,
+                    child: Text('입금 확인', style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () => _toggleFeePayment(product),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: product['feePaymentConfirmed'] == true
+                            ? const Color(0xFFE8F5E9)  // 초록 배경
+                            : AppColors.background,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: product['feePaymentConfirmed'] == true
+                              ? const Color(0xFF81C784)
+                              : AppColors.border,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            product['feePaymentConfirmed'] == true
+                                ? Icons.check_circle
+                                : Icons.circle_outlined,
+                            size: 20,
+                            color: product['feePaymentConfirmed'] == true
+                                ? const Color(0xFF4CAF50)
+                                : AppColors.textHint,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            product['feePaymentConfirmed'] == true ? '입금 완료' : '미입금',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: product['feePaymentConfirmed'] == true
+                                  ? const Color(0xFF4CAF50)
+                                  : AppColors.textHint,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // 상세 품목 목록 (2뎁스)
           _buildItemsList(product),
           // 업체 참가 취소
@@ -683,9 +846,8 @@ class _OrganizerEventManageScreenState
   // 초대 다이얼로그 (고객 URL/QR + 코드 / 협력업체 코드)
   void _showInviteDialog() {
     final customerCode = widget.entryCode ?? '------';
-    // 실제로는 서버에서 별도 협력업체 코드를 가져와야 하지만
-    // 현재는 동일 코드 사용 (추후 분리)
-    final vendorCode = customerCode;
+    // 협력업체 전용 참여 코드 (고객 코드와 별도 생성)
+    final vendorCode = widget.vendorEntryCode ?? '------';
     final inviteUrl = 'https://signnote.pages.dev/entry-code?code=$customerCode';
 
     showModalBottomSheet(
@@ -829,6 +991,33 @@ class _OrganizerEventManageScreenState
     // 서버에 새 순서 저장
     final productIds = _products.map((p) => p['id'].toString()).toList();
     await _productService.reorderProducts(widget.eventId, productIds);
+  }
+
+  // 참가비 입금 확인 토글
+  Future<void> _toggleFeePayment(Map<String, dynamic> product) async {
+    final productId = product['id'].toString();
+    final currentValue = product['feePaymentConfirmed'] == true;
+    final newValue = !currentValue;
+
+    final result = await _productService.updateProduct(
+      productId,
+      {'feePaymentConfirmed': newValue},
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      setState(() {
+        product['feePaymentConfirmed'] = newValue;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(newValue ? '입금 확인 완료' : '입금 확인 취소')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '입금 확인 처리에 실패했습니다')),
+      );
+    }
   }
 
   // 업체 배정 API 호출

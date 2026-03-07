@@ -421,6 +421,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         side: const BorderSide(color: AppColors.border),
       ),
       child: ExpansionTile(
+        shape: const Border(), // 펼쳤을 때 까만 줄 제거
+        collapsedShape: const Border(), // 접혔을 때 까만 줄 제거
         title: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
