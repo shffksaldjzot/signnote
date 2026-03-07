@@ -1612,3 +1612,73 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] Cloudflare Pages 배포 완료
 - [x] NestJS 서버 재시작 완료
 
+---
+
+### 2026-03-07 — 피드백 6건 처리
+
+> **피드백 요약:** FEEDBACK.md 43~48번 항목 (회원가입 중복체크, 동호수 시인성, 타입 필터링, 행사 추가, 계약 취소, 알림)
+
+**1. 회원가입 이메일/전화번호 중복 체크 + 중앙 알림 ✅**
+- [x] 백엔드 `users.service.ts` — 전화번호 중복 체크 추가 (`findFirst` + `ConflictException`)
+- [x] 프론트엔드 `register_screen.dart` — `_showError()`를 SnackBar → AlertDialog(중앙 팝업)로 변경
+
+**2. 고객 동호수 입력 필드 시인성 향상 ✅**
+- [x] `entry_code_screen.dart` — 동/호수 TextField에 `filled: true, fillColor: AppColors.background` 추가 (연회색 배경)
+
+**3. 고객 구매품목 타입 필터링 버그 수정 ✅**
+- [x] 프론트엔드 `event_detail_screen.dart` — `_loadMyInfo()` → `_loadProducts()` 순서 보장 (`_initData()` 메서드로 분리)
+- [x] 백엔드 `products.service.ts` — housingType 필터 후 빈 아이템 품목 제거 (`.filter(p => p.items.length > 0)`)
+
+**4. 주관사 행사 추가 버튼 무반응 수정 ✅**
+- [x] `event_service.dart` — `createEvent()`에 catch-all 예외 처리 추가
+- [x] `event_form_screen.dart` — `_handleSubmit()`에 try-catch 래핑
+
+**5. 계약 취소 프로세스 변경 (고객 취소 → 협력업체 직접 취소) ✅**
+- [x] 고객 `contract_screen.dart` — 취소 요청 버튼 제거
+- [x] 백엔드 `contracts.service.ts` — `vendorCancel()` 메서드 추가 (CONFIRMED → CANCELLED + 환불)
+- [x] 백엔드 `contracts.controller.ts` — `PUT /contracts/:id/vendor-cancel` 엔드포인트 추가
+- [x] 프론트엔드 `contract_service.dart` — `vendorCancelContract()` 메서드 추가
+- [x] 업체 `contract_screen.dart` — 직접 취소 다이얼로그 + API 호출 추가
+- [x] `contract_card.dart` — `onVendorCancelTap` 콜백 + "계약 취소 및 환불" 버튼 추가
+
+**6. 계약 알림 보강 ✅**
+- [x] `contracts.service.ts` — 계약 생성 시 주관사에게도 알림 전송
+- [x] `contracts.service.ts` — 업체 직접 취소 시 주관사에게도 알림 전송
+- [x] 알림 전송 try-catch로 감싸 계약 생성 실패 방지
+
+### 수정 파일: 백엔드 4개 + 프론트엔드 9개 + 위젯 1개 = 총 14개
+
+### 빌드 & 배포
+- [x] TypeScript 에러 0건 / Flutter 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+- [x] GitHub push 완료 (Render 백엔드 자동 배포)
+
+---
+
+### 2026-03-07 — 2차 피드백 잔여 3건 처리
+
+**1. 주관사 아코디언 접힘 문제 수정 ✅ (피드백 #4)**
+- [x] `event_manage_screen.dart` — `_loadProducts()` 새로고침 시 로딩 스피너 제거
+  - 최초 로딩일 때만 스피너 표시, 새로고침 시 기존 화면 유지
+  - `_expandedProductIds` Set으로 아코디언 상태 보존 (기존 구현 활용)
+  - 업체 배정 후에도 아코디언 접히지 않음
+
+**2. 드롭다운 맨윗줄 수정 ✅ (피드백 #9)**
+- [x] `event_manage_screen.dart` — 업체 배정 드롭다운에 현재 선택값 표시
+  - `vendorId`를 제품 데이터에 추가
+  - `value: vendorInList ? currentVendorId : null`로 현재 배정 업체 하이라이트
+  - 나머지 드롭다운(행사 폼, 관리자 웹 등) 전수 검사 → 정상 확인
+
+**3. 장바구니 0원 + v체크 동기화 수정 ✅ (피드백 #12)**
+- [x] `cart_screen.dart` — 가격 안전 캐스팅 (`num→int` 변환)
+  - `(rawPrice is num) ? rawPrice.toInt() : 0` 패턴 적용
+  - `_totalPrice` 합산도 안전 캐스팅
+- [x] `event_detail_screen.dart` — v체크 ID 매핑 강화
+  - `productItemId` + `productItem.id` 이중 확인
+  - 빈 문자열 필터링 추가
+
+### 수정 파일: 프론트엔드 3개
+### 빌드 & 배포
+- [x] TypeScript 에러 0건 / Flutter 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+

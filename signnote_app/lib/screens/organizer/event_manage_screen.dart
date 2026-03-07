@@ -98,8 +98,13 @@ class _OrganizerEventManageScreenState
   }
 
   // 서버에서 품목 목록 가져오기 (1뎁스 + 2뎁스 items 포함)
+  // 새로고침 시 로딩 스피너 없이 데이터만 교체 (아코디언 상태 유지)
   Future<void> _loadProducts() async {
-    setState(() { _isLoading = true; _error = null; });
+    // 최초 로딩일 때만 스피너 표시 (새로고침 시에는 기존 화면 유지)
+    final isInitialLoad = _products.isEmpty;
+    if (isInitialLoad) {
+      setState(() { _isLoading = true; _error = null; });
+    }
 
     final result = await _productService.getProductsByEvent(widget.eventId);
 
@@ -121,6 +126,7 @@ class _OrganizerEventManageScreenState
           return {
             'id': p['id']?.toString() ?? '',
             'category': p['category'] ?? '기타',
+            'vendorId': p['vendorId']?.toString() ?? '', // 업체 ID (드롭다운 값 매칭용)
             'vendorName': p['vendorName'] ?? '',
             'name': p['name'] ?? '품목명 없음',
             'imageUrl': p['image'],
@@ -1327,7 +1333,11 @@ class _OrganizerEventManageScreenState
   // 협력 업체 드롭다운 행 (참여 업체 목록에서 선택)
   Widget _buildVendorDropdownRow(Map<String, dynamic> product, String currentVendorName) {
     final productId = product['id'].toString();
+    final currentVendorId = product['vendorId']?.toString() ?? '';
     final hasVendor = currentVendorName.isNotEmpty;
+
+    // 현재 배정된 업체가 드롭다운 목록에 있는지 확인 (있으면 선택값으로 표시)
+    final vendorInList = hasVendor && _vendors.any((v) => v['id'] == currentVendorId);
 
     return Row(
       children: [
@@ -1346,7 +1356,8 @@ class _OrganizerEventManageScreenState
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
-                value: null, // 항상 hint로 현재 값 표시
+                // 배정된 업체가 목록에 있으면 선택값으로 표시 (드롭다운 첫줄에 현재값 표시)
+                value: vendorInList ? currentVendorId : null,
                 hint: Text(
                   hasVendor ? currentVendorName : '업체 선택',
                   style: TextStyle(

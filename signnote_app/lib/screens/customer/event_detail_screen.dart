@@ -139,8 +139,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         _cartItemIds.clear();
         _cartItemIdMap.clear();
         for (final item in items) {
-          // productItemId(2뎁스)를 우선 사용, 없으면 productId(1뎁스)
-          final itemId = item['productItemId']?.toString() ?? item['productId']?.toString() ?? '';
+          // productItemId(2뎁스)를 우선 사용 — v체크 매칭에 사용
+          final productItemId = item['productItemId']?.toString();
+          // productItem 관계 데이터에서도 ID 추출 (서버가 포함해서 보내줌)
+          final productItemRelId = (item['productItem'] as Map<String, dynamic>?)?['id']?.toString();
+          // 둘 중 유효한 값 사용 (productItemId 우선)
+          final itemId = (productItemId != null && productItemId.isNotEmpty)
+              ? productItemId
+              : (productItemRelId != null && productItemRelId.isNotEmpty)
+                  ? productItemRelId
+                  : item['productId']?.toString() ?? '';
           final cartId = item['id']?.toString() ?? '';
           if (itemId.isNotEmpty) {
             _cartItemIds.add(itemId);

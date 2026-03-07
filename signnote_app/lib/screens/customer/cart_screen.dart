@@ -87,6 +87,9 @@ class _CartScreenState extends State<CartScreen> {
           // 2뎁스 상세품목(productItem)이 있으면 거기서 가격/이름 가져오기
           final productItem = item['productItem'] as Map<String, dynamic>?;
           final product = item['product'] as Map<String, dynamic>?;
+          // 가격: productItem 가격 우선, 없으면 0 (Product 모델에는 price 없음)
+          final rawPrice = productItem?['price'] ?? 0;
+          final price = (rawPrice is num) ? rawPrice.toInt() : 0;
           return {
             'id': item['id']?.toString() ?? '',
             'productId': item['productId']?.toString() ?? '',
@@ -94,7 +97,7 @@ class _CartScreenState extends State<CartScreen> {
             'vendorName': product?['vendorName'] ?? '업체명 없음',
             'productName': productItem?['name'] ?? product?['name'] ?? '상품명 없음',
             'description': productItem?['description'] ?? product?['description'] ?? '',
-            'price': productItem?['price'] ?? product?['price'] ?? 0,
+            'price': price,
             'imageUrl': productItem?['image'] ?? product?['image'],
             'categoryName': product?['name'] ?? '',  // 1뎁스 품목명
           };
@@ -116,7 +119,7 @@ class _CartScreenState extends State<CartScreen> {
   int get _totalPrice {
     return _cartItems
         .where((item) => _selectedIds.contains(item['id']))
-        .fold(0, (sum, item) => sum + (item['price'] as int));
+        .fold(0, (sum, item) => sum + ((item['price'] as num?)?.toInt() ?? 0));
   }
 
   // 계약금 (행사별 비율 적용)
