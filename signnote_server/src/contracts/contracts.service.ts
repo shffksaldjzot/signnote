@@ -98,15 +98,36 @@ export class ContractsService {
       contracts.push(contract);
     }
 
-    // 계약 생성 알림 → 업체에게 전송
+    // 계약 생성 알림 → 업체 + 주관사에게 전송
     for (const contract of contracts) {
-      await this.notifications.send({
-        userId: contract.vendorId,
-        type: NotificationType.CONTRACT_CREATED,
-        title: '새 계약이 들어왔습니다',
-        body: `${user.name}님이 '${(contract as any).product?.name}'을(를) 계약했습니다.`,
-        data: { contractId: contract.id, eventId: contract.eventId },
-      });
+      try {
+        // 업체에게 알림
+        await this.notifications.send({
+          userId: contract.vendorId,
+          type: NotificationType.CONTRACT_CREATED,
+          title: '새 계약이 들어왔습니다',
+          body: `${user.name}님이 '${(contract as any).product?.name}'을(를) 계약했습니다.`,
+          data: { contractId: contract.id, eventId: contract.eventId },
+        });
+
+        // 주관사에게도 알림 전송
+        const event = await this.prisma.event.findUnique({
+          where: { id: contract.eventId },
+          select: { organizerId: true },
+        });
+        if (event) {
+          await this.notifications.send({
+            userId: event.organizerId,
+            type: NotificationType.CONTRACT_CREATED,
+            title: '새 계약이 발생했습니다',
+            body: `${user.name}님이 '${(contract as any).product?.name}'을(를) 계약했습니다.`,
+            data: { contractId: contract.id, eventId: contract.eventId },
+          });
+        }
+      } catch (e) {
+        // 알림 전송 실패해도 계약 생성은 성공으로 처리
+        console.error('알림 전송 실패:', e);
+      }
     }
 
     // 계약 완료된 상품은 장바구니에서 제거
@@ -293,6 +314,76 @@ export class ContractsService {
       body: `'${updatedContract.product?.name}' 계약이 취소되었습니다. 결제금이 환불됩니다.`,
       data: { contractId },
     });
+
+    return updatedContract;
+  }
+
+  // 업체 직접 계약 취소 및 환불 (업체가 호출)
+  // CONFIRMED 또는 PENDING → CANCELLED + 결제 환불 처리
+  async vendorCancel(contractId: string, vendorId: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+      include: { payments: true },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('계약을 찾을 수 없습니다');
+    }
+
+    // 해당 업체의 계약인지 확인
+    if (contract.vendorId !== vendorId) {
+      throw new BadRequestException('본인 상품의 계약만 취소할 수 있습니다');
+    }
+
+    // 이미 취소된 계약은 처리 불가
+    if (contract.status === 'CANCELLED') {
+      throw new BadRequestException('이미 취소된 계약입니다');
+    }
+
+    // 트랜잭션으로 계약 취소 + 결제 환불 동시 처리
+    const updatedContract = await this.prisma.$transaction(async (tx) => {
+      // 1. 계약 상태 → CANCELLED
+      const updated = await tx.contract.update({
+        where: { id: contractId },
+        data: { status: 'CANCELLED' },
+        include: { product: true },
+      });
+
+      // 2. 완료된 결제가 있으면 환불 처리
+      await tx.payment.updateMany({
+        where: {
+          contractId,
+          status: 'COMPLETED',
+        },
+        data: { status: 'REFUNDED' },
+      });
+
+      return updated;
+    });
+
+    // 취소 알림 → 고객에게 전송
+    await this.notifications.send({
+      userId: contract.customerId,
+      type: NotificationType.CANCEL_APPROVED,
+      title: '계약이 취소되었습니다',
+      body: `'${updatedContract.product?.name}' 계약이 업체에 의해 취소되었습니다. 결제금이 환불됩니다.`,
+      data: { contractId, eventId: contract.eventId },
+    });
+
+    // 주관사에게도 취소 알림 전송
+    const event = await this.prisma.event.findUnique({
+      where: { id: contract.eventId },
+      select: { organizerId: true },
+    });
+    if (event) {
+      await this.notifications.send({
+        userId: event.organizerId,
+        type: NotificationType.CANCEL_APPROVED,
+        title: '계약이 취소되었습니다',
+        body: `'${updatedContract.product?.name}' 계약이 업체에 의해 취소되었습니다.`,
+        data: { contractId, eventId: contract.eventId },
+      });
+    }
 
     return updatedContract;
   }

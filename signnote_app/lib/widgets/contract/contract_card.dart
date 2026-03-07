@@ -48,6 +48,7 @@ class ContractCard extends StatelessWidget {
   final VoidCallback? onCancelTap;   // 취소 요청 눌렀을 때 (고객용)
   final VoidCallback? onApproveTap;  // 취소 승인 눌렀을 때 (업체용)
   final VoidCallback? onRejectTap;   // 취소 거부 눌렀을 때 (업체용)
+  final VoidCallback? onVendorCancelTap; // 업체 직접 취소 (업체용)
   final String? category;            // 카테고리 (줄눈 등)
 
   // 업체용 추가 정보
@@ -70,7 +71,7 @@ class ContractCard extends StatelessWidget {
     this.customerName,
     this.customerAddress,
     this.customerPhone,
-  }) : onApproveTap = null, onRejectTap = null;
+  }) : onApproveTap = null, onRejectTap = null, onVendorCancelTap = null;
 
   // 업체용 생성자
   const ContractCard.vendor({
@@ -84,6 +85,7 @@ class ContractCard extends StatelessWidget {
     this.onDetailTap,
     this.onApproveTap,
     this.onRejectTap,
+    this.onVendorCancelTap,
     this.category,
     required this.customerName,
     required this.customerAddress,
@@ -251,6 +253,25 @@ class ContractCard extends StatelessWidget {
                   ),
                 ),
                 child: const Text('취소 요청'),
+              ),
+            ),
+          ],
+          // 업체용: 직접 취소 버튼 (확정/대기 상태일 때)
+          if (onVendorCancelTap != null &&
+              (status == ContractCardStatus.confirmed || status == ContractCardStatus.pending)) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: onVendorCancelTap,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.priceRed,
+                  side: const BorderSide(color: AppColors.priceRed),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('계약 취소 및 환불'),
               ),
             ),
           ],

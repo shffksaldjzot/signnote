@@ -196,7 +196,13 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                       decoration: InputDecoration(
                         hintText: '',
                         suffixText: '동',
+                        filled: true,
+                        fillColor: AppColors.background, // 연회색 배경으로 시인성 향상
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
@@ -209,7 +215,13 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                       decoration: InputDecoration(
                         hintText: '',
                         suffixText: '호',
+                        filled: true,
+                        fillColor: AppColors.background, // 연회색 배경으로 시인성 향상
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),

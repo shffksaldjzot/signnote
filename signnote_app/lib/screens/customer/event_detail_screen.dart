@@ -61,9 +61,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMyInfo();
-    _loadProducts();
+    _initData(); // 내 정보 먼저 가져온 후 품목 로드 (타입 필터링 적용)
     _loadCartItems();
+  }
+
+  // 내 정보 → 품목 로드 순서 보장 (타입 필터링 위해)
+  Future<void> _initData() async {
+    await _loadMyInfo();
+    _loadProducts();
   }
 
   // 내 평형 정보 가져오기

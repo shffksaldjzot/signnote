@@ -36,13 +36,13 @@ export class ProductsService {
       orderBy: { sortOrder: 'asc' },
     });
 
-    // housingType 필터가 있으면 해당 타입 포함된 아이템만
+    // housingType 필터가 있으면 해당 타입 포함된 아이템만 + 빈 품목 제거
     let filtered = products;
     if (housingType) {
       filtered = products.map(p => ({
         ...p,
         items: p.items.filter(item => item.housingTypes.includes(housingType)),
-      }));
+      })).filter(p => p.items.length > 0); // 해당 타입 아이템이 없는 1뎁스 품목 제거
     }
 
     // 업체(VENDOR)가 조회할 때: 다른 업체의 참가비/수수료/가격 숨김

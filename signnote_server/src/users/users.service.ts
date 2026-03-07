@@ -107,6 +107,16 @@ export class UsersService {
       throw new ConflictException('이미 사용 중인 이메일입니다');
     }
 
+    // 같은 전화번호가 있는지 확인
+    if (dto.phone) {
+      const existingPhone = await this.prisma.user.findFirst({
+        where: { phone: dto.phone },
+      });
+      if (existingPhone) {
+        throw new ConflictException('이미 사용 중인 전화번호입니다');
+      }
+    }
+
     // 비밀번호 암호화 (원래 비밀번호를 알 수 없게 변환)
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 

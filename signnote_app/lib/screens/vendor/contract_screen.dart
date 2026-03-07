@@ -169,6 +169,52 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
     }
   }
 
+  // 업체 직접 계약 취소 다이얼로그
+  void _showVendorCancelDialog(Map<String, dynamic> contract) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('계약 취소 및 환불'),
+        content: Text(
+          '${contract['customerName']}님의 \'${contract['productName']}\' 계약을 취소하시겠습니까?\n\n'
+          '취소 시 결제금이 환불 처리됩니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _vendorCancel(contract);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.priceRed),
+            child: const Text('취소 및 환불'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 업체 직접 계약 취소 API 호출
+  Future<void> _vendorCancel(Map<String, dynamic> contract) async {
+    final result = await _contractService.vendorCancelContract(contract['id']);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      _loadContracts();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('계약이 취소되었습니다. 환불이 처리됩니다.')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '계약 취소에 실패했습니다')),
+      );
+    }
+  }
+
   // 취소 거부 API 호출
   Future<void> _rejectCancel(Map<String, dynamic> contract) async {
     final result = await _contractService.rejectCancel(contract['id']);
@@ -284,6 +330,10 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
                     SnackBar(content: Text('${contract['customerName']}님의 ${contract['productName']} 계약')),
                   );
                 },
+                // 확정/대기 상태일 때 업체 직접 취소 버튼 표시
+                onVendorCancelTap: (contract['status'] == 'CONFIRMED' || contract['status'] == 'PENDING')
+                    ? () => _showVendorCancelDialog(contract)
+                    : null,
                 // 취소 요청 상태일 때 승인/거부 버튼 표시
                 onApproveTap: contract['status'] == 'CANCEL_REQUESTED'
                     ? () => _showApproveCancelDialog(contract)

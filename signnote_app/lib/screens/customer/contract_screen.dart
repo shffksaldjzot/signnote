@@ -336,20 +336,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                 ),
                 child: const Text('상세보기', style: TextStyle(fontSize: 13)),
               ),
-              // CONFIRMED 상태일 때만 취소 요청 버튼 표시
-              if (status == 'CONFIRMED') ...[
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: () => _requestCancel(contract),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.priceRed,
-                    side: const BorderSide(color: AppColors.priceRed),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  child: const Text('취소 요청', style: TextStyle(fontSize: 13)),
-                ),
-              ],
+              // 취소는 전화 문의 후 협력업체에서 처리 (고객 직접 취소 불가)
             ],
           ),
         ],

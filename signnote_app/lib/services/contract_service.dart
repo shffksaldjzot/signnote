@@ -127,6 +127,22 @@ class ContractService {
     }
   }
 
+  // 업체 직접 계약 취소 및 환불 (업체: CONFIRMED → CANCELLED)
+  Future<Map<String, dynamic>> vendorCancelContract(String contractId) async {
+    try {
+      final response = await _api.put('/contracts/$contractId/vendor-cancel');
+      return {
+        'success': true,
+        'contract': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '계약 취소에 실패했습니다',
+      };
+    }
+  }
+
   // 취소 요청 승인 (업체: CANCEL_REQUESTED → CANCELLED)
   Future<Map<String, dynamic>> approveCancel(String contractId) async {
     try {

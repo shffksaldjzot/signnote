@@ -224,10 +224,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 에러/안내 메시지 표시
+  // 에러/안내 메시지 표시 (중앙 알림 다이얼로그)
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.warning_amber_rounded, size: 48, color: Colors.orange),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, height: 1.5),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

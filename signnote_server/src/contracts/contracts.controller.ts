@@ -82,6 +82,14 @@ export class ContractsController {
     return this.contractsService.cancel(id, req.user.id);
   }
 
+  // 업체 직접 계약 취소 및 환불 (업체: CONFIRMED → CANCELLED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('VENDOR')
+  @Put(':id/vendor-cancel')
+  async vendorCancel(@Request() req: any, @Param('id') id: string) {
+    return this.contractsService.vendorCancel(id, req.user.id);
+  }
+
   // 취소 요청 승인 (업체: CANCEL_REQUESTED → CANCELLED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('VENDOR')

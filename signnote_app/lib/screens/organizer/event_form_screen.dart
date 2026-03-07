@@ -199,6 +199,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
 
     Map<String, dynamic> result;
 
+    try {
     if (_isEditMode) {
       result = await _eventService.updateEvent(
         widget.event!['id'].toString(),
@@ -268,6 +269,14 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['error'] ?? '처리에 실패했습니다')),
+      );
+    }
+    } catch (e) {
+      // 예상치 못한 오류 처리
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('오류가 발생했습니다: $e')),
       );
     }
   }

@@ -93,6 +93,12 @@ class EventService {
         'success': false,
         'error': e.response?.data['message'] ?? '행사 생성에 실패했습니다',
       };
+    } catch (e) {
+      // 네트워크 에러 등 예상치 못한 오류도 처리
+      return {
+        'success': false,
+        'error': '행사 생성 중 오류가 발생했습니다: $e',
+      };
     }
   }
 
