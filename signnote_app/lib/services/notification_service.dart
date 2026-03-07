@@ -61,6 +61,22 @@ class NotificationService {
     }
   }
 
+  // 특정 행사의 알림 목록
+  Future<Map<String, dynamic>> getNotificationsByEvent(String eventId) async {
+    try {
+      final response = await _api.get('/notifications/event/$eventId');
+      return {
+        'success': true,
+        'notifications': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '알림을 불러올 수 없습니다',
+      };
+    }
+  }
+
   // 알림 읽음 처리
   Future<Map<String, dynamic>> markAsRead(String notificationId) async {
     try {

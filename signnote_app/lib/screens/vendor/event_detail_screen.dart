@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../services/product_service.dart';
 import '../../services/contract_service.dart';
+import '../../services/event_service.dart';
 import '../../utils/image_download.dart';
 import 'product_form_screen.dart';
 import 'contract_detail_screen.dart';
@@ -51,8 +52,12 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
   // 계약 선택 (다운로드용)
   final Set<String> _selectedContractIds = {};
 
+  // 행사 상세 정보 (정보 카드용)
+  Map<String, dynamic>? _eventDetail;
+
   final ProductService _productService = ProductService();
   final ContractService _contractService = ContractService();
+  final EventService _eventService = EventService();
 
   @override
   void initState() {
@@ -60,6 +65,7 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     _tabController = TabController(length: 3, vsync: this);
     _loadProducts();
     _loadContracts();
+    _loadEventDetail();
   }
 
   @override
@@ -148,6 +154,17 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     }
   }
 
+  // 행사 상세 정보 가져오기 (정보 카드용)
+  Future<void> _loadEventDetail() async {
+    final result = await _eventService.getEventDetail(widget.eventId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        _eventDetail = result['event'] as Map<String, dynamic>?;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,8 +190,13 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
             onPressed: () => context.push(AppRoutes.mypage, extra: 'VENDOR'),
           ),
         ],
-        // 3개 탭
-        bottom: TabBar(
+      ),
+      body: Column(
+        children: [
+          // 행사 정보 카드 (제목과 탭 사이)
+          _buildEventInfoCard(),
+          // 3개 탭
+          TabBar(
           controller: _tabController,
           labelColor: AppColors.vendor, // 검정
           unselectedLabelColor: AppColors.textSecondary,
@@ -187,16 +209,82 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
             Tab(text: '계약함'),
             Tab(text: '알림'),
           ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildProductTab(),
-          _buildContractTab(),
-          _buildNotificationTab(),
+          ),
+          // 탭 내용
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildProductTab(),
+                _buildContractTab(),
+                _buildNotificationTab(),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  // 행사 정보 카드 (제목과 탭 사이) — 주관사 이름 포함
+  Widget _buildEventInfoCard() {
+    if (_eventDetail == null) return const SizedBox.shrink();
+
+    final organizerName = _eventDetail!['organizer']?['name'] ?? '';
+    final siteName = _eventDetail!['siteName'] ?? '';
+    final startDate = _eventDetail!['startDate']?.toString().substring(0, 10) ?? '';
+    final endDate = _eventDetail!['endDate']?.toString().substring(0, 10) ?? '';
+    final unitCount = _eventDetail!['unitCount'] ?? 0;
+    final housingTypes = (_eventDetail!['housingTypes'] as List?)?.join(', ') ?? '';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5), // 연한 회색 배경 (업체용)
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (organizerName.isNotEmpty) ...[
+            _vendorInfoRow('주관사', organizerName),
+            const SizedBox(height: 6),
+          ],
+          if (siteName.isNotEmpty) ...[
+            _vendorInfoRow('현장명', siteName),
+            const SizedBox(height: 6),
+          ],
+          if (startDate.isNotEmpty)
+            _vendorInfoRow('기  간', '$startDate ~ $endDate'),
+          if (unitCount > 0) ...[
+            const SizedBox(height: 6),
+            _vendorInfoRow('세대수', '${NumberFormat('#,###').format(unitCount)} 세대'),
+          ],
+          if (housingTypes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _vendorInfoRow('평  형', housingTypes),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // 정보 카드 행 (라벨 + 값)
+  Widget _vendorInfoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(value, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+        ),
+      ],
     );
   }
 

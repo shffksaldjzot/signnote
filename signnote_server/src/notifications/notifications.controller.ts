@@ -33,6 +33,13 @@ export class NotificationsController {
     return this.notificationsService.findByUser(req.user.id);
   }
 
+  // 특정 행사의 알림 목록
+  @UseGuards(JwtAuthGuard)
+  @Get('event/:eventId')
+  async findByEvent(@Request() req: any, @Param('eventId') eventId: string) {
+    return this.notificationsService.findByEvent(req.user.id, eventId);
+  }
+
   // 안 읽은 알림 개수
   @UseGuards(JwtAuthGuard)
   @Get('unread')

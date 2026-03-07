@@ -8,6 +8,7 @@ import '../../widgets/common/app_button.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../services/user_service.dart';
+import '../../services/event_service.dart';
 
 // ============================================
 // 참여 코드 입장 화면 (Entry Code Screen)
@@ -46,6 +47,7 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
   bool _isLoading = false;
 
   final AuthService _authService = AuthService();
+  final EventService _eventService = EventService();
 
   @override
   void initState() {
@@ -133,19 +135,144 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
       );
 
       // 역할별 홈 화면으로 이동 (GoRouter)
-      // 업체도 품목 선택 없이 바로 홈으로 (품목 배정은 주관사가 함)
       if (widget.role == AppConstants.roleOrganizer) {
         context.go(AppRoutes.organizerHome);
       } else if (widget.role == AppConstants.roleVendor) {
         context.go(AppRoutes.vendorHome);
       } else {
-        context.go(AppRoutes.customerHome);
+        // 고객: 동호수/타입 선택 팝업 표시 후 홈으로 이동
+        final event = result['event'] as Map<String, dynamic>?;
+        final eventId = event?['eventId']?.toString() ?? '';
+        final eventTitle = event?['title']?.toString() ?? '행사';
+        final housingTypes = List<String>.from(event?['housingTypes'] ?? []);
+
+        if (mounted && housingTypes.isNotEmpty) {
+          _showHousingInfoDialog(eventId, eventTitle, housingTypes);
+        } else {
+          context.go(AppRoutes.customerHome);
+        }
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['error'] ?? '유효하지 않은 참여 코드입니다')),
       );
     }
+  }
+
+  // 고객용 동호수/타입 선택 팝업 (디자인: 2.고객용-평형 선택.jpg)
+  void _showHousingInfoDialog(String eventId, String eventTitle, List<String> housingTypes) {
+    final dongController = TextEditingController();
+    final hoController = TextEditingController();
+    String? selectedType;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            24, 24, 24,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(eventTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 20),
+              const Text('동호수를 입력해 주세요.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: dongController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: '',
+                        suffixText: '동',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: hoController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: '',
+                        suffixText: '호',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text('타입을 선택해 주세요.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              ...housingTypes.map((type) => RadioListTile<String>(
+                title: Text('$type 타입'),
+                value: type,
+                groupValue: selectedType,
+                onChanged: (v) => setSheetState(() => selectedType = v),
+                activeColor: AppColors.primary,
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              )),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (dongController.text.isEmpty || hoController.text.isEmpty) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('동호수를 입력해 주세요')),
+                      );
+                      return;
+                    }
+                    if (selectedType == null) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('타입을 선택해 주세요')),
+                      );
+                      return;
+                    }
+
+                    // 서버에 동호수/타입 정보 저장
+                    await _eventService.updateParticipantInfo(
+                      eventId,
+                      dong: dongController.text,
+                      ho: hoController.text,
+                      housingType: selectedType,
+                    );
+
+                    if (!mounted) return;
+                    Navigator.of(ctx).pop();
+                    context.go(AppRoutes.customerHome);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('완료'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // 역할에 따른 뱃지 텍스트

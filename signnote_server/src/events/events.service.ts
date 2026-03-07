@@ -207,13 +207,16 @@ export class EventsService {
       orderBy: { joinedAt: 'asc' },
     });
 
-    // user 정보를 플랫하게 반환
+    // user 정보 + 동호수/타입을 플랫하게 반환
     return participants.map((p) => ({
       id: p.user.id,
       name: p.user.name,
       email: p.user.email,
       phone: p.user.phone,
       role: p.user.role,
+      dong: p.dong,
+      ho: p.ho,
+      housingType: p.housingType,
       joinedAt: p.joinedAt,
     }));
   }

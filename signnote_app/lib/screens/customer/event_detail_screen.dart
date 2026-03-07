@@ -443,12 +443,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      children: _products.map((product) => _buildCategoryAccordion(product)).toList(),
+      children: _products.asMap().entries.map((entry) => _buildCategoryAccordion(entry.value, index: entry.key)).toList(),
     );
   }
 
   // 1뎁스 카테고리 아코디언 (줄눈, 나노코팅 등)
-  Widget _buildCategoryAccordion(Map<String, dynamic> product) {
+  Widget _buildCategoryAccordion(Map<String, dynamic> product, {int index = 0}) {
     final items = product['items'] as List<Map<String, dynamic>>? ?? [];
     final category = product['category'] as String? ?? product['name'];
 
@@ -465,7 +465,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         title: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        initiallyExpanded: false, // 기본 접힘 상태
+        initiallyExpanded: index == 0, // 첫번째 품목만 펼침
         children: [
           if (items.isEmpty)
             const Padding(

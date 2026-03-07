@@ -99,6 +99,18 @@ export class NotificationsService {
     });
   }
 
+  // ── 특정 행사의 알림 목록 (data.eventId로 필터) ──
+  async findByEvent(userId: string, eventId: string) {
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    // data JSON 안의 eventId로 필터링
+    return notifications.filter((n) => (n.data as any)?.eventId === eventId);
+  }
+
   // ── 안 읽은 알림 개수 ──
   async getUnreadCount(userId: string) {
     return this.prisma.notification.count({

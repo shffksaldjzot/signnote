@@ -276,12 +276,12 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
       ),
       itemCount: _events.length + 1,
       itemBuilder: (context, index) {
-        // 맨 뒤에 + 추가 카드
-        if (index == _events.length) {
+        // 맨 앞에 + 추가 카드
+        if (index == 0) {
           return AddEventCard(onTap: _showEntryCodePopup);
         }
 
-        final event = _events[index];
+        final event = _events[index - 1];
         return EventCard(
           title: event['title'],
           coverImageUrl: event['coverImageUrl'],

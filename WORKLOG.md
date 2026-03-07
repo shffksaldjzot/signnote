@@ -1559,3 +1559,56 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] TypeScript 에러 0건 / Flutter 에러 0건
 - [x] Cloudflare Pages 배포 완료
 
+---
+
+### 2026-03-07 — 피드백 7건 (2차): 업체/고객/주관사 기능 개선
+
+> **FEEDBACK.md 35~41번 라인 — 2차 피드백 7건**
+
+**#1. 협력업체 입장코드 확인/조치 ✅**
+- `home_screen.dart` (주관사) — 행사 목록 매핑에 `vendorEntryCode` 추가
+- 초대 다이얼로그에서 협력업체 코드가 `------` 대신 실제 코드 표시
+
+**#2. 협력업체 홈 행사추가 카드 맨앞 ✅**
+- `home_screen.dart` (업체) — `index == _events.length` → `index == 0` 변경
+- + 카드가 그리드 맨 앞에 표시, 행사는 `_events[index - 1]`로 접근
+
+**#3. 협력업체 행사상세에 행사정보 카드 + 주관사 이름 ✅**
+- `event_detail_screen.dart` (업체) — `EventService.getEventDetail()` 연동
+- AppBar 아래, 탭바 위에 행사 정보 카드 추가 (주관사명/현장명/기간/세대수/평형)
+- body를 `Column[infoCard, TabBar, Expanded(TabBarView)]` 구조로 변경
+
+**#4. 고객 동호수/타입 입력 페이지 ✅**
+- `entry_code_screen.dart` — 고객 입장 성공 시 동호수/타입 선택 팝업 표시
+- housingTypes가 있으면 라디오 선택 → `EventService.updateParticipantInfo()` 호출
+- `customer/home_screen.dart`에 이미 구현된 동일 기능과 일관성 유지
+
+**#5. 구매품목리스트 첫번째 아코디언만 펼치기 ✅**
+- `event_detail_screen.dart` (고객) — `_buildCategoryAccordion`에 `index` 파라미터 추가
+- `initiallyExpanded: false` → `initiallyExpanded: index == 0`
+
+**#6. 주관사 입금/미입금 배지 위치 변경 ✅**
+- `event_manage_screen.dart` — 배지를 화살표 옆에서 품목 이름 바로 옆으로 이동
+- title Row를 `Expanded(Row[Flexible(Text), badge])` + arrows 구조로 변경
+
+**#7. 주관사 고객관리/계약함/알림 탭 API 연동 ✅ (가장 큰 작업)**
+
+*백엔드:*
+- `events.service.ts` — `getParticipants()`에 dong/ho/housingType 반환 추가
+- `notifications.service.ts` — `findByEvent()` 메서드 추가 (data.eventId 필터)
+- `notifications.controller.ts` — `GET /notifications/event/:eventId` 엔드포인트 추가
+
+*프론트엔드:*
+- `notification_service.dart` — `getNotificationsByEvent()` 메서드 추가
+- `event_manage_screen.dart` — ContractService, NotificationService import 추가
+- 고객관리 탭: 실제 참여 고객 목록 (이름/동/호/연락처) API 연동 + 총 고객 수 표시
+- 계약함 탭: 실제 계약 목록 API 연동 (집계: 품목수/계약건/취소요청/취소완료/총수입금액)
+- 알림 탭: 실제 알림 목록 API 연동 (타입별 아이콘/읽음처리/날짜표시)
+
+### 수정 파일: 백엔드 3개 + 프론트엔드 6개
+
+### 빌드 & 배포
+- [x] TypeScript 에러 0건 / Flutter 에러 0건
+- [x] Cloudflare Pages 배포 완료
+- [x] NestJS 서버 재시작 완료
+

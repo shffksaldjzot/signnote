@@ -99,6 +99,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
                 ? DateTime.tryParse(e['endDate'].toString())
                 : null,
             'entryCode': e['entryCode']?.toString(),
+            'vendorEntryCode': e['vendorEntryCode']?.toString(),
           };
         }).toList();
         _isLoading = false;
