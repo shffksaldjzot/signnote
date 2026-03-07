@@ -5,21 +5,18 @@ import '../../../services/user_service.dart';
 import '../../../services/api_service.dart';
 
 // ============================================
-// 사용자 관리 페이지 (Users Page)
+// 업체 관리 페이지 (Users Page)
+//
+// 주관사 + 협력업체만 표시 (고객은 '고객 관리' 페이지로 분리)
 //
 // 구조:
 // ┌─ 역할 탭 ──────────────────────────────────┐
-// | [전체]  [고객]  [업체]  [주관사]              |
+// | [전체]  [업체]  [주관사]                      |
 // └────────────────────────────────────────────┘
 //
 // ┌─ 사용자 테이블 ─────────────────────────────┐
 // | 이름 | 이메일 | 전화번호 | 역할 | 승인 | 가입일 | 관리 |
 // └────────────────────────────────────────────┘
-//
-// 기능:
-//   - 관리자: 주관사+협력업체 전체 열람, 승인/거부 가능
-//   - 주관사: 협력업체 정보만 열람 가능
-//   - 사용자 상세보기 (사업자등록번호, 사업자등록증 이미지 등)
 // ============================================
 
 class UsersPage extends StatefulWidget {
@@ -94,11 +91,13 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
-  // 검색어로 필터링된 사용자 목록
+  // 검색어로 필터링된 사용자 목록 (고객 제외)
   List<dynamic> get _filteredUsers {
-    if (_searchQuery.isEmpty) return _users;
+    // 고객은 '고객 관리' 페이지로 분리 — 여기서는 업체+주관사만
+    var result = _users.where((u) => u['role'] != 'CUSTOMER').toList();
+    if (_searchQuery.isEmpty) return result;
     final query = _searchQuery.toLowerCase();
-    return _users.where((u) {
+    return result.where((u) {
       final name = (u['name'] ?? '').toString().toLowerCase();
       final email = (u['email'] ?? '').toString().toLowerCase();
       final phone = (u['phone'] ?? '').toString().toLowerCase();
@@ -561,7 +560,7 @@ class _UsersPageState extends State<UsersPage> {
         children: [
           // ── 페이지 제목 ──
           const Text(
-            '사용자 관리',
+            '업체 관리',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
@@ -601,14 +600,9 @@ class _UsersPageState extends State<UsersPage> {
       ),
       child: Row(
         children: [
-          // 역할 필터 탭
-          // 주관사는 업체 탭만 표시, 관리자는 전체 표시
-          if (_isAdmin) ...[
-            _buildRoleTab(null, '전체'),
-            const SizedBox(width: 8),
-            _buildRoleTab('CUSTOMER', '고객'),
-            const SizedBox(width: 8),
-          ],
+          // 역할 필터 탭 (업체+주관사만, 고객은 '고객 관리' 페이지에서)
+          _buildRoleTab(null, '전체'),
+          const SizedBox(width: 8),
           _buildRoleTab('VENDOR', '업체'),
           if (_isAdmin) ...[
             const SizedBox(width: 8),

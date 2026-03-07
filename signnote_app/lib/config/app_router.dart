@@ -15,10 +15,9 @@ import '../screens/organizer/web/web_shell.dart';
 import '../screens/organizer/web/dashboard_page.dart';
 import '../screens/organizer/web/events_page.dart';
 import '../screens/organizer/web/event_detail_page.dart';
-import '../screens/organizer/web/contracts_page.dart';
-import '../screens/organizer/web/products_page.dart';
+import '../screens/organizer/web/product_detail_page.dart';
 import '../screens/organizer/web/users_page.dart';
-import '../screens/organizer/web/settlements_page.dart';
+import '../screens/organizer/web/customers_page.dart';
 import '../screens/organizer/web/logs_page.dart';
 import '../screens/organizer/web/mypage_page.dart';
 
@@ -96,23 +95,23 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const OrganizerHomeScreen(),
     ),
 
-    // ── 관리자 PC 웹 대시보드 (ADMIN 전용) ──
+    // ── 관리자 PC 웹 대시보드 (ADMIN + ORGANIZER) ──
     // ShellRoute로 WebShell(사이드바) 안에 각 페이지 표시
     ShellRoute(
       navigatorKey: _shellNavigatorKey,
       builder: (context, state, child) => WebShell(child: child),
       routes: [
-        // 대시보드
+        // 대시보드 (통계 요약)
         GoRoute(
           path: AppRoutes.organizerDashboard,
           builder: (context, state) => const DashboardPage(),
         ),
-        // 행사 관리
+        // 행사 관리 (목록)
         GoRoute(
           path: AppRoutes.organizerWebEvents,
           builder: (context, state) => const EventsPage(),
         ),
-        // 행사 상세
+        // 행사 상세 (2뎁스 — 5탭)
         GoRoute(
           path: AppRoutes.organizerWebEventDetail,
           builder: (context, state) {
@@ -120,25 +119,24 @@ final GoRouter appRouter = GoRouter(
             return EventDetailPage(eventId: id);
           },
         ),
-        // 계약 현황
+        // 품목 상세 (3뎁스 — 역할별 뷰)
         GoRoute(
-          path: AppRoutes.organizerWebContracts,
-          builder: (context, state) => const ContractsPage(),
+          path: AppRoutes.organizerWebProductDetail,
+          builder: (context, state) {
+            final eventId = state.pathParameters['eventId'] ?? '';
+            final productId = state.pathParameters['productId'] ?? '';
+            return ProductDetailPage(eventId: eventId, productId: productId);
+          },
         ),
-        // 품목 관리
-        GoRoute(
-          path: AppRoutes.organizerWebProducts,
-          builder: (context, state) => const ProductsPage(),
-        ),
-        // 파트너 관리
+        // 업체 관리 (주관사+협력업체)
         GoRoute(
           path: AppRoutes.organizerWebUsers,
           builder: (context, state) => const UsersPage(),
         ),
-        // 정산 관리
+        // 고객 관리 (행사별)
         GoRoute(
-          path: AppRoutes.organizerWebSettlements,
-          builder: (context, state) => const SettlementsPage(),
+          path: AppRoutes.organizerWebCustomers,
+          builder: (context, state) => const CustomersPage(),
         ),
         // 활동 로그 (관리자 전용)
         GoRoute(

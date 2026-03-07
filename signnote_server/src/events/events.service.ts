@@ -77,7 +77,7 @@ export class EventsService {
         organizerId,
         contractMethod: dto.contractMethod ?? 'online',
         siteName: dto.siteName,
-        unitCount: dto.unitCount,
+        unitCount: dto.unitCount ?? 0,
         moveInDate: dto.moveInDate ? new Date(dto.moveInDate) : null,
         housingTypes: dto.housingTypes,
         coverImage: dto.coverImage,

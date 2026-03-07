@@ -11,13 +11,12 @@ import '../../../services/api_service.dart';
 // 구조:
 // +------------------+---------------------------+
 // |  Signnote 로고    |                           |
-// |  [주관사] 뱃지    |   오른쪽에 각 페이지 내용   |
+// |  [관리자] 뱃지    |   오른쪽에 각 페이지 내용   |
 // |                  |                           |
 // |  대시보드         |                           |
 // |  행사 관리        |                           |
-// |  계약 현황        |                           |
-// |  품목 관리        |                           |
-// |  사용자 관리      |                           |
+// |  업체 관리        |                           |
+// |  고객 관리        |                           |
 // |  ─────────      |                           |
 // |  로그아웃         |                           |
 // +------------------+---------------------------+
@@ -63,10 +62,8 @@ class _SidebarState extends State<_Sidebar> {
   static const _allMenuItems = [
     _MenuItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: '대시보드', path: AppRoutes.organizerDashboard, adminOnly: false),
     _MenuItem(icon: Icons.event_outlined, activeIcon: Icons.event, label: '행사 관리', path: AppRoutes.organizerWebEvents, adminOnly: false),
-    _MenuItem(icon: Icons.description_outlined, activeIcon: Icons.description, label: '계약 현황', path: AppRoutes.organizerWebContracts, adminOnly: false),
-    _MenuItem(icon: Icons.inventory_2_outlined, activeIcon: Icons.inventory_2, label: '품목 관리', path: AppRoutes.organizerWebProducts, adminOnly: false),
-    _MenuItem(icon: Icons.people_outline, activeIcon: Icons.people, label: '사용자 관리', path: AppRoutes.organizerWebUsers, adminOnly: false),
-    _MenuItem(icon: Icons.account_balance_wallet_outlined, activeIcon: Icons.account_balance_wallet, label: '정산 관리', path: AppRoutes.organizerWebSettlements, adminOnly: false),
+    _MenuItem(icon: Icons.business_outlined, activeIcon: Icons.business, label: '업체 관리', path: AppRoutes.organizerWebUsers, adminOnly: false),
+    _MenuItem(icon: Icons.people_outline, activeIcon: Icons.people, label: '고객 관리', path: AppRoutes.organizerWebCustomers, adminOnly: false),
     _MenuItem(icon: Icons.history_outlined, activeIcon: Icons.history, label: '활동 로그', path: AppRoutes.organizerWebLogs, adminOnly: true),
     _MenuItem(icon: Icons.person_outline, activeIcon: Icons.person, label: '마이페이지', path: AppRoutes.organizerWebMypage, adminOnly: false),
   ];
@@ -145,7 +142,9 @@ class _SidebarState extends State<_Sidebar> {
           // ── 메뉴 항목들 ──
           ...List.generate(_menuItems.length, (index) {
             final item = _menuItems[index];
-            final isActive = currentPath.startsWith(item.path);
+            // 행사 상세/품목 상세 페이지에서도 "행사 관리" 메뉴가 활성화되도록
+            final isActive = currentPath.startsWith(item.path) ||
+                (item.path == AppRoutes.organizerWebEvents && currentPath.startsWith('/admin/events'));
             return _buildMenuItem(
               context: context,
               icon: isActive ? item.activeIcon : item.icon,
