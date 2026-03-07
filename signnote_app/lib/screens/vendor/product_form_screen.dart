@@ -317,6 +317,8 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
           label: Text(type),
           selected: isSelected,
           showCheckmark: false, // V자 대신 색상만 변경
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, // 선택 시 크기 변동 방지
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           onSelected: (selected) {
             setState(() {
               if (selected) {
@@ -327,7 +329,6 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
             });
           },
           selectedColor: AppColors.vendor.withValues(alpha: 0.12),
-          checkmarkColor: AppColors.vendor,
           labelStyle: TextStyle(
             color: isSelected ? AppColors.vendor : AppColors.textSecondary,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,

@@ -87,42 +87,6 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     return grouped;
   }
 
-  // 취소 요청
-  Future<void> _requestCancel(Map<String, dynamic> contract) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('취소 요청'),
-        content: Text("'${contract['productName']}' 계약을 취소 요청하시겠습니까?\n\n업체가 승인하면 취소가 완료됩니다."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.priceRed),
-            child: const Text('취소 요청'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    final result = await _contractService.cancelContract(contract['id']);
-    if (!mounted) return;
-
-    if (result['success'] == true) {
-      setState(() => contract['status'] = 'CANCEL_REQUESTED');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('취소 요청이 완료되었습니다')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['error'] ?? '취소 요청 실패')),
-      );
-    }
-  }
-
   // 탭 클릭 시 화면 이동
   void _onTabChanged(int index) {
     if (index == _currentTabIndex) return;

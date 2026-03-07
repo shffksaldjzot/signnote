@@ -1682,3 +1682,77 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] TypeScript 에러 0건 / Flutter 에러 0건
 - [x] Cloudflare Pages 프론트엔드 배포 완료
 
+---
+
+### 2026-03-07 — QA 전체 점검 + 버그/이슈 일괄 수정
+
+**QA 전체 점검 후 발견된 이슈 일괄 처리**
+
+**Critical 수정 (4건) ✅**
+- [x] `create-event.dto.ts` — `depositRate` 필드 추가 (`@IsOptional() @IsNumber()`)
+  - 계약금 비율(30% 등)을 프론트에서 서버로 저장할 수 있게 됨
+- [x] `create-event.dto.ts` — `unitCount` 필수→선택으로 변경 (프론트 폼과 일치)
+- [x] `events.service.ts` — `create()` + `update()` 메서드에 `depositRate` 반영
+- [x] `login_screen.dart` — `setState` 전에 `mounted` 체크 (크래시 방지)
+- [x] `cart_screen.dart` — `setState` 전에 `mounted` 체크 (크래시 방지)
+
+**Important 수정 (3건) ✅**
+- [x] `event_detail_screen.dart` — 장바구니 추가 실패 시 v체크 롤백 처리
+- [x] `contract_screen.dart` — 미사용 `_requestCancel()` 코드 제거 (피드백 #5로 고객 직접 취소 삭제됨)
+- [x] `product_form_screen.dart` — 타입 선택 칩 크기 변동 방지 (고정 패딩 + shrinkWrap)
+
+**피드백 잔여 처리 (3건) ✅**
+- [x] 피드백 #1: 한글 폰트 깨짐 → `index.html` 로딩 화면이 폰트 로딩 완료까지 유지되도록 개선
+  - `document.fonts.ready` + `flutter-first-frame` 이벤트 동시 대기
+- [x] 피드백 #7: 타입 칩 V자/크기 변경 → `showCheckmark: false` + 고정 패딩
+- [x] 피드백 #8: 미배정 업체 품목추가 알림 → 이전 세션에서 이미 구현됨 확인
+
+### 수정 파일
+**백엔드 (2개):** create-event.dto.ts, events.service.ts
+**프론트엔드 (6개):** login_screen.dart, cart_screen.dart, event_detail_screen.dart, contract_screen.dart, product_form_screen.dart, index.html
+
+### 빌드 & 배포
+- [x] Flutter 빌드 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+- [x] 백엔드 변경사항 커밋 (Render.com 자동 배포)
+
+---
+
+### 2026-03-07 — 피드백 5건 처리 + 6번 TODO 등록
+
+**1. 협력업체 행사정보 카드 스크롤 숨기기 ✅**
+- [x] `vendor/event_detail_screen.dart` — `_showInfoCard` + `AnimatedSize` + `_handleScrollNotification` 추가
+  - 주관사와 동일한 패턴 (아래로 스크롤 → 카드 숨김, 위로 → 카드 표시)
+  - `NotificationListener<ScrollNotification>`으로 `TabBarView` 감싸기
+
+**2. 초대 팝업 코드복사 + 업체코드 수정 ✅**
+- [x] `organizer/event_manage_screen.dart` — 코드복사 아이콘 터치영역 확대
+  - `GestureDetector`에 `behavior: HitTestBehavior.opaque` + `Padding(8px)` 추가
+- [x] 업체코드: `_eventDetail`에서 `vendorEntryCode`를 우선 가져오도록 수정
+  - `widget.vendorEntryCode` → `_eventDetail?['vendorEntryCode'] ?? widget.vendorEntryCode`
+
+**3. 행사 추가 작성완료 무반응 ✅**
+- [x] 근본 원인: NestJS `forbidNonWhitelisted: true` + DTO에 `depositRate` 필드 누락 → 서버 400 에러
+  - 이전 작업에서 DTO에 `depositRate` 추가 + `unitCount` optional 변경 완료
+- [x] `organizer/event_form_screen.dart` — 에러 표시를 SnackBar → AlertDialog로 변경 (눈에 잘 띄게)
+
+**4. 적용 타입 정렬 ✅**
+- [x] `organizer/event_form_screen.dart` — `_sortTypes()` 메서드 추가
+  - 숫자 부분 추출 → 숫자 오름차순 → 같으면 알파벳순 (59A→59B→74A→84A)
+  - `_addType()` 후 자동 정렬 + `initState`에서도 기존 타입 정렬
+
+**5. 고객 프로필에서 타입 변경 드롭다운 ✅**
+- [x] `common/profile_edit_screen.dart` — 평형 타입 드롭다운 추가
+  - 행사 상세 API에서 `housingTypes` 배열 로드 → 드롭다운 선택지로 사용
+  - 저장 시 `updateParticipantInfo()`에 `housingType` 함께 전송
+
+**6. 어드민 페이지 전면 재구성 📌TODO**
+- FEEDBACK.md에 상세 계획 등록 (다음 세션에서 진행)
+
+### 수정 파일
+**프론트엔드 (4개):** vendor/event_detail_screen.dart, organizer/event_manage_screen.dart, organizer/event_form_screen.dart, common/profile_edit_screen.dart
+
+### 빌드 & 배포
+- [x] Flutter 빌드 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+

@@ -9,6 +9,7 @@ import {
   IsDateString,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   Min,
@@ -27,9 +28,10 @@ export class CreateEventDto {
   @IsString()
   siteName?: string;                      // 현장명
 
+  @IsOptional()
   @IsInt()
   @Min(1, { message: '세대수는 1 이상이어야 합니다' })
-  unitCount: number;                      // 세대수
+  unitCount?: number;                     // 세대수 (선택)
 
   @IsOptional()
   @IsDateString({}, { message: '올바른 날짜 형식이 아닙니다' })
@@ -60,4 +62,8 @@ export class CreateEventDto {
   @IsOptional()
   @IsBoolean()
   allowOnlineContract?: boolean;          // 취소기간에도 온라인 계약 허용?
+
+  @IsOptional()
+  @IsNumber()
+  depositRate?: number;                   // 계약금 비율 (0.0 ~ 1.0, 기본 0.3 = 30%)
 }

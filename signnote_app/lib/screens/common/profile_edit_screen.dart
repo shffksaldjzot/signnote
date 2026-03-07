@@ -55,6 +55,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   bool _isSaving = false;
   String? _eventId; // 고객이 참여 중인 행사 ID (동/호수 저장용)
 
+  // 고객 전용: 평형 타입 드롭다운
+  String? _selectedHousingType;
+  List<String> _availableHousingTypes = [];
+
   // 협력업체 또는 주관사인지 확인
   bool get _isBusinessRole =>
       widget.role == 'VENDOR' || widget.role == 'ORGANIZER';
@@ -88,6 +92,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
     if (result['success'] == true) {
       final user = result['user'];
+      // 고객: 행사의 가용 타입 목록 미리 로드
+      final events = user['participatedEvents'] as List? ?? [];
+      if (widget.role == 'CUSTOMER' && events.isNotEmpty) {
+        final evtId = events.first['eventId']?.toString();
+        if (evtId != null) {
+          _loadAvailableHousingTypes(evtId);
+        }
+      }
       setState(() {
         _nameController.text = user['name'] ?? '';
         _phoneController.text = user['phone'] ?? '';
@@ -95,13 +107,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         _businessNumberController.text = user['businessNumber'] ?? '';
         _businessAddressController.text = user['businessAddress'] ?? '';
 
-        // 고객인 경우 참여 행사의 동/호수 설정
+        // 고객인 경우 참여 행사의 동/호수/타입 설정
         final events = user['participatedEvents'] as List? ?? [];
         if (events.isNotEmpty) {
           final firstEvent = events.first;
           _dongController.text = firstEvent['dong'] ?? '';
           _hoController.text = firstEvent['ho'] ?? '';
           _eventId = firstEvent['eventId'];
+          _selectedHousingType = firstEvent['housingType']?.toString();
         }
 
         _isLoading = false;
@@ -112,6 +125,21 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result['error'] ?? '프로필 정보를 불러올 수 없습니다')),
         );
+      }
+    }
+  }
+
+  // 행사의 가용 평형 타입 목록 가져오기
+  Future<void> _loadAvailableHousingTypes(String eventId) async {
+    final result = await _eventService.getEventDetail(eventId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      final event = result['event'] as Map<String, dynamic>? ?? {};
+      final types = event['housingTypes'] as List?;
+      if (types != null) {
+        setState(() {
+          _availableHousingTypes = List<String>.from(types);
+        });
       }
     }
   }
@@ -178,12 +206,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         await ApiService().saveUserInfo(Map<String, dynamic>.from(user));
       }
 
-      // 고객이 동/호수 변경한 경우 별도로 저장
+      // 고객이 동/호수/타입 변경한 경우 별도로 저장
       if (widget.role == 'CUSTOMER' && _eventId != null) {
         await _eventService.updateParticipantInfo(
           _eventId!,
           dong: _dongController.text.trim(),
           ho: _hoController.text.trim(),
+          housingType: _selectedHousingType,
         );
       }
 
@@ -305,6 +334,32 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ──── 평형 타입 (드롭다운) ────
+                    const _SectionLabel(text: '평형 타입'),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _availableHousingTypes.contains(_selectedHousingType)
+                              ? _selectedHousingType
+                              : null,
+                          hint: const Text('타입 선택', style: TextStyle(color: AppColors.textHint)),
+                          isExpanded: true,
+                          items: _availableHousingTypes.map((type) {
+                            return DropdownMenuItem(value: type, child: Text(type));
+                          }).toList(),
+                          onChanged: (v) => setState(() => _selectedHousingType = v),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 20),
                   ],

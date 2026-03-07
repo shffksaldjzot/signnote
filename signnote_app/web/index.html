@@ -88,22 +88,37 @@
 
   <!-- Flutter 앱이 렌더링되면 로딩 화면 숨기기 -->
   <script>
-    // Flutter가 첫 프레임을 그리면 로딩 화면 제거
+    // 로딩 화면 제거 함수
+    function hideLoadingScreen() {
+      var loader = document.getElementById('loading-screen');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(function() { loader.remove(); }, 300);
+      }
+    }
+
+    // Flutter 첫 프레임 + 폰트 로딩 모두 완료 후 로딩 화면 제거
+    var flutterReady = false;
+    var fontsReady = false;
+
+    function checkAllReady() {
+      if (flutterReady && fontsReady) hideLoadingScreen();
+    }
+
+    // Flutter가 첫 프레임을 그리면
     window.addEventListener('flutter-first-frame', function() {
-      var loader = document.getElementById('loading-screen');
-      if (loader) {
-        loader.style.opacity = '0';
-        setTimeout(function() { loader.remove(); }, 300);
-      }
+      flutterReady = true;
+      checkAllReady();
     });
-    // 안전장치: 10초 후에도 로딩 화면이 남아있으면 강제 제거
-    setTimeout(function() {
-      var loader = document.getElementById('loading-screen');
-      if (loader) {
-        loader.style.opacity = '0';
-        setTimeout(function() { loader.remove(); }, 300);
-      }
-    }, 10000);
+
+    // 브라우저 폰트(Inter + Noto Sans KR) 로딩 완료 시
+    document.fonts.ready.then(function() {
+      fontsReady = true;
+      checkAllReady();
+    });
+
+    // 안전장치: 8초 후에도 로딩 화면이 남아있으면 강제 제거
+    setTimeout(function() { hideLoadingScreen(); }, 8000);
   </script>
 </body>
 </html>

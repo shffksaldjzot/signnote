@@ -252,9 +252,9 @@ class _CartScreenState extends State<CartScreen> {
       items: selectedItems,
     );
 
-    setState(() => _isContractLoading = false);
-
+    // 화면이 아직 살아있는지 확인 후 setState 호출 (크래시 방지)
     if (!mounted) return;
+    setState(() => _isContractLoading = false);
 
     if (result['success']) {
       final contracts = List<Map<String, dynamic>>.from(result['contracts']);

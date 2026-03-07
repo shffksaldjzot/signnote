@@ -65,9 +65,9 @@ class _LoginScreenState extends State<LoginScreen> {
     // 서버에 로그인 요청
     final result = await _authService.login(email, password);
 
-    setState(() => _isLoading = false);
-
+    // 화면이 아직 살아있는지 확인 후 setState 호출 (크래시 방지)
     if (!mounted) return;
+    setState(() => _isLoading = false);
 
     if (result['success'] == true) {
       // 로그인 성공 → 역할 + 화면 크기에 따라 분기

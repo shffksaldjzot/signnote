@@ -1245,9 +1245,9 @@ class _OrganizerEventManageScreenState
 
   // 초대 다이얼로그 (고객 URL/QR + 코드 / 협력업체 코드)
   void _showInviteDialog() {
-    final customerCode = widget.entryCode ?? '------';
-    // 협력업체 전용 참여 코드 (고객 코드와 별도 생성)
-    final vendorCode = widget.vendorEntryCode ?? '------';
+    // 고객/업체 참여 코드 (_eventDetail에서 우선 가져옴, 없으면 widget 파라미터 사용)
+    final customerCode = _eventDetail?['entryCode']?.toString() ?? widget.entryCode ?? '------';
+    final vendorCode = _eventDetail?['vendorEntryCode']?.toString() ?? widget.vendorEntryCode ?? '------';
     final inviteUrl = 'https://signnote.pages.dev/entry-code?code=$customerCode';
 
     showModalBottomSheet(
@@ -1317,13 +1317,17 @@ class _OrganizerEventManageScreenState
             ),
           ),
           GestureDetector(
+            behavior: HitTestBehavior.opaque, // 터치 영역 확대
             onTap: () {
               Clipboard.setData(ClipboardData(text: value));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('복사되었습니다')),
               );
             },
-            child: const Icon(Icons.copy, size: 18, color: AppColors.textSecondary),
+            child: const Padding(
+              padding: EdgeInsets.all(8), // 터치 영역 34x34로 확대
+              child: Icon(Icons.copy, size: 18, color: AppColors.textSecondary),
+            ),
           ),
         ],
       ),

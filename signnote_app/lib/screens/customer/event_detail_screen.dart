@@ -164,6 +164,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final itemId = item['id'] as String;       // 2뎁스 상세 품목 ID
     final productId = item['productId'] as String; // 1뎁스 품목 ID
 
+    // 낙관적 UI 업데이트 (즉시 체크 표시)
     setState(() => _cartItemIds.add(itemId));
 
     final result = await _cartService.addItem(
@@ -172,12 +173,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       productItemId: itemId,  // 2뎁스 ID도 전송 (가격 연결용)
     );
 
-    // 서버 응답에서 cartItemId 저장 (삭제용)
+    if (!mounted) return;
+
     if (result['success'] == true && result['item'] != null) {
+      // 서버 응답에서 cartItemId 저장 (삭제용)
       final cartId = result['item']['id']?.toString() ?? '';
       if (cartId.isNotEmpty) {
         _cartItemIdMap[itemId] = cartId;
       }
+    } else {
+      // 서버 실패 시 롤백 (체크 표시 되돌리기)
+      setState(() => _cartItemIds.remove(itemId));
     }
   }
 

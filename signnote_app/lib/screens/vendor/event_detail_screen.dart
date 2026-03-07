@@ -55,6 +55,9 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
   // 행사 상세 정보 (정보 카드용)
   Map<String, dynamic>? _eventDetail;
 
+  // 행사 정보 카드 표시 여부 (스크롤로 접히기)
+  bool _showInfoCard = true;
+
   final ProductService _productService = ProductService();
   final ContractService _contractService = ContractService();
   final EventService _eventService = EventService();
@@ -165,6 +168,19 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     }
   }
 
+  // 스크롤 방향 감지 → 정보 카드 접기/펼치기 (주관사와 동일)
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0;
+      if (delta > 2 && _showInfoCard) {
+        setState(() => _showInfoCard = false); // 아래로 스크롤 → 카드 숨김
+      } else if (delta < -2 && !_showInfoCard) {
+        setState(() => _showInfoCard = true); // 위로 스크롤 → 카드 표시
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -193,8 +209,12 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
       ),
       body: Column(
         children: [
-          // 행사 정보 카드 (제목과 탭 사이)
-          _buildEventInfoCard(),
+          // 행사 정보 카드 (스크롤 시 접힘/펼침 — 주관사와 동일)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: _showInfoCard ? _buildEventInfoCard() : const SizedBox.shrink(),
+          ),
           // 3개 탭
           TabBar(
           controller: _tabController,
@@ -210,15 +230,18 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
             Tab(text: '알림'),
           ],
           ),
-          // 탭 내용
+          // 탭 내용 (스크롤 감지)
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildProductTab(),
-                _buildContractTab(),
-                _buildNotificationTab(),
-              ],
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleScrollNotification,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildProductTab(),
+                  _buildContractTab(),
+                  _buildNotificationTab(),
+                ],
+              ),
             ),
           ),
         ],

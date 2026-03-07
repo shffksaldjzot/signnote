@@ -68,6 +68,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
       text: widget.event?['unitCount']?.toString() ?? '',
     );
     _selectedTypes = List<String>.from(widget.event?['housingTypes'] ?? []);
+    _sortTypes(); // 기존 타입도 정렬
 
     // 계약금 비율 컨트롤러 (기본 30%)
     final rate = widget.event?['depositRate'];
@@ -267,18 +268,34 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
         Navigator.of(context).pop(true);
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['error'] ?? '처리에 실패했습니다')),
-      );
+      // 에러를 눈에 띄게 AlertDialog로 표시
+      _showErrorDialog(result['error'] ?? '처리에 실패했습니다');
     }
     } catch (e) {
       // 예상치 못한 오류 처리
       setState(() => _isLoading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오류가 발생했습니다: $e')),
-      );
+      _showErrorDialog('오류가 발생했습니다: $e');
     }
+  }
+
+  // 에러 다이얼로그 (SnackBar보다 눈에 잘 띄게)
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('오류', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        content: Text(message, style: const TextStyle(fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
   }
 
   // 참여 코드 생성 완료 다이얼로그
@@ -746,7 +763,20 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     }
     setState(() {
       _selectedTypes.add(text);
+      _sortTypes(); // 추가 후 정렬
       _typeInputController.clear();
+    });
+  }
+
+  // 타입 정렬 (숫자 오름차순 → 같으면 알파벳순)
+  // 예: 59A, 59B, 74A, 74B, 84A, 84B
+  void _sortTypes() {
+    _selectedTypes.sort((a, b) {
+      // 숫자 부분 추출 (앞에서부터 연속된 숫자)
+      final numA = int.tryParse(RegExp(r'\d+').firstMatch(a)?.group(0) ?? '') ?? 0;
+      final numB = int.tryParse(RegExp(r'\d+').firstMatch(b)?.group(0) ?? '') ?? 0;
+      if (numA != numB) return numA.compareTo(numB); // 숫자 먼저 비교
+      return a.compareTo(b); // 같으면 알파벳순
     });
   }
 
