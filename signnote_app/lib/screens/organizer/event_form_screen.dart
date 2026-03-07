@@ -59,6 +59,16 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   bool _isLoading = false;
   bool get _isEditMode => widget.event != null;
 
+  // 날짜 문자열/DateTime 변환 헬퍼 (API 응답이 문자열일 수 있음)
+  DateTime? _tryParseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) {
+      try { return DateTime.parse(value); } catch (_) { return null; }
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -77,9 +87,12 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     );
 
     if (widget.event != null) {
-      _startDate = widget.event!['startDate'];
-      _endDate = widget.event!['endDate'];
-      _moveInDate = widget.event!['moveInDate'];
+      // 날짜 문자열을 DateTime으로 파싱 (API는 ISO 문자열 반환)
+      _startDate = _tryParseDate(widget.event!['startDate']);
+      _endDate = _tryParseDate(widget.event!['endDate']);
+      _moveInDate = _tryParseDate(widget.event!['moveInDate']);
+      _cancelDeadlineStart = _tryParseDate(widget.event!['cancelDeadlineStart']);
+      _cancelDeadlineEnd = _tryParseDate(widget.event!['cancelDeadlineEnd']);
       _contractMethod = widget.event!['contractMethod'] ?? 'integrated';
       _allowOnlineContract = widget.event!['allowOnlineContract'] ?? true;
       final existingImage = widget.event!['coverImage']?.toString();
@@ -260,7 +273,8 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
       if (!_isEditMode) {
         final event = result['event'] ?? {};
         final entryCode = event['entryCode']?.toString() ?? '------';
-        _showEntryCodeDialog(entryCode);
+        final vendorCode = event['vendorEntryCode']?.toString() ?? '------';
+        _showEntryCodeDialog(entryCode, vendorCode);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('행사가 수정되었습니다')),
@@ -298,8 +312,8 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     );
   }
 
-  // 참여 코드 생성 완료 다이얼로그
-  void _showEntryCodeDialog(String code) {
+  // 참여 코드 생성 완료 다이얼로그 (고객코드 + 업체코드 모두 표시)
+  void _showEntryCodeDialog(String customerCode, String vendorCode) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -313,42 +327,22 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              '참여 코드',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                code,
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 8,
-                  color: AppColors.organizer,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: code));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('참여 코드가 복사되었습니다')),
-                );
-              },
-              icon: const Icon(Icons.copy, size: 16),
-              label: const Text('복사하기'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
-            ),
+            // 고객 코드
+            const Text('고객 참여 코드', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            _buildCodeBox(customerCode, AppColors.primary),
             const SizedBox(height: 4),
+            _buildCopyButton('고객 코드 복사', customerCode),
+            const SizedBox(height: 16),
+            // 업체 코드
+            const Text('업체 참여 코드', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            _buildCodeBox(vendorCode, AppColors.organizer),
+            const SizedBox(height: 4),
+            _buildCopyButton('업체 코드 복사', vendorCode),
+            const SizedBox(height: 12),
             const Text(
-              '이 코드를 고객과 업체에게 공유해 주세요',
+              '고객에게는 고객 코드를, 업체에게는 업체 코드를\n각각 공유해 주세요',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
@@ -370,6 +364,36 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // 코드 표시 박스
+  Widget _buildCodeBox(String code, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        code,
+        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 8, color: color),
+      ),
+    );
+  }
+
+  // 복사 버튼
+  Widget _buildCopyButton(String label, String code) {
+    return TextButton.icon(
+      onPressed: () {
+        Clipboard.setData(ClipboardData(text: code));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$label됨: $code')),
+        );
+      },
+      icon: const Icon(Icons.copy, size: 14),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
     );
   }
 

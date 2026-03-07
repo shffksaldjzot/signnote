@@ -359,13 +359,15 @@ class _EventDetailPageState extends State<EventDetailPage>
               final itemCount = (product['items'] as List?)?.length ?? 0;
 
               return DataRow(
-                // 행 클릭 → 3뎁스 품목 상세로 이동
-                onSelectChanged: (_) {
-                  final productId = product['id']?.toString() ?? '';
-                  context.go('/admin/events/${widget.eventId}/products/$productId');
-                },
                 cells: [
-                  DataCell(Text(product['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500))),
+                  // 품목명 — 클릭 시 3뎁스 상세로 이동
+                  DataCell(
+                    Text(product['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.primary)),
+                    onTap: () {
+                      final productId = product['id']?.toString() ?? '';
+                      context.go('/admin/events/${widget.eventId}/products/$productId');
+                    },
+                  ),
                   DataCell(Text(
                     hasVendor ? vendorName : '미배정',
                     style: TextStyle(color: hasVendor ? AppColors.textPrimary : AppColors.textHint),
@@ -447,19 +449,24 @@ class _EventDetailPageState extends State<EventDetailPage>
             headingRowColor: WidgetStateProperty.all(AppColors.background),
             columnSpacing: 24,
             horizontalMargin: 20,
-            columns: const [
-              DataColumn(label: Text('고객명', style: TextStyle(fontWeight: FontWeight.w600))),
-              DataColumn(label: Text('품목', style: TextStyle(fontWeight: FontWeight.w600))),
-              DataColumn(label: Text('패키지', style: TextStyle(fontWeight: FontWeight.w600))),
-              DataColumn(label: Text('업체', style: TextStyle(fontWeight: FontWeight.w600))),
-              DataColumn(label: Text('계약금', style: TextStyle(fontWeight: FontWeight.w600))),
-              DataColumn(label: Text('상태', style: TextStyle(fontWeight: FontWeight.w600))),
-              DataColumn(label: Text('날짜', style: TextStyle(fontWeight: FontWeight.w600))),
+            columns: [
+              const DataColumn(label: Text('고객명', style: TextStyle(fontWeight: FontWeight.w600))),
+              const DataColumn(label: Text('품목', style: TextStyle(fontWeight: FontWeight.w600))),
+              const DataColumn(label: Text('패키지', style: TextStyle(fontWeight: FontWeight.w600))),
+              const DataColumn(label: Text('업체', style: TextStyle(fontWeight: FontWeight.w600))),
+              const DataColumn(label: Text('총 금액', style: TextStyle(fontWeight: FontWeight.w600))),
+              DataColumn(label: Text(
+                '계약금 (${((_event['depositRate'] ?? 0.3) * 100).toStringAsFixed(0)}%)',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              )),
+              const DataColumn(label: Text('상태', style: TextStyle(fontWeight: FontWeight.w600))),
+              const DataColumn(label: Text('날짜', style: TextStyle(fontWeight: FontWeight.w600))),
             ],
             rows: _contracts.map((c) {
               final customer = c['customer'] as Map<String, dynamic>?;
               final product = c['product'] as Map<String, dynamic>?;
               final productItem = c['productItem'] as Map<String, dynamic>?;
+              final originalPrice = c['originalPrice'] ?? 0;
               final deposit = c['depositAmount'] ?? 0;
               final status = c['status']?.toString();
               return DataRow(cells: [
@@ -467,6 +474,7 @@ class _EventDetailPageState extends State<EventDetailPage>
                 DataCell(Text(product?['name'] ?? '-')),
                 DataCell(Text(productItem?['name'] ?? '-')),
                 DataCell(Text(product?['vendorName'] ?? '-')),
+                DataCell(Text('${_priceFormat.format(originalPrice)}원', style: const TextStyle(fontWeight: FontWeight.w500))),
                 DataCell(Text('${_priceFormat.format(deposit)}원', style: const TextStyle(color: AppColors.priceRed, fontWeight: FontWeight.w600))),
                 DataCell(_buildStatusBadge(status)),
                 DataCell(Text(_formatDate(c['createdAt']?.toString()))),

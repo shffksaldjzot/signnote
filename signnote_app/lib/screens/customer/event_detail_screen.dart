@@ -467,6 +467,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // 1뎁스 카테고리 아코디언 (줄눈, 나노코팅 등)
+  // - 모든 아코디언 펼침 상태로 시작
+  // - 접힌 상태에서도 첫 1개 상세 품목 노출
   Widget _buildCategoryAccordion(Map<String, dynamic> product, {int index = 0}) {
     final items = product['items'] as List<Map<String, dynamic>>? ?? [];
     final category = product['category'] as String? ?? product['name'];
@@ -478,22 +480,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: AppColors.border),
       ),
-      child: ExpansionTile(
-        shape: const Border(), // 펼쳤을 때 까만 줄 제거
-        collapsedShape: const Border(), // 접혔을 때 까만 줄 제거
-        title: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        initiallyExpanded: index == 0, // 첫번째 품목만 펼침
-        children: [
-          if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('등록된 패키지가 없습니다', style: TextStyle(fontSize: 13, color: AppColors.textHint)),
-            )
-          else
-            ...items.map((item) => _buildItemCard(item)),
-        ],
+      child: _ExpandableProductTile(
+        category: category,
+        items: items,
+        itemBuilder: (item) => _buildItemCard(item),
       ),
     );
   }
@@ -593,6 +583,81 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// 모든 아코디언 펼침 + 접혀도 첫 1개 품목 노출하는 커스텀 타일
+class _ExpandableProductTile extends StatefulWidget {
+  final String category;
+  final List<Map<String, dynamic>> items;
+  final Widget Function(Map<String, dynamic>) itemBuilder;
+
+  const _ExpandableProductTile({
+    required this.category,
+    required this.items,
+    required this.itemBuilder,
+  });
+
+  @override
+  State<_ExpandableProductTile> createState() => _ExpandableProductTileState();
+}
+
+class _ExpandableProductTileState extends State<_ExpandableProductTile> {
+  bool _isExpanded = true; // 기본 펼침
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 헤더 (탭으로 접기/펼치기)
+        InkWell(
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(widget.category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                ),
+                Icon(
+                  _isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // 내용: 펼침 시 전체, 접힘 시 첫 1개
+        if (widget.items.isEmpty)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text('등록된 패키지가 없습니다', style: TextStyle(fontSize: 13, color: AppColors.textHint)),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              children: [
+                if (_isExpanded)
+                  ...widget.items.map((item) => widget.itemBuilder(item))
+                else ...[
+                  // 접힌 상태: 첫 1개만 표시
+                  widget.itemBuilder(widget.items.first),
+                  if (widget.items.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '외 ${widget.items.length - 1}개 더보기',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textHint),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

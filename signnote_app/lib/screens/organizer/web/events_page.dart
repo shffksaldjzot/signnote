@@ -381,23 +381,28 @@ class _EventsPageState extends State<EventsPage> {
                                 final organizerName = event['organizer']?['name'] ?? '-';
 
                                 return DataRow(
-                                  // 행사 클릭 → 행사 상세로 이동
-                                  onSelectChanged: (_) {
-                                    final eventId = event['id']?.toString() ?? '';
-                                    context.go('/admin/events/$eventId');
-                                  },
                                   cells: [
-                                    // 행사명 — 최대 너비 제한 + 말줄임 + 툴팁
-                                    DataCell(Tooltip(
-                                      message: event['title'] ?? '-',
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(maxWidth: 180),
-                                        child: Text(
-                                          event['title'] ?? '-',
-                                          overflow: TextOverflow.ellipsis,
+                                    // 행사명 — 클릭 시 상세 이동 + 말줄임 + 툴팁
+                                    DataCell(
+                                      Tooltip(
+                                        message: event['title'] ?? '-',
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(maxWidth: 180),
+                                          child: Text(
+                                            event['title'] ?? '-',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    )),
+                                      onTap: () {
+                                        final eventId = event['id']?.toString() ?? '';
+                                        context.go('/admin/events/$eventId');
+                                      },
+                                    ),
                                     // 주관사명 셀
                                     DataCell(Text(organizerName)),
                                     // 현장명 — 최대 너비 제한 + 말줄임 + 툴팁

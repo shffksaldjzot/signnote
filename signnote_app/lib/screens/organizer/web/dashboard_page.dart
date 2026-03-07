@@ -220,14 +220,17 @@ class _DashboardPageState extends State<DashboardPage> {
           _buildFilterBar(),
           const SizedBox(height: 24),
 
-          // ── 통계 카드 4개 ──
+          // ── 통계 카드 4개 (클릭 시 해당 페이지로 이동) ──
           Row(
             children: [
-              _buildStatCard('행사', '${_filteredEvents.length}개', '진행중 $_activeEventCount', Icons.event, AppColors.primary),
+              _buildStatCard('행사', '${_filteredEvents.length}개', '진행중 $_activeEventCount', Icons.event, AppColors.primary,
+                onTap: () => context.go(AppRoutes.organizerWebEvents)),
               const SizedBox(width: 16),
-              _buildStatCard('업체', '${_vendors.length}개', '미승인 $_pendingVendorCount', Icons.business, AppColors.organizer),
+              _buildStatCard('업체', '${_vendors.length}개', '미승인 $_pendingVendorCount', Icons.business, AppColors.organizer,
+                onTap: () => context.go(AppRoutes.organizerWebUsers)),
               const SizedBox(width: 16),
-              _buildStatCard('계약', '${contracts.length}건', '확정 $_confirmedContractCount', Icons.description, AppColors.success),
+              _buildStatCard('계약', '${contracts.length}건', '확정 $_confirmedContractCount', Icons.description, AppColors.success,
+                onTap: () => context.go(AppRoutes.organizerWebEvents)),
               const SizedBox(width: 16),
               _buildStatCard('매출', '${_priceFormat.format(_totalRevenue)}원', '계약금 기준', Icons.account_balance_wallet, AppColors.priceRed),
             ],
@@ -354,10 +357,13 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ── 통계 카드 ──
-  Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color color) {
+  // ── 통계 카드 (클릭 가능) ──
+  Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color color, {VoidCallback? onTap}) {
     return Expanded(
-      child: Container(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -388,6 +394,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

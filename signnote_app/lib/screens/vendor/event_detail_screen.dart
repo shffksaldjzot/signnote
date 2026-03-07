@@ -121,11 +121,11 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     }
   }
 
-  // 계약 목록 가져오기
+  // 계약 목록 가져오기 (현재 행사의 계약만 필터링)
   Future<void> _loadContracts() async {
     setState(() { _isLoadingContracts = true; _contractError = null; });
 
-    final result = await _contractService.getVendorContracts();
+    final result = await _contractService.getVendorContracts(eventId: widget.eventId);
 
     if (!mounted) return;
 
@@ -168,14 +168,23 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     }
   }
 
-  // 스크롤 방향 감지 → 정보 카드 접기/펼치기 (주관사와 동일)
+  // 스크롤 방향 감지 → 정보 카드 접기/펼치기
+  // - 아래로 스크롤 → 카드 숨김
+  // - 위로 스크롤 또는 최상단 도달 → 카드 표시
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification is ScrollUpdateNotification) {
       final delta = notification.scrollDelta ?? 0;
       if (delta > 2 && _showInfoCard) {
-        setState(() => _showInfoCard = false); // 아래로 스크롤 → 카드 숨김
+        setState(() => _showInfoCard = false);
       } else if (delta < -2 && !_showInfoCard) {
-        setState(() => _showInfoCard = true); // 위로 스크롤 → 카드 표시
+        setState(() => _showInfoCard = true);
+      }
+    }
+    // 스크롤이 최상단에 있을 때도 카드 표시 (콘텐츠가 짧아서 스크롤 없을 때 포함)
+    if (notification is ScrollEndNotification) {
+      final pos = notification.metrics;
+      if (pos.pixels <= 0 && !_showInfoCard) {
+        setState(() => _showInfoCard = true);
       }
     }
     return false;

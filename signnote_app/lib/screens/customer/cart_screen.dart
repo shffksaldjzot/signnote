@@ -6,6 +6,7 @@ import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/layout/app_tab_bar.dart';
 import '../../services/cart_service.dart';
 import '../../services/contract_service.dart';
 import '../../services/event_service.dart';
@@ -276,10 +277,22 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppHeader(title: '장바구니'),
-      body: _buildBody(),
+    return PopScope(
+      // 안드로이드 뒤로가기 버튼 → 이전 화면으로 (로그인 화면 방지)
+      canPop: true,
+      child: Scaffold(
+        backgroundColor: AppColors.white,
+        appBar: AppHeader(title: '장바구니'),
+        body: _buildBody(),
+        // 하단 네비게이션 바 (고객용 4탭)
+        bottomNavigationBar: AppTabBar.customer(
+          currentIndex: 1, // 장바구니 탭 활성화
+          onTap: (index) {
+            if (index == 1) return; // 현재 탭
+            Navigator.pop(context); // 장바구니에서 나가기
+          },
+        ),
+      ),
     );
   }
 

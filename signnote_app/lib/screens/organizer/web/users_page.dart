@@ -611,36 +611,42 @@ class _UsersPageState extends State<UsersPage> {
 
           const Spacer(),
 
-          // 선택 승인 버튼 (뱃지 크기)
-          InkWell(
-            onTap: _selectedUserIds.isNotEmpty ? _batchApproveUsers : null,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _selectedUserIds.isNotEmpty ? Colors.green : Colors.grey[300],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle_outline, size: 14,
-                      color: _selectedUserIds.isNotEmpty ? Colors.white : Colors.grey[500]),
-                  const SizedBox(width: 4),
-                  Text(
-                    _selectedUserIds.isNotEmpty
-                        ? '승인 (${_selectedUserIds.length})'
-                        : '승인',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _selectedUserIds.isNotEmpty ? Colors.white : Colors.grey[500],
+          // 선택 승인 버튼 — 미승인 사용자가 선택된 경우에만 활성화
+          Builder(builder: (context) {
+            // 선택된 사용자 중 미승인 사용자가 있는지 확인
+            final hasUnapproved = _selectedUserIds.isNotEmpty &&
+              _filteredUsers.any((u) =>
+                _selectedUserIds.contains(u['id']?.toString()) && u['isApproved'] != true);
+            return InkWell(
+              onTap: hasUnapproved ? _batchApproveUsers : null,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: hasUnapproved ? Colors.green : Colors.grey[300],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 14,
+                        color: hasUnapproved ? Colors.white : Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      hasUnapproved
+                          ? '승인 (${_selectedUserIds.length})'
+                          : '승인',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: hasUnapproved ? Colors.white : Colors.grey[500],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          }),
           const SizedBox(width: 8),
 
           // 선택 삭제 버튼 (검색창 옆, 뱃지 크기)

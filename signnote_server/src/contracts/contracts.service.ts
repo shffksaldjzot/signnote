@@ -16,12 +16,14 @@ import {
 import { PrismaService } from '../common/prisma.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
 export class ContractsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly activityLogs: ActivityLogsService,
   ) {}
 
   // 계약 생성 (장바구니 → 계약)
@@ -98,37 +100,58 @@ export class ContractsService {
       contracts.push(contract);
     }
 
-    // 계약 생성 알림 → 업체 + 주관사에게 전송
-    for (const contract of contracts) {
-      try {
-        // 업체에게 알림
+    // 계약 생성 알림 → 업체 + 주관사에게 일괄 전송 (N건을 1개 알림으로 배치)
+    try {
+      // 업체별로 그룹핑하여 알림 발송
+      const vendorGroups: Record<string, string[]> = {};
+      for (const contract of contracts) {
+        const vid = contract.vendorId;
+        if (!vendorGroups[vid]) vendorGroups[vid] = [];
+        vendorGroups[vid].push((contract as any).product?.name ?? '품목');
+      }
+
+      // 업체별 1개 알림
+      for (const [vendorId, productNames] of Object.entries(vendorGroups)) {
         await this.notifications.send({
-          userId: contract.vendorId,
+          userId: vendorId,
           type: NotificationType.CONTRACT_CREATED,
           title: '새 계약이 들어왔습니다',
-          body: `${user.name}님이 '${(contract as any).product?.name}'을(를) 계약했습니다.`,
-          data: { contractId: contract.id, eventId: contract.eventId },
+          body: productNames.length === 1
+            ? `${user.name}님이 '${productNames[0]}'을(를) 계약했습니다.`
+            : `${user.name}님이 '${productNames[0]}' 외 ${productNames.length - 1}건을 계약했습니다.`,
+          data: { eventId: contracts[0].eventId },
         });
-
-        // 주관사에게도 알림 전송
-        const event = await this.prisma.event.findUnique({
-          where: { id: contract.eventId },
-          select: { organizerId: true },
-        });
-        if (event) {
-          await this.notifications.send({
-            userId: event.organizerId,
-            type: NotificationType.CONTRACT_CREATED,
-            title: '새 계약이 발생했습니다',
-            body: `${user.name}님이 '${(contract as any).product?.name}'을(를) 계약했습니다.`,
-            data: { contractId: contract.id, eventId: contract.eventId },
-          });
-        }
-      } catch (e) {
-        // 알림 전송 실패해도 계약 생성은 성공으로 처리
-        console.error('알림 전송 실패:', e);
       }
+
+      // 주관사에게 1개 알림
+      const event = await this.prisma.event.findUnique({
+        where: { id: contracts[0].eventId },
+        select: { organizerId: true },
+      });
+      if (event) {
+        const allNames = contracts.map((c) => (c as any).product?.name ?? '품목');
+        await this.notifications.send({
+          userId: event.organizerId,
+          type: NotificationType.CONTRACT_CREATED,
+          title: '새 계약이 발생했습니다',
+          body: allNames.length === 1
+            ? `${user.name}님이 '${allNames[0]}'을(를) 계약했습니다.`
+            : `${user.name}님이 '${allNames[0]}' 외 ${allNames.length - 1}건을 계약했습니다.`,
+          data: { eventId: contracts[0].eventId },
+        });
+      }
+    } catch (e) {
+      // 알림 전송 실패해도 계약 생성은 성공으로 처리
+      console.error('알림 전송 실패:', e);
     }
+
+    // 계약 생성 활동 로그 기록
+    await this.activityLogs.log({
+      userId,
+      action: 'CONTRACT_CREATE',
+      target: contracts[0]?.eventId,
+      detail: `${user.name}이(가) ${contracts.length}건 계약 생성`,
+    });
 
     // 계약 완료된 상품은 장바구니에서 제거
     for (const item of dto.items) {
@@ -260,6 +283,14 @@ export class ContractsService {
       data: { contractId },
     });
 
+    // 취소 요청 활동 로그
+    await this.activityLogs.log({
+      userId,
+      action: 'CONTRACT_CANCEL_REQUEST',
+      target: contractId,
+      detail: `${updated.customer?.name}이(가) '${updated.product?.name}' 계약 취소 요청`,
+    });
+
     return updated;
   }
 
@@ -313,6 +344,14 @@ export class ContractsService {
       title: '계약 취소가 승인되었습니다',
       body: `'${updatedContract.product?.name}' 계약이 취소되었습니다. 결제금이 환불됩니다.`,
       data: { contractId },
+    });
+
+    // 취소 승인 활동 로그
+    await this.activityLogs.log({
+      userId: vendorId,
+      action: 'CONTRACT_CANCEL_APPROVE',
+      target: contractId,
+      detail: `'${updatedContract.product?.name}' 계약 취소 승인 (환불 처리)`,
     });
 
     return updatedContract;

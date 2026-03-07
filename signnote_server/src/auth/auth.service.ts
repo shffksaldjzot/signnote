@@ -112,23 +112,52 @@ export class AuthService {
   }
 
   // ---- 행사 입장 (참여 코드) ----
-  // 고객코드(entryCode)와 업체코드(vendorEntryCode) 모두 검색
-  // userId가 있으면 EventParticipant에 참여 기록 저장
+  // 역할에 따라 올바른 코드 유형만 허용
+  // - CUSTOMER → entryCode(고객코드)로만 검색
+  // - VENDOR → vendorEntryCode(업체코드)로만 검색
+  // - 비로그인 → 둘 다 검색 (호환성)
   async enterEvent(dto: EnterEventDto, userId?: string) {
-    // 고객 코드로 검색
-    let event = await this.prisma.event.findUnique({
-      where: { entryCode: dto.entryCode },
-    });
+    // 로그인한 사용자의 역할 확인
+    let userRole: string | null = null;
+    if (userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      userRole = user?.role ?? null;
+    }
 
-    // 고객 코드에 없으면 업체 코드로 검색
-    if (!event) {
+    let event = null;
+
+    if (userRole === 'VENDOR') {
+      // 업체는 업체코드(vendorEntryCode)로만 입장 가능
       event = await this.prisma.event.findFirst({
         where: { vendorEntryCode: dto.entryCode },
       });
-    }
-
-    if (!event) {
-      throw new NotFoundException('유효하지 않은 참여 코드입니다');
+      if (!event) {
+        throw new NotFoundException('유효하지 않은 업체 참여 코드입니다. 업체 전용 코드를 입력해 주세요.');
+      }
+    } else if (userRole === 'CUSTOMER') {
+      // 고객은 고객코드(entryCode)로만 입장 가능
+      event = await this.prisma.event.findUnique({
+        where: { entryCode: dto.entryCode },
+      });
+      if (!event) {
+        throw new NotFoundException('유효하지 않은 고객 참여 코드입니다. 고객 전용 코드를 입력해 주세요.');
+      }
+    } else {
+      // 비로그인 또는 관리자/주관사 → 둘 다 검색
+      event = await this.prisma.event.findUnique({
+        where: { entryCode: dto.entryCode },
+      });
+      if (!event) {
+        event = await this.prisma.event.findFirst({
+          where: { vendorEntryCode: dto.entryCode },
+        });
+      }
+      if (!event) {
+        throw new NotFoundException('유효하지 않은 참여 코드입니다');
+      }
     }
 
     // 로그인한 사용자가 있으면 중복 참가 체크 + 참여 기록 저장
