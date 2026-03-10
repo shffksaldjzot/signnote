@@ -135,6 +135,7 @@ class _OrganizerEventManageScreenState
             'imageUrl': p['image'],
             'participationFee': p['participationFee'] ?? 0,
             'commissionRate': p['commissionRate'] ?? 0,
+            'depositRate': p['depositRate'],  // 품목별 계약금 비율 (null이면 행사 기본값)
             'feePaymentConfirmed': p['feePaymentConfirmed'] ?? false, // 참가비 입금 확인
             'items': items,
           };
@@ -664,6 +665,18 @@ class _OrganizerEventManageScreenState
             value: '$ratePercent%',
             onEdit: () => _editField(product, '수수료', 'commissionRate', ratePercent),
           ),
+          const SizedBox(height: 10),
+          // 계약금 비율 (품목별 설정, 미설정 시 행사 기본값 사용)
+          Builder(builder: (_) {
+            final depositRate = product['depositRate'];
+            final depositPercent = depositRate is num ? (depositRate * 100).toStringAsFixed(0) : '';
+            final displayValue = depositPercent.isNotEmpty ? '$depositPercent%' : '행사 기본값';
+            return _buildDetailRow(
+              label: '계약금',
+              value: displayValue,
+              onEdit: () => _editField(product, '계약금 비율', 'depositRate', depositPercent),
+            );
+          }),
           const SizedBox(height: 10),
           // 참가비
           _buildDetailRow(
@@ -1934,7 +1947,8 @@ class _OrganizerEventManageScreenState
           keyboardType: (fieldKey == 'vendorName' || fieldKey == 'name') ? TextInputType.text : TextInputType.number,
           decoration: InputDecoration(
             hintText: '$fieldLabel 입력',
-            suffixText: fieldKey == 'commissionRate' ? '%' : fieldKey == 'participationFee' ? '원' : null,
+            suffixText: (fieldKey == 'commissionRate' || fieldKey == 'depositRate') ? '%' : fieldKey == 'participationFee' ? '원' : null,
+            helperText: fieldKey == 'depositRate' ? '비워두면 행사 기본값 사용' : null,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
@@ -1970,6 +1984,14 @@ class _OrganizerEventManageScreenState
     } else if (fieldKey == 'commissionRate') {
       final percent = double.tryParse(newValue) ?? 0;
       updateData['commissionRate'] = percent / 100;
+    } else if (fieldKey == 'depositRate') {
+      // 빈값이면 null (행사 기본값 사용)
+      if (newValue.isEmpty) {
+        updateData['depositRate'] = null;
+      } else {
+        final percent = double.tryParse(newValue) ?? 0;
+        updateData['depositRate'] = percent / 100;
+      }
     } else if (fieldKey == 'participationFee') {
       updateData['participationFee'] = parseCommaNumber(newValue);
     }

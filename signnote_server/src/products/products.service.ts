@@ -99,6 +99,7 @@ export class ProductsService {
         vendorName: dto.vendorName,
         image: dto.image,
         commissionRate: dto.commissionRate ?? 0,
+        depositRate: dto.depositRate ?? null,
         participationFee: dto.participationFee ?? 0,
       },
     });
@@ -118,6 +119,7 @@ export class ProductsService {
         ...(dto.category && { category: dto.category }),
         ...(dto.image !== undefined && { image: dto.image }),
         ...(dto.commissionRate !== undefined && { commissionRate: dto.commissionRate }),
+        ...((dto as any).depositRate !== undefined && { depositRate: (dto as any).depositRate }),
         ...(dto.participationFee !== undefined && { participationFee: dto.participationFee }),
         ...((dto as any).feePaymentConfirmed !== undefined && { feePaymentConfirmed: (dto as any).feePaymentConfirmed }),
       },
@@ -168,6 +170,7 @@ export class ProductsService {
         eventId: dto.eventId,
         participationFee: dto.participationFee ?? 0,
         commissionRate: dto.commissionRate ?? 0,
+        depositRate: dto.depositRate ?? null,  // 품목별 계약금 비율 (null = 행사 기본값)
         image: dto.image,
       },
     });

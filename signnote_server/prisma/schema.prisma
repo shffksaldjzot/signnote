@@ -140,6 +140,7 @@ model Product {
   vendorName      String?                             // 업체명
   image           String?                             // 품목 대표 이미지 URL
   commissionRate  Float    @default(0)                // 수수료율 (주관사 설정, 예: 0.2 = 20%)
+  depositRate     Float?                              // 품목별 계약금 비율 (null이면 행사 기본값 사용)
   participationFee Int     @default(0)                // 참가비 (주관사 설정)
   sortOrder       Int      @default(0)                // 정렬 순서 (주관사가 드래그로 변경)
   feePaymentConfirmed Boolean @default(false)        // 참가비 입금 확인 (주관사 체크)

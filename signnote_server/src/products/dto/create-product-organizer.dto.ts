@@ -32,6 +32,10 @@ export class CreateProductOrganizerDto {
   commissionRate?: number;                // 수수료율 (0~1)
 
   @IsOptional()
+  @IsNumber()
+  depositRate?: number;                   // 품목별 계약금 비율 (0~1, null이면 행사 기본값)
+
+  @IsOptional()
   @IsString()
   image?: string;                         // 품목 설명 이미지 URL
 }

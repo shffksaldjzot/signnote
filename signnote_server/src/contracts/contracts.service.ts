@@ -51,12 +51,12 @@ export class ContractsService {
         throw new NotFoundException(`품목(${item.productId})을 찾을 수 없습니다`);
       }
 
-      // 해당 행사의 계약금 비율 가져오기 (기본 30%)
+      // 계약금 비율: 품목별 설정 → 없으면 행사 기본값 → 없으면 30%
       const event = await this.prisma.event.findUnique({
         where: { id: item.eventId },
         select: { depositRate: true },
       });
-      const depositRate = event?.depositRate ?? 0.3;
+      const depositRate = product.depositRate ?? event?.depositRate ?? 0.3;
 
       // 상세 품목(2뎁스)에서 가격 가져오기
       let price = 0;
