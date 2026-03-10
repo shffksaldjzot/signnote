@@ -1861,3 +1861,35 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] Flutter 빌드 에러 0건
 - [x] Cloudflare Pages 프론트엔드 배포 완료
 
+---
+
+### 2026-03-10 — 피드백 11건 처리 (3차 배치)
+
+> **피드백 FEEDBACK.md 최신 11건 전체 구현 완료**
+
+#### Batch 1 (핵심 5건) ✅
+1. **#1 업체관리 ADMIN 제외** — `users_page.dart`에서 ADMIN 역할 필터링
+2. **#2 관리자 계약상세 + 다운로드** — `event_detail_page.dart`에 계약 행 클릭 → 상세 다이얼로그 + RepaintBoundary 캡처 이미지 다운로드
+3. **#3 사이드바 미승인 업체 배지** — `web_shell.dart` 업체관리 메뉴에 빨간 배지 표시
+4. **#6 품목 미배정(unassign) 선택** — 미배정 드롭다운 선택 시 unclaimProduct 호출
+5. **#8 동호수 입력 필드 시인성** — `entry_code_screen.dart` 파란 테두리+배경+라벨+힌트+필수표시
+
+#### Batch 2 (중요 3건) ✅
+6. **#4 품목 삭제/이름변경** — 백엔드 DELETE API 신규 + 프론트 삭제/이름변경 버튼
+7. **#9 아코디언 기본접힘 + "외 N개 더보기" 클릭** — `event_detail_screen.dart` 접힘 상태에서 클릭으로 펼침
+8. **#10 계약서 결제정보 영역** — 고객/업체 `contract_detail_screen.dart`에 결제정보 placeholder + 글씨 진하게
+9. **#11 간편결제 "(준비중)"** — `payment_screen.dart` 간편결제 비활성화 + 회색 스타일
+10. **#7 전체 고객 조회** — `customers_page.dart` 기본값 "전체" + 전체 고객 API 조회
+
+#### Batch 3 (마무리 1건) ✅
+11. **#5 드래그앤드롭 품목 순서변경** — `event_manage_screen.dart` ListView → ReorderableListView 전환, 화살표 제거 → 드래그핸들(≡) 아이콘, 길게 눌러 드래그하여 순서 이동
+
+### 수정 파일
+**백엔드 (2개):** products.controller.ts, products.service.ts
+**프론트엔드 (10개):** event_manage_screen.dart, event_detail_page.dart, web_shell.dart, users_page.dart, customers_page.dart, entry_code_screen.dart, payment_screen.dart, customer/event_detail_screen.dart, customer/contract_detail_screen.dart, vendor/contract_detail_screen.dart
+**서비스 (1개):** product_service.dart
+
+### 빌드 & 배포
+- [x] Flutter 빌드 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+

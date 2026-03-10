@@ -45,7 +45,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final List<Map<String, String>> _paymentMethods = [
     {'value': 'CARD', 'label': '신용/체크카드'},
     {'value': 'BANK_TRANSFER', 'label': '계좌이체'},
-    {'value': 'EASY_PAY', 'label': '간편결제 (카카오페이 등)'},
+    {'value': 'EASY_PAY', 'label': '간편결제 (카카오페이 등) (준비중)', 'disabled': 'true'},
   ];
 
   // 총 품목가 계산
@@ -292,9 +292,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
   // 결제 수단 선택 타일
   Widget _buildPaymentMethodTile(Map<String, String> method) {
     final isSelected = _selectedMethod == method['value'];
+    final isDisabled = method['disabled'] == 'true';
 
     return GestureDetector(
-      onTap: () {
+      onTap: isDisabled ? null : () {
         setState(() => _selectedMethod = method['value']!);
       },
       child: Container(
@@ -302,17 +303,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
+          color: isDisabled ? Colors.grey[100] : null,
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
-            width: isSelected ? 1.5 : 0.5,
+            color: isDisabled ? Colors.grey[300]! : isSelected ? AppColors.primary : AppColors.border,
+            width: isSelected && !isDisabled ? 1.5 : 0.5,
           ),
         ),
         child: Row(
           children: [
             // 라디오 아이콘
             Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? AppColors.primary : AppColors.textHint,
+              isSelected && !isDisabled ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isDisabled ? Colors.grey[400] : isSelected ? AppColors.primary : AppColors.textHint,
               size: 22,
             ),
             const SizedBox(width: 12),
@@ -321,8 +323,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
               method['label']!,
               style: TextStyle(
                 fontSize: 15,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: AppColors.textPrimary,
+                fontWeight: isSelected && !isDisabled ? FontWeight.w600 : FontWeight.w400,
+                color: isDisabled ? Colors.grey[500] : AppColors.textPrimary,
               ),
             ),
           ],

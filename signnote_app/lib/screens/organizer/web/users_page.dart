@@ -91,10 +91,10 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
-  // 검색어로 필터링된 사용자 목록 (고객 제외)
+  // 검색어로 필터링된 사용자 목록 (고객/관리자 제외)
   List<dynamic> get _filteredUsers {
-    // 고객은 '고객 관리' 페이지로 분리 — 여기서는 업체+주관사만
-    var result = _users.where((u) => u['role'] != 'CUSTOMER').toList();
+    // 고객은 '고객 관리' 페이지로 분리, 관리자는 삭제 방지를 위해 제외
+    var result = _users.where((u) => u['role'] != 'CUSTOMER' && u['role'] != 'ADMIN').toList();
     if (_searchQuery.isEmpty) return result;
     final query = _searchQuery.toLowerCase();
     return result.where((u) {

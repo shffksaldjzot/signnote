@@ -4,6 +4,7 @@ import '../../../config/theme.dart';
 import '../../../config/routes.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/api_service.dart';
+import '../../../services/user_service.dart';
 
 // ============================================
 // PC용 전체 레이아웃 셸 (WebShell)
@@ -65,10 +66,14 @@ class _SidebarState extends State<_Sidebar> {
   bool _managementExpanded = true;
   bool _systemExpanded = true;
 
+  // 미승인 업체 수 (빨간 뱃지용)
+  int _unapprovedVendorCount = 0;
+
   @override
   void initState() {
     super.initState();
     _loadRole();
+    _loadUnapprovedVendorCount(); // 미승인 업체 수 로드
   }
 
   // 현재 로그인한 사용자의 역할 불러오기
@@ -76,6 +81,16 @@ class _SidebarState extends State<_Sidebar> {
     final userInfo = await ApiService().getUserInfo();
     if (userInfo != null && mounted) {
       setState(() => _currentRole = userInfo['role'] ?? '');
+    }
+  }
+
+  // 미승인 업체 수 가져오기 (사이드바 뱃지 표시용)
+  Future<void> _loadUnapprovedVendorCount() async {
+    final result = await UserService().getUsers(role: 'VENDOR');
+    if (result['success'] == true && mounted) {
+      final users = List<Map<String, dynamic>>.from(result['users'] ?? []);
+      final unapproved = users.where((u) => u['isApproved'] != true).length;
+      setState(() => _unapprovedVendorCount = unapproved);
     }
   }
 
@@ -152,7 +167,7 @@ class _SidebarState extends State<_Sidebar> {
             currentPath: currentPath,
             children: [
               _FolderChild(icon: Icons.event_outlined, label: '행사 관리', path: AppRoutes.organizerWebEvents),
-              _FolderChild(icon: Icons.business_outlined, label: '업체 관리', path: AppRoutes.organizerWebUsers),
+              _FolderChild(icon: Icons.business_outlined, label: '업체 관리', path: AppRoutes.organizerWebUsers, badgeCount: _unapprovedVendorCount),
               _FolderChild(icon: Icons.people_outline, label: '고객 관리', path: AppRoutes.organizerWebCustomers),
             ],
           ),
@@ -347,6 +362,21 @@ class _SidebarState extends State<_Sidebar> {
                         fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                         color: isActive ? AppColors.primary : AppColors.textPrimary,
                       )),
+                      // 미승인 업체 수 빨간 뱃지 (0보다 클 때만 표시)
+                      if (child.badgeCount > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${child.badgeCount}',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -398,6 +428,7 @@ class _FolderChild {
   final IconData icon;
   final String label;
   final String path;
+  final int badgeCount; // 빨간 뱃지 숫자 (0이면 표시 안 함)
 
-  const _FolderChild({required this.icon, required this.label, required this.path});
+  const _FolderChild({required this.icon, required this.label, required this.path, this.badgeCount = 0});
 }

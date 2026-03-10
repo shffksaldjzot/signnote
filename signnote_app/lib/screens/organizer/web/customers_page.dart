@@ -40,32 +40,37 @@ class _CustomersPageState extends State<CustomersPage> {
     final result = await _eventService.getEvents();
     if (result['success'] == true) {
       _events = result['events'] as List? ?? [];
-      // 첫 번째 행사 자동 선택
-      if (_events.isNotEmpty && _selectedEventId == null) {
-        _selectedEventId = _events.first['id']?.toString();
-      }
     }
+    // 기본값: 전체 (null) → 모든 고객 표시
     await _loadCustomers();
   }
 
-  // 선택된 행사의 고객 목록 불러오기
+  // 고객 목록 불러오기 (행사 선택 없으면 전체 고객)
   Future<void> _loadCustomers() async {
-    if (_selectedEventId == null) {
-      setState(() {
-        _customers = [];
-        _isLoading = false;
-      });
-      return;
-    }
+    setState(() => _isLoading = true);
 
-    final result = await _eventService.getParticipants(_selectedEventId!, role: 'CUSTOMER');
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        if (result['success'] == true) {
-          _customers = result['participants'] as List? ?? [];
-        }
-      });
+    if (_selectedEventId == null) {
+      // 전체 고객 조회 (행사 무관)
+      final result = await _userService.getUsers(role: 'CUSTOMER');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          if (result['success'] == true) {
+            _customers = result['users'] as List? ?? [];
+          }
+        });
+      }
+    } else {
+      // 특정 행사의 고객만 조회
+      final result = await _eventService.getParticipants(_selectedEventId!, role: 'CUSTOMER');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          if (result['success'] == true) {
+            _customers = result['participants'] as List? ?? [];
+          }
+        });
+      }
     }
   }
 
@@ -156,8 +161,8 @@ class _CustomersPageState extends State<CustomersPage> {
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: [
-                      // 첫 번째 줄: 전체/미선택
-                      const DropdownMenuItem<String?>(value: null, child: Text('행사를 선택해주세요', style: TextStyle(color: AppColors.textHint))),
+                      // 첫 번째 줄: 전체 고객
+                      const DropdownMenuItem<String?>(value: null, child: Text('전체', style: TextStyle(fontWeight: FontWeight.w500))),
                       ..._events.map((e) => DropdownMenuItem<String?>(
                         value: e['id']?.toString(),
                         child: Text(e['title'] ?? '', overflow: TextOverflow.ellipsis),
@@ -192,9 +197,7 @@ class _CustomersPageState extends State<CustomersPage> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _selectedEventId == null
-                    ? const Center(child: Text('행사를 선택해주세요', style: TextStyle(color: AppColors.textHint)))
-                    : customers.isEmpty
+                : customers.isEmpty
                         ? const Center(child: Text('참여한 고객이 없습니다', style: TextStyle(color: AppColors.textHint)))
                         : Container(
                             decoration: BoxDecoration(

@@ -497,9 +497,30 @@ class _OrganizerEventManageScreenState
       );
     }
 
-    return ListView(
+    // 꾹 눌러서 드래그앤드롭으로 순서 변경 (스마트폰 아이콘 옮기기 방식)
+    return ReorderableListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      children: _products.map((product) => _buildAccordionItem(product)).toList(),
+      proxyDecorator: (child, index, animation) {
+        // 드래그 중인 아이템에 그림자 효과
+        return Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(12),
+          child: child,
+        );
+      },
+      onReorder: (oldIndex, newIndex) {
+        // ReorderableListView는 newIndex가 oldIndex보다 크면 1 더 큰 값을 줌
+        if (newIndex > oldIndex) newIndex -= 1;
+        _moveProduct(oldIndex, newIndex);
+      },
+      children: _products.asMap().entries.map((entry) {
+        final index = entry.key;
+        final product = entry.value;
+        return KeyedSubtree(
+          key: ValueKey(product['id']),
+          child: _buildAccordionItem(product),
+        );
+      }).toList(),
     );
   }
 
@@ -592,23 +613,14 @@ class _OrganizerEventManageScreenState
                 ],
               ),
             ),
-            // 순서 변경 버튼 (위/아래)
-            if (productIndex > 0)
-              GestureDetector(
-                onTap: () => _moveProduct(productIndex, productIndex - 1),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(Icons.arrow_upward, size: 18, color: AppColors.textSecondary),
-                ),
+            // 드래그 핸들 (꾹 눌러서 순서 변경)
+            ReorderableDragStartListener(
+              index: productIndex,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.drag_handle, size: 22, color: AppColors.textSecondary),
               ),
-            if (productIndex < _products.length - 1)
-              GestureDetector(
-                onTap: () => _moveProduct(productIndex, productIndex + 1),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(Icons.arrow_downward, size: 18, color: AppColors.textSecondary),
-                ),
-              ),
+            ),
           ],
         ),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -691,11 +703,46 @@ class _OrganizerEventManageScreenState
             ),
           // 상세 품목 목록 (2뎁스)
           _buildItemsList(product),
-          // 업체 참가 취소
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          // 품목 이름 변경 + 삭제 + 업체 참가 취소 버튼
+          Row(
+            children: [
+              // 이름 변경 버튼
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _editField(product, '품목명', 'name', name),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('이름 변경'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.organizer,
+                    side: const BorderSide(color: AppColors.organizer),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 품목 삭제 버튼
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showDeleteProductDialog(product),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('품목 삭제'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // 업체 참가 취소 (업체 배정된 경우에만)
           if (hasVendor) ...[
-            const SizedBox(height: 16),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -1419,7 +1466,11 @@ class _OrganizerEventManageScreenState
                   }),
                 ],
                 onChanged: (vendorId) {
-                  if (vendorId != null && vendorId.isNotEmpty) {
+                  if (vendorId == null) return;
+                  if (vendorId.isEmpty) {
+                    // 미배정 선택 → 업체 해제
+                    _unassignVendor(productId);
+                  } else {
                     _assignVendor(productId, vendorId);
                   }
                 },
@@ -1491,6 +1542,24 @@ class _OrganizerEventManageScreenState
     }
   }
 
+  // 업체 배정 해제 (미배정으로 되돌리기)
+  Future<void> _unassignVendor(String productId) async {
+    final result = await _productService.unclaimProduct(productId);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('업체 배정이 해제되었습니다')),
+      );
+      _loadProducts();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '배정 해제에 실패했습니다')),
+      );
+    }
+  }
+
   // 상세 정보 행 (라벨 + 값 + 연필 아이콘)
   Widget _buildDetailRow({
     required String label,
@@ -1545,7 +1614,7 @@ class _OrganizerEventManageScreenState
           controller: controller,
           autofocus: true,
           textAlign: TextAlign.right,
-          keyboardType: fieldKey == 'vendorName' ? TextInputType.text : TextInputType.number,
+          keyboardType: (fieldKey == 'vendorName' || fieldKey == 'name') ? TextInputType.text : TextInputType.number,
           decoration: InputDecoration(
             hintText: '$fieldLabel 입력',
             suffixText: fieldKey == 'commissionRate' ? '%' : fieldKey == 'participationFee' ? '원' : null,
@@ -1576,7 +1645,10 @@ class _OrganizerEventManageScreenState
     final productId = product['id'].toString();
     Map<String, dynamic> updateData = {};
 
-    if (fieldKey == 'vendorName') {
+    if (fieldKey == 'name') {
+      updateData['name'] = newValue;
+      updateData['category'] = newValue; // 품목명 = 카테고리 (동기화)
+    } else if (fieldKey == 'vendorName') {
       updateData['vendorName'] = newValue;
     } else if (fieldKey == 'commissionRate') {
       final percent = double.tryParse(newValue) ?? 0;
@@ -1658,6 +1730,55 @@ class _OrganizerEventManageScreenState
         ),
       ],
     );
+  }
+
+  // 품목 삭제 확인 다이얼로그
+  void _showDeleteProductDialog(Map<String, dynamic> product) {
+    final productName = product['name'] ?? '품목';
+    final items = product['items'] as List? ?? [];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('품목 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text(
+          '"$productName" 품목을 삭제하시겠습니까?'
+          '${items.isNotEmpty ? '\n\n하위 상세 품목 ${items.length}개도 함께 삭제됩니다.' : ''}',
+          style: const TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('아니오')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteProduct(product);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 품목 삭제 API 호출
+  Future<void> _deleteProduct(Map<String, dynamic> product) async {
+    final productId = product['id'].toString();
+    final result = await _productService.deleteProduct(productId);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('품목이 삭제되었습니다')),
+      );
+      _loadProducts(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '품목 삭제에 실패했습니다')),
+      );
+    }
   }
 
   // 업체 참가 취소 확인

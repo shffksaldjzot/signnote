@@ -317,6 +317,40 @@ export class ProductsService {
     return updated;
   }
 
+  // ── 품목 삭제 (주관사/관리자용) ──
+  async deleteProduct(productId: string, userId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { items: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('품목을 찾을 수 없습니다');
+    }
+
+    // 하위 상세 품목(2뎁스) 먼저 삭제
+    if (product.items.length > 0) {
+      await this.prisma.productItem.deleteMany({
+        where: { productId },
+      });
+    }
+
+    // 1뎁스 품목 삭제
+    await this.prisma.product.delete({
+      where: { id: productId },
+    });
+
+    // 삭제 로그 기록
+    await this.activityLogs.log({
+      userId,
+      action: 'PRODUCT_DELETE',
+      target: productId,
+      detail: `품목 삭제: ${product.name}`,
+    });
+
+    return { success: true };
+  }
+
   // ── 품목 순서 변경 (주관사용) ──
   async reorderProducts(eventId: string, productIds: string[]) {
     // productIds 배열 순서대로 sortOrder를 0, 1, 2, ... 로 업데이트

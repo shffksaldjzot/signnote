@@ -112,6 +112,32 @@ class CustomerContractDetailScreen extends StatelessWidget {
                   _buildPriceLine('계약금', depositLabel, color: AppColors.priceRed),
                   _buildPriceLine('잔금', '${priceFormat.format(remainAmount)}원'),
                 ]),
+                const SizedBox(height: 16),
+
+                // 결제 정보 (플레이스홀더)
+                _buildSection('결제 정보', [
+                  _buildInfoLine('결제 수단', contract['paymentMethod'] ?? '카드결제'),
+                  _buildInfoLine('카드/계좌', contract['paymentDetail'] ?? '-'),
+                  _buildInfoLine('결제일시', contract['paidAt'] ?? '-'),
+                  // 무통장 입금 안내
+                  if (contract['paymentMethod'] == '무통장입금' || contract['paymentMethod'] == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F8FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFD6E4FF)),
+                        ),
+                        child: const Text(
+                          '결제 시스템 연동 후 자동으로 표시됩니다.',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                        ),
+                      ),
+                    ),
+                ]),
                 const SizedBox(height: 24),
 
                 // 환불 안내
@@ -221,7 +247,8 @@ class CustomerContractDetailScreen extends StatelessWidget {
   Widget _buildInfoLine(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Text('$label : $value', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+      // 글씨를 더 진하게 — 연한 회색 대신 진한 색상 사용
+      child: Text('$label : $value', style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
     );
   }
 

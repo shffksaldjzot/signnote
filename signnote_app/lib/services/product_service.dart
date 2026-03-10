@@ -203,6 +203,22 @@ class ProductService {
     }
   }
 
+  // 품목 삭제 (주관사/관리자용 — 1뎁스 품목 삭제)
+  Future<Map<String, dynamic>> deleteProduct(String productId) async {
+    try {
+      final response = await _api.delete('/products/$productId');
+      return {
+        'success': true,
+        'result': response.data,
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data['message'] ?? '품목 삭제에 실패했습니다',
+      };
+    }
+  }
+
   // 품목 순서 변경 (주관사용)
   Future<Map<String, dynamic>> reorderProducts(
     String eventId,

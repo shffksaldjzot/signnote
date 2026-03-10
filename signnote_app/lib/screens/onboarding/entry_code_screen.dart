@@ -185,7 +185,9 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
             children: [
               Text(eventTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 20),
-              const Text('동호수를 입력해 주세요.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              const Text('동호수를 입력해 주세요.', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
+              const Text('* 필수 입력', style: TextStyle(fontSize: 12, color: AppColors.priceRed)),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -193,17 +195,25 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                     child: TextField(
                       controller: dongController,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
-                        hintText: '',
-                        suffixText: '동',
+                        hintText: '예: 201',
+                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 16, fontWeight: FontWeight.w400),
+                        labelText: '동',
+                        labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
                         filled: true,
-                        fillColor: AppColors.background, // 연회색 배경으로 시인성 향상
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        fillColor: Colors.blue.withValues(alpha: 0.05),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
                       ),
                     ),
                   ),
@@ -212,17 +222,25 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                     child: TextField(
                       controller: hoController,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
-                        hintText: '',
-                        suffixText: '호',
+                        hintText: '예: 1305',
+                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 16, fontWeight: FontWeight.w400),
+                        labelText: '호',
+                        labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
                         filled: true,
-                        fillColor: AppColors.background, // 연회색 배경으로 시인성 향상
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        fillColor: Colors.blue.withValues(alpha: 0.05),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
                       ),
                     ),
                   ),

@@ -604,7 +604,7 @@ class _ExpandableProductTile extends StatefulWidget {
 }
 
 class _ExpandableProductTileState extends State<_ExpandableProductTile> {
-  bool _isExpanded = true; // 기본 펼침
+  bool _isExpanded = false; // 기본 접힘 상태로 변경
 
   @override
   Widget build(BuildContext context) {
@@ -629,7 +629,7 @@ class _ExpandableProductTileState extends State<_ExpandableProductTile> {
             ),
           ),
         ),
-        // 내용: 펼침 시 전체, 접힘 시 첫 1개
+        // 내용: 펼침 시 전체, 접힘 시 첫 1개 + 클릭 가능한 "더보기"
         if (widget.items.isEmpty)
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -645,12 +645,23 @@ class _ExpandableProductTileState extends State<_ExpandableProductTile> {
                 else ...[
                   // 접힌 상태: 첫 1개만 표시
                   widget.itemBuilder(widget.items.first),
+                  // "외 N개 더보기" — 클릭하면 아코디언 펼침
                   if (widget.items.length > 1)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '외 ${widget.items.length - 1}개 더보기',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textHint),
+                    GestureDetector(
+                      onTap: () => setState(() => _isExpanded = true),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '외 ${widget.items.length - 1}개 더보기',
+                              style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.expand_more, size: 16, color: AppColors.primary),
+                          ],
+                        ),
                       ),
                     ),
                 ],

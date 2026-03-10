@@ -175,6 +175,17 @@ export class ProductsController {
     return this.productsService.update(id, dto);
   }
 
+  // 품목 삭제 (주관사/관리자 전용)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ORGANIZER', 'ADMIN')
+  @Delete('products/:id')
+  async deleteProduct(
+    @Request() req: any,
+    @Param('id') id: string,
+  ) {
+    return this.productsService.deleteProduct(id, req.user.id);
+  }
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // ProductItem (2뎁스) API
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
