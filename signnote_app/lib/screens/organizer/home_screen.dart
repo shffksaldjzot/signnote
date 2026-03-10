@@ -177,12 +177,14 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           items: [
             BottomNavigationBarItem(
               icon: Image.asset('assets/icons/organizer/home_active.png', width: 24, height: 24,
-                color: _currentTabIndex == 0 ? AppColors.organizer : AppColors.textSecondary),
+                color: AppColors.textSecondary),
+              activeIcon: Image.asset('assets/icons/organizer/home_active.png', width: 24, height: 24,
+                color: AppColors.organizer),
               label: '홈',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
+              icon: Image.asset('assets/icons/vendor/mypage_inactive.png', width: 24, height: 24),
+              activeIcon: Image.asset('assets/icons/vendor/mypage_active.png', width: 24, height: 24),
               label: '마이페이지',
             ),
           ],
@@ -275,7 +277,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.edit_outlined),
+              leading: Image.asset('assets/icons/vendor/write.png', width: 24, height: 24),
               title: const Text('수정'),
               onTap: () {
                 Navigator.pop(context);

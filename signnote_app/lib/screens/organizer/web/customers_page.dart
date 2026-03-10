@@ -216,6 +216,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                     DataColumn(label: Text('이름', style: TextStyle(fontWeight: FontWeight.w600))),
                                     DataColumn(label: Text('전화번호', style: TextStyle(fontWeight: FontWeight.w600))),
                                     DataColumn(label: Text('이메일', style: TextStyle(fontWeight: FontWeight.w600))),
+                                    DataColumn(label: Text('행사명', style: TextStyle(fontWeight: FontWeight.w600))),
                                     DataColumn(label: Text('동', style: TextStyle(fontWeight: FontWeight.w600))),
                                     DataColumn(label: Text('호', style: TextStyle(fontWeight: FontWeight.w600))),
                                     DataColumn(label: Text('타입', style: TextStyle(fontWeight: FontWeight.w600))),
@@ -227,6 +228,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                     final name = p['name'] ?? p['user']?['name'] ?? '-';
                                     final phone = p['phone'] ?? p['user']?['phone'] ?? '-';
                                     final email = p['email'] ?? p['user']?['email'] ?? '-';
+                                    final eventTitle = p['eventTitle'] ?? '-';
                                     final joinedAt = p['joinedAt'] != null
                                         ? _dateFormat.format(DateTime.parse(p['joinedAt']))
                                         : '-';
@@ -235,6 +237,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                       DataCell(Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
                                       DataCell(Text(phone)),
                                       DataCell(Text(email)),
+                                      DataCell(Text(eventTitle, style: const TextStyle(fontSize: 13))),
                                       DataCell(Text(p['dong'] ?? '-')),
                                       DataCell(Text(p['ho'] ?? '-')),
                                       DataCell(Text(p['housingType'] ?? '-')),

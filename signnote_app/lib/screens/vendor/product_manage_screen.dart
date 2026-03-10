@@ -270,7 +270,7 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
                             );
                             if (result == true) _loadProducts();
                           },
-                          child: const Icon(Icons.edit_outlined, size: 20, color: AppColors.textSecondary),
+                          child: Image.asset('assets/icons/vendor/write.png', width: 20, height: 20, color: AppColors.textSecondary),
                         ),
                       ],
                     ),

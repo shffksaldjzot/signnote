@@ -79,13 +79,29 @@ export class ContractsService {
       const depositAmount = Math.round(price * depositRate);
       const remainAmount = price - depositAmount;
 
+      // 고객의 동/호수/타입 정보 가져오기 (EventParticipant에서)
+      let customerAddress = dto.customerAddress ?? null;
+      if (!customerAddress) {
+        const participant = await this.prisma.eventParticipant.findFirst({
+          where: { userId, eventId: item.eventId },
+          select: { dong: true, ho: true, housingType: true },
+        });
+        if (participant?.dong || participant?.ho) {
+          customerAddress = [
+            participant.dong ? `${participant.dong}동` : '',
+            participant.ho ? `${participant.ho}호` : '',
+            participant.housingType ? `(${participant.housingType})` : '',
+          ].filter(Boolean).join(' ');
+        }
+      }
+
       // 계약 생성 (품목/업체 정보를 스냅샷으로 함께 저장)
       const contract = await this.prisma.contract.create({
         data: {
           customerId: userId,
           customerName: user.name,
           customerPhone: dto.customerPhone ?? user.phone,
-          customerAddress: dto.customerAddress,
+          customerAddress,
           productId: item.productId,
           productItemId,
           productName: product.name,
@@ -175,12 +191,12 @@ export class ContractsService {
     return contracts;
   }
 
-  // 고객의 계약 목록 조회 (행사/주관사/업체 정보 포함)
+  // 고객의 계약 목록 조회 (행사/주관사/업체 정보 + 동호수 포함)
   async findByCustomer(userId: string, eventId?: string) {
     const where: any = { customerId: userId };
     if (eventId) where.eventId = eventId;
 
-    return this.prisma.contract.findMany({
+    const contracts = await this.prisma.contract.findMany({
       where,
       include: {
         product: {
@@ -200,14 +216,17 @@ export class ContractsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // 고객 동/호수/타입 정보 보강
+    return this._enrichWithParticipantInfo(contracts);
   }
 
-  // 업체의 계약 목록 조회 (행사/주관사/고객 정보 포함)
+  // 업체의 계약 목록 조회 (행사/주관사/고객 정보 포함 + 동호수)
   async findByVendor(vendorId: string, eventId?: string) {
     const where: any = { vendorId };
     if (eventId) where.eventId = eventId;
 
-    return this.prisma.contract.findMany({
+    const contracts = await this.prisma.contract.findMany({
       where,
       include: {
         product: true,
@@ -224,11 +243,14 @@ export class ContractsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // 고객 동/호수/타입 정보 보강
+    return this._enrichWithParticipantInfo(contracts);
   }
 
-  // 주관사용 - 행사별 전체 계약 목록
+  // 주관사용 - 행사별 전체 계약 목록 (동호수 포함)
   async findByEvent(eventId: string) {
-    return this.prisma.contract.findMany({
+    const contracts = await this.prisma.contract.findMany({
       where: { eventId },
       include: {
         product: true,
@@ -239,9 +261,45 @@ export class ContractsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // 고객 동/호수/타입 정보 보강
+    return this._enrichWithParticipantInfo(contracts);
   }
 
-  // 계약 상세 조회 (행사/주관사/업체 전체 정보 포함)
+  // 계약 목록에 고객 동/호수/타입 정보 추가 (EventParticipant 조회)
+  private async _enrichWithParticipantInfo(contracts: any[]) {
+    if (contracts.length === 0) return contracts;
+
+    // 한번에 모든 관련 참가자 정보를 가져오기 (N+1 방지)
+    const participantKeys = contracts
+      .filter(c => c.customerId && c.eventId)
+      .map(c => ({ userId: c.customerId, eventId: c.eventId }));
+
+    // 유니크 키 조합으로 조회
+    const uniqueKeys = [...new Map(participantKeys.map(k => [`${k.userId}|${k.eventId}`, k])).values()];
+
+    const participants = await this.prisma.eventParticipant.findMany({
+      where: {
+        OR: uniqueKeys.map(k => ({ userId: k.userId, eventId: k.eventId })),
+      },
+      select: { userId: true, eventId: true, dong: true, ho: true, housingType: true },
+    });
+
+    // 맵으로 변환
+    const pMap = new Map(participants.map(p => [`${p.userId}|${p.eventId}`, p]));
+
+    return contracts.map(c => {
+      const p = pMap.get(`${c.customerId}|${c.eventId}`);
+      return {
+        ...c,
+        customerDong: p?.dong ?? null,
+        customerHo: p?.ho ?? null,
+        customerHousingType: p?.housingType ?? null,
+      };
+    });
+  }
+
+  // 계약 상세 조회 (행사/주관사/업체 전체 정보 + 고객 동호수 포함)
   async findOne(id: string) {
     const contract = await this.prisma.contract.findUnique({
       where: { id },
@@ -271,7 +329,22 @@ export class ContractsService {
       throw new NotFoundException('계약을 찾을 수 없습니다');
     }
 
-    return contract;
+    // 고객의 동/호수/타입 정보 (EventParticipant에서 가져오기)
+    let participant = null;
+    if (contract.customerId && contract.eventId) {
+      participant = await this.prisma.eventParticipant.findFirst({
+        where: { userId: contract.customerId, eventId: contract.eventId },
+        select: { dong: true, ho: true, housingType: true },
+      });
+    }
+
+    return {
+      ...contract,
+      // 고객 동/호수/타입 추가 (모든 역할에서 동일하게 볼 수 있도록)
+      customerDong: participant?.dong ?? null,
+      customerHo: participant?.ho ?? null,
+      customerHousingType: participant?.housingType ?? null,
+    };
   }
 
   // 계약 취소 요청 (고객이 호출)

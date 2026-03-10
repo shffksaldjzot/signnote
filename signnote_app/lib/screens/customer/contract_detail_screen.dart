@@ -89,10 +89,16 @@ class CustomerContractDetailScreen extends StatelessWidget {
                 ]),
                 const SizedBox(height: 16),
 
-                // 고객 정보
+                // 고객 정보 (동/호수/타입 포함 — 모든 역할에서 동일하게 표시)
                 _buildSection('고객 정보', [
                   _buildInfoLine('고객명', contract['customerName'] ?? '-'),
                   _buildInfoLine('연락처', contract['customerPhone'] ?? '-'),
+                  if ((contract['customerDong'] as String?)?.isNotEmpty == true ||
+                      (contract['customerHo'] as String?)?.isNotEmpty == true)
+                    _buildInfoLine('동/호수',
+                      '${contract['customerDong'] ?? ''}동 ${contract['customerHo'] ?? ''}호'),
+                  if ((contract['customerHousingType'] as String?)?.isNotEmpty == true)
+                    _buildInfoLine('타입', contract['customerHousingType']),
                   if ((contract['customerAddress'] as String?)?.isNotEmpty == true)
                     _buildInfoLine('주소', contract['customerAddress']),
                 ]),

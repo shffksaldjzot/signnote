@@ -1893,3 +1893,26 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] Flutter 빌드 에러 0건
 - [x] Cloudflare Pages 프론트엔드 배포 완료
 
+---
+
+### 2026-03-10 — 피드백 6건 처리
+
+#### 처리 항목 (6건) ✅
+1. **#1 2차 디자인 아이콘 전체 적용** — 14개 PNG 아이콘 복사 (협력업체 5개, 고객 8개, 주관사 1개) + 연필 아이콘 9개소를 커스텀 write.png로 교체 + 고객/협력업체 하단 네비바 커스텀 PNG 전환
+2. **#2 참가비 입금 버튼 확인** — 코드 정상 존재 확인, participationFee 타입 캐스팅 안전 변환 수정
+3. **#3 주관사 계약함 상세보기+다운로드** — 계약 카드 클릭 → API 상세 조회 → 상세 화면 이동 + 계약서 이미지 다운로드
+4. **#4 알림 종류별 색상 통일** — 10종 알림 타입별 아이콘+색상 매뉴얼 → 주관사 이벤트 알림탭 + 공통 알림 화면 일괄 적용
+5. **#5-1 주관사 계약함 고객별 그룹핑** — 고객 이름 기준 ExpansionTile (1뎁스: 고객+건수 배지, 2뎁스: 계약 카드)
+6. **#5-2 주관사 고객 엑셀 다운로드** — 체크박스 선택 + 전체/선택 다운로드 + BOM CSV (엑셀 한글 호환)
+7. **#6 행사정보카드 아코디언 방식** — 스크롤 자동 숨김 → 제목 옆 ▼ 화살표 수동 토글 (주관사+협력업체)
+
+#### 수정 파일
+**프론트엔드 (8개):** event_manage_screen.dart, vendor/event_detail_screen.dart, vendor/product_manage_screen.dart, organizer/home_screen.dart, organizer/web/event_detail_page.dart, common/mypage_screen.dart, common/notification_screen.dart, widgets/product/product_card.dart
+**위젯 (1개):** widgets/layout/app_tab_bar.dart
+**유틸 (1개 신규):** utils/csv_download.dart
+**에셋 (14개):** assets/icons/ 하위 PNG 아이콘
+
+#### 빌드 & 배포
+- [x] Flutter 빌드 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+

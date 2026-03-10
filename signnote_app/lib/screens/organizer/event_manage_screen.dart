@@ -10,6 +10,8 @@ import '../../services/event_service.dart';
 import '../../services/contract_service.dart';
 import '../../services/notification_service.dart';
 import '../../utils/number_formatter.dart';
+import '../../utils/csv_download.dart';
+import '../customer/contract_detail_screen.dart';
 import 'product_add_screen.dart';
 
 // ============================================
@@ -56,8 +58,8 @@ class _OrganizerEventManageScreenState
   // 행사 상세 정보 (정보 카드용)
   Map<String, dynamic>? _eventDetail;
 
-  // 행사 정보 카드 표시 여부 (스크롤로 접히기)
-  bool _showInfoCard = true;
+  // 행사 정보 카드 표시 여부 (기본: 접힌 상태)
+  bool _showInfoCard = false;
 
   // 아코디언 펼침 상태 유지 (리빌드 시에도 유지)
   final Set<String> _expandedProductIds = {};
@@ -65,6 +67,7 @@ class _OrganizerEventManageScreenState
   // 고객 목록 데이터
   List<Map<String, dynamic>> _customers = [];
   bool _isLoadingCustomers = true;
+  final Set<int> _selectedCustomerIndices = {}; // 선택된 고객 인덱스
 
   // 계약 데이터
   List<Map<String, dynamic>> _contracts = [];
@@ -197,6 +200,9 @@ class _OrganizerEventManageScreenState
           'customerName': c['customerName'] ?? c['customer']?['name'] ?? '고객',
           'customerPhone': c['customerPhone'] ?? c['customer']?['phone'] ?? '',
           'customerAddress': c['customerAddress'] ?? '',
+          'customerDong': c['customerDong'] ?? '',
+          'customerHo': c['customerHo'] ?? '',
+          'customerHousingType': c['customerHousingType'] ?? '',
           'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? c['productItemName'] ?? c['productName'] ?? '품목',
           'productCategory': c['product']?['category'] ?? c['productName'] ?? '기타',
           'originalPrice': c['originalPrice'] ?? 0,
@@ -237,17 +243,9 @@ class _OrganizerEventManageScreenState
     }
   }
 
-  // 스크롤 방향 감지 → 정보 카드 접기/펼치기
-  bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification is ScrollUpdateNotification) {
-      final delta = notification.scrollDelta ?? 0;
-      if (delta > 2 && _showInfoCard) {
-        setState(() => _showInfoCard = false); // 위로 스크롤 → 카드 숨김
-      } else if (delta < -2 && !_showInfoCard) {
-        setState(() => _showInfoCard = true); // 아래로 스크롤 → 카드 표시
-      }
-    }
-    return false;
+  // 행사 정보 카드 수동 접기/펼치기 토글
+  void _toggleInfoCard() {
+    setState(() => _showInfoCard = !_showInfoCard);
   }
 
   // 행사에 참여한 업체 목록 가져오기 (드롭다운용)
@@ -260,6 +258,7 @@ class _OrganizerEventManageScreenState
         _vendors = participants.map<Map<String, dynamic>>((p) => {
           'id': p['id']?.toString() ?? '',
           'name': p['name'] ?? '이름 없음',
+          'phone': p['phone']?.toString(),
         }).toList();
       });
     }
@@ -279,22 +278,40 @@ class _OrganizerEventManageScreenState
           icon: Image.asset('assets/icons/organizer/home_active.png', width: 26, height: 26),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          widget.eventTitle,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-          overflow: TextOverflow.ellipsis,
+        title: GestureDetector(
+          onTap: _toggleInfoCard,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  widget.eventTitle,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              // 행사정보 접기/펼치기 화살표
+              AnimatedRotation(
+                turns: _showInfoCard ? 0.5 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: const Icon(Icons.keyboard_arrow_down, size: 22, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
         ),
         actions: [
-          // 사람 아이콘 (마이페이지)
+          // 업체 리스트 아이콘 (우측 슬라이드 패널)
           IconButton(
-            icon: const Icon(Icons.person_outline, size: 26),
-            onPressed: () => context.push(AppRoutes.mypage, extra: 'ORGANIZER'),
+            icon: const Icon(Icons.groups_outlined, size: 26),
+            tooltip: '참여 업체 목록',
+            onPressed: () => _showVendorListPanel(),
           ),
         ],
       ),
       body: Column(
         children: [
-          // 행사 정보 카드 (스크롤 시 접힘/펼침)
+          // 행사 정보 카드 (수동 접기/펼치기 — 제목 옆 화살표 클릭)
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
@@ -318,17 +335,14 @@ class _OrganizerEventManageScreenState
           ),
           // 탭 내용
           Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: _handleScrollNotification,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildProductTab(),
-                  _buildCustomerTab(),
-                  _buildContractTab(),
-                  _buildNotificationTab(),
-                ],
-              ),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildProductTab(),
+                _buildCustomerTab(),
+                _buildContractTab(),
+                _buildNotificationTab(),
+              ],
             ),
           ),
         ],
@@ -499,6 +513,7 @@ class _OrganizerEventManageScreenState
 
     // 꾹 눌러서 드래그앤드롭으로 순서 변경 (스마트폰 아이콘 옮기기 방식)
     return ReorderableListView(
+      buildDefaultDragHandles: false, // 기본 드래그 핸들 끄기 (커스텀 핸들과 충돌 방지)
       padding: const EdgeInsets.symmetric(horizontal: 16),
       proxyDecorator: (child, index, animation) {
         // 드래그 중인 아이템에 그림자 효과
@@ -542,7 +557,7 @@ class _OrganizerEventManageScreenState
   Widget _buildAccordionItem(Map<String, dynamic> product) {
     final name = product['name'] ?? '';
     final vendorName = product['vendorName'] as String? ?? '';
-    final fee = product['participationFee'] as int? ?? 0;
+    final fee = (product['participationFee'] is num) ? (product['participationFee'] as num).toInt() : 0;
     final rate = product['commissionRate'];
     final ratePercent = rate is num ? (rate * 100).toStringAsFixed(0) : '0';
     final formattedFee = NumberFormat('#,###').format(fee);
@@ -562,7 +577,27 @@ class _OrganizerEventManageScreenState
               : const Color(0xFF81C784),                   // 초록 테두리
         ),
       ),
-      child: ExpansionTile(
+      // Row로 드래그 핸들과 ExpansionTile을 분리 (제스처 충돌 방지)
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 드래그 핸들 — ExpansionTile 바깥에 배치하여 제스처 충돌 없음
+          // PC: 클릭+드래그 즉시 반응, 모바일: 꾹 눌러서 드래그
+          ReorderableDragStartListener(
+            index: productIndex,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.grab,
+              child: Container(
+                width: 36, // 넉넉한 터치/클릭 영역
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                child: const Icon(Icons.drag_indicator, size: 22, color: AppColors.textHint),
+              ),
+            ),
+          ),
+          // ExpansionTile (나머지 영역 전체)
+          Expanded(
+            child: ExpansionTile(
         key: PageStorageKey(product['id']), // 상태 유지용 키
         shape: const Border(), // 펼쳤을 때 까만 줄 제거
         collapsedShape: const Border(), // 접혔을 때 까만 줄 제거
@@ -611,14 +646,6 @@ class _OrganizerEventManageScreenState
                     ),
                   ],
                 ],
-              ),
-            ),
-            // 드래그 핸들 (꾹 눌러서 순서 변경)
-            ReorderableDragStartListener(
-              index: productIndex,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
-                child: Icon(Icons.drag_handle, size: 22, color: AppColors.textSecondary),
               ),
             ),
           ],
@@ -713,7 +740,7 @@ class _OrganizerEventManageScreenState
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _editField(product, '품목명', 'name', name),
-                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  icon: Image.asset('assets/icons/vendor/write.png', width: 18, height: 18, color: AppColors.organizer),
                   label: const Text('이름 변경'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.organizer,
@@ -760,6 +787,9 @@ class _OrganizerEventManageScreenState
           ],
         ],
       ),
+          ), // Expanded (ExpansionTile)
+        ], // Row children
+      ), // Row (드래그핸들 + ExpansionTile)
     );
   }
 
@@ -863,31 +893,61 @@ class _OrganizerEventManageScreenState
             ),
           ),
           const SizedBox(height: 24),
-          // 고객 테이블 헤더
+          // 고객 테이블 헤더 + 다운로드 버튼
           Row(
             children: [
               const Text('고객', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(width: 4),
               const Icon(Icons.chevron_right, size: 20),
               const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.search, size: 22),
-                onPressed: () {},
+              // 선택 다운로드 (선택된 항목이 있을 때)
+              if (_selectedCustomerIndices.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => _downloadCustomerCsv(selectedOnly: true),
+                  icon: const Icon(Icons.download, size: 16),
+                  label: Text('선택 (${_selectedCustomerIndices.length})', style: const TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
+                ),
+              // 전체 다운로드
+              TextButton.icon(
+                onPressed: _customers.isEmpty ? null : () => _downloadCustomerCsv(selectedOnly: false),
+                icon: const Icon(Icons.file_download_outlined, size: 16),
+                label: const Text('전체', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
               ),
             ],
           ),
-          // 테이블 헤더
+          // 테이블 헤더 (전체 선택 체크박스 포함)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
             decoration: const BoxDecoration(
               border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Expanded(flex: 2, child: Text('이름', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                Expanded(flex: 1, child: Text('동', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
-                Expanded(flex: 1, child: Text('호수', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
-                Expanded(flex: 2, child: Text('연락처', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
+                // 전체 선택 체크박스
+                SizedBox(
+                  width: 32,
+                  child: Checkbox(
+                    value: _customers.isNotEmpty && _selectedCustomerIndices.length == _customers.length,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _selectedCustomerIndices.addAll(List.generate(_customers.length, (i) => i));
+                        } else {
+                          _selectedCustomerIndices.clear();
+                        }
+                      });
+                    },
+                    activeColor: AppColors.organizer,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                const Expanded(flex: 2, child: Text('이름', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                const Expanded(flex: 1, child: Text('동', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
+                const Expanded(flex: 1, child: Text('호수', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
+                const Expanded(flex: 2, child: Text('연락처', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
               ],
             ),
           ),
@@ -903,30 +963,62 @@ class _OrganizerEventManageScreenState
                         itemCount: _customers.length,
                         itemBuilder: (context, index) {
                           final customer = _customers[index];
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                            decoration: const BoxDecoration(
-                              border: Border(bottom: BorderSide(color: AppColors.background)),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(customer['name'], style: const TextStyle(fontSize: 13)),
-                                ),
-                                Expanded(
-                                  flex: 1,
-                                  child: Text(customer['dong'], style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
-                                ),
-                                Expanded(
-                                  flex: 1,
-                                  child: Text(customer['ho'], style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(customer['phone'], style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
-                                ),
-                              ],
+                          final isSelected = _selectedCustomerIndices.contains(index);
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (isSelected) {
+                                  _selectedCustomerIndices.remove(index);
+                                } else {
+                                  _selectedCustomerIndices.add(index);
+                                }
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected ? AppColors.organizer.withValues(alpha: 0.06) : null,
+                                border: const Border(bottom: BorderSide(color: AppColors.background)),
+                              ),
+                              child: Row(
+                                children: [
+                                  // 개별 체크박스
+                                  SizedBox(
+                                    width: 32,
+                                    child: Checkbox(
+                                      value: isSelected,
+                                      onChanged: (val) {
+                                        setState(() {
+                                          if (val == true) {
+                                            _selectedCustomerIndices.add(index);
+                                          } else {
+                                            _selectedCustomerIndices.remove(index);
+                                          }
+                                        });
+                                      },
+                                      activeColor: AppColors.organizer,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(customer['name'], style: const TextStyle(fontSize: 13)),
+                                  ),
+                                  Expanded(
+                                    flex: 1,
+                                    child: Text(customer['dong'], style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
+                                  ),
+                                  Expanded(
+                                    flex: 1,
+                                    child: Text(customer['ho'], style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(customer['phone'], style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
@@ -1014,7 +1106,7 @@ class _OrganizerEventManageScreenState
             ],
           ),
           const SizedBox(height: 16),
-          // 계약 목록 또는 빈 상태
+          // 계약 목록 (고객별 그룹핑) 또는 빈 상태
           if (_contracts.isEmpty)
             const Center(
               child: Padding(
@@ -1023,13 +1115,74 @@ class _OrganizerEventManageScreenState
               ),
             )
           else
-            ..._contracts.map((contract) => _buildOrganizerContractCard(contract)),
+            ..._buildGroupedContracts(),
         ],
       ),
     );
   }
 
-  // 주관사 계약 카드 (개별)
+  // 고객별 계약 그룹핑 (1뎁스: 고객, 2뎁스: 계약 건)
+  List<Widget> _buildGroupedContracts() {
+    // 고객 이름 기준으로 그룹핑
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final c in _contracts) {
+      final customerKey = '${c['customerName']}|${c['customerAddress']}|${c['customerPhone']}';
+      grouped.putIfAbsent(customerKey, () => []).add(c);
+    }
+
+    return grouped.entries.map((entry) {
+      final parts = entry.key.split('|');
+      final name = parts[0];
+      final address = parts.length > 1 ? parts[1] : '';
+      final phone = parts.length > 2 ? parts[2] : '';
+      final contracts = entry.value;
+      final activeCount = contracts.where((c) => c['status'] != 'CANCELLED').length;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: ExpansionTile(
+          shape: const Border(),
+          collapsedShape: const Border(),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          title: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (address.isNotEmpty)
+                      Text(address, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text('$name 님', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              // 계약 건수 뱃지
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.organizer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$activeCount건',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.white),
+                ),
+              ),
+            ],
+          ),
+          // 2뎁스: 개별 계약 카드 목록
+          children: contracts.map((contract) => _buildOrganizerContractCard(contract)).toList(),
+        ),
+      );
+    }).toList();
+  }
+
+  // 주관사 계약 카드 (개별) — 클릭 시 상세보기
   Widget _buildOrganizerContractCard(Map<String, dynamic> contract) {
     final format = NumberFormat('#,###');
     final status = contract['status'] as String;
@@ -1060,64 +1213,82 @@ class _OrganizerEventManageScreenState
         statusBgColor = AppColors.background;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 고객 정보 + 상태 뱃지
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if ((contract['customerAddress'] as String).isNotEmpty)
-                      Text(contract['customerAddress'], style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                    Text('${contract['customerName']} 님', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                    if ((contract['customerPhone'] as String).isNotEmpty)
-                      Text(contract['customerPhone'], style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  ],
-                ),
+    return GestureDetector(
+      onTap: () => _openContractDetail(contract),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            // 품목명 + 금액
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(contract['productName'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text('${format.format(contract['originalPrice'])}원 / 계약금 ${format.format(contract['depositAmount'])}원',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusBgColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(statusText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          // 품목명
-          Text(contract['productName'], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          // 금액
-          Align(
-            alignment: Alignment.centerRight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('가격 : ${format.format(contract['originalPrice'])}원', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text('계약금 : ${format.format(contract['depositAmount'])}원', style: const TextStyle(fontSize: 14, color: AppColors.priceRed, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text('잔금 : ${format.format(contract['remainAmount'])}원', style: const TextStyle(fontSize: 14)),
-              ],
             ),
-          ),
-        ],
+            // 상태 뱃지
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusBgColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor)),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 18, color: AppColors.textHint),
+          ],
+        ),
       ),
     );
+  }
+
+  // 계약 상세보기 (API로 전체 정보 조회 후 화면 이동)
+  Future<void> _openContractDetail(Map<String, dynamic> contract) async {
+    final contractId = contract['id']?.toString();
+    if (contractId == null || contractId.isEmpty) return;
+
+    // 로딩 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.organizer)),
+    );
+
+    final result = await ContractService().getContractDetail(contractId);
+    if (!mounted) return;
+    Navigator.pop(context); // 로딩 닫기
+
+    if (result['success'] == true) {
+      final detail = result['contract'] as Map<String, dynamic>;
+      // 행사 정보 보강
+      detail['eventTitle'] = _eventDetail?['title'] ?? widget.eventTitle;
+      detail['siteName'] = detail['siteName'] ?? _eventDetail?['siteName'] ?? '';
+      detail['organizerName'] = detail['organizerName'] ?? _eventDetail?['organizer']?['name'] ?? '';
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerContractDetailScreen(
+            contract: detail,
+            categoryName: contract['productCategory'] ?? '계약 상세',
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('계약 상세 정보를 불러올 수 없습니다')),
+      );
+    }
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1185,28 +1356,8 @@ class _OrganizerEventManageScreenState
         final createdAt = noti['createdAt'] as String;
         final dateStr = createdAt.length >= 16 ? createdAt.substring(0, 16).replaceAll('T', ' ') : createdAt;
 
-        // 알림 타입별 아이콘
-        IconData icon;
-        switch (noti['type']) {
-          case 'VENDOR_JOINED':
-            icon = Icons.person_add;
-            break;
-          case 'PRODUCT_REGISTERED':
-            icon = Icons.inventory_2;
-            break;
-          case 'PRODUCT_UPDATED':
-            icon = Icons.edit;
-            break;
-          case 'CONTRACT_CREATED':
-          case 'CONTRACT_CONFIRMED':
-            icon = Icons.description;
-            break;
-          case 'CANCEL_REQUESTED':
-            icon = Icons.cancel;
-            break;
-          default:
-            icon = Icons.notifications;
-        }
+        // 알림 타입별 아이콘 + 색상
+        final notiStyle = _getNotificationStyle(noti['type'] as String? ?? '');
 
         return GestureDetector(
           onTap: () async {
@@ -1222,22 +1373,22 @@ class _OrganizerEventManageScreenState
             margin: const EdgeInsets.symmetric(vertical: 4),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: isRead ? AppColors.white : const Color(0xFFFFF8F0),
+              color: isRead ? AppColors.white : notiStyle['color'].withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: isRead ? AppColors.border : const Color(0xFFFFE0B2)),
+              border: Border.all(color: isRead ? AppColors.border : notiStyle['color'].withValues(alpha: 0.3)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 알림 아이콘
+                // 알림 아이콘 (타입별 색상 적용)
                 Container(
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: isRead ? AppColors.background : const Color(0xFFFFE0B2),
+                    color: isRead ? AppColors.background : notiStyle['color'].withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(icon, size: 18, color: isRead ? AppColors.textSecondary : AppColors.organizer),
+                  child: Icon(notiStyle['icon'] as IconData, size: 18, color: isRead ? AppColors.textSecondary : notiStyle['color']),
                 ),
                 const SizedBox(width: 12),
                 // 알림 내용
@@ -1306,6 +1457,62 @@ class _OrganizerEventManageScreenState
   }
 
   // 초대 버튼
+  // 고객 리스트 CSV(엑셀) 다운로드
+  void _downloadCustomerCsv({required bool selectedOnly}) {
+    final List<Map<String, dynamic>> targets;
+    if (selectedOnly) {
+      targets = _selectedCustomerIndices.map((i) => _customers[i]).toList();
+    } else {
+      targets = _customers;
+    }
+    if (targets.isEmpty) return;
+
+    // CSV 행 구성 (헤더 + 데이터)
+    final rows = <List<String>>[
+      ['이름', '동', '호수', '타입', '연락처'], // 헤더
+      ...targets.map((c) => [
+        c['name'] ?? '',
+        c['dong'] ?? '',
+        c['ho'] ?? '',
+        c['housingType'] ?? '',
+        c['phone'] ?? '',
+      ]),
+    ];
+
+    final eventTitle = _eventDetail?['title'] ?? widget.eventTitle;
+    downloadCsv(rows, '${eventTitle}_고객리스트.csv');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${targets.length}명 고객 리스트 다운로드 완료')),
+    );
+  }
+
+  // 알림 타입별 아이콘 + 색상 (통일된 색상 매뉴얼)
+  Map<String, dynamic> _getNotificationStyle(String type) {
+    switch (type) {
+      case 'VENDOR_JOINED':
+        return {'icon': Icons.person_add, 'color': const Color(0xFF4CAF50)}; // 초록 (참여)
+      case 'PRODUCT_REGISTERED':
+        return {'icon': Icons.inventory_2, 'color': const Color(0xFF2196F3)}; // 파랑 (등록)
+      case 'PRODUCT_UPDATED':
+        return {'icon': Icons.edit_note, 'color': const Color(0xFF9C27B0)}; // 보라 (수정)
+      case 'CONTRACT_CREATED':
+        return {'icon': Icons.description, 'color': const Color(0xFF2D6EFF)}; // 파랑 (계약)
+      case 'CONTRACT_CONFIRMED':
+        return {'icon': Icons.check_circle, 'color': const Color(0xFF4CAF50)}; // 초록 (확정)
+      case 'CANCEL_REQUESTED':
+        return {'icon': Icons.warning, 'color': Colors.orange}; // 주황 (취소요청)
+      case 'CANCEL_APPROVED':
+        return {'icon': Icons.cancel, 'color': const Color(0xFFE53935)}; // 빨강 (취소완료)
+      case 'PAYMENT_COMPLETED':
+        return {'icon': Icons.payment, 'color': const Color(0xFF4CAF50)}; // 초록 (결제)
+      case 'PAYMENT_REFUNDED':
+        return {'icon': Icons.money_off, 'color': const Color(0xFFE53935)}; // 빨강 (환불)
+      default:
+        return {'icon': Icons.notifications, 'color': const Color(0xFF757575)}; // 회색 (기타)
+    }
+  }
+
   Widget _buildInviteButton() {
     return GestureDetector(
       onTap: _showInviteDialog,
@@ -1321,6 +1528,89 @@ class _OrganizerEventManageScreenState
             Icon(Icons.mail_outline, size: 16, color: AppColors.textPrimary),
             SizedBox(width: 4),
             Text('초대', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 참여 업체 목록 슬라이드 패널 (우측에서 열림)
+  void _showVendorListPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // 핸들 바
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 8),
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textHint,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // 제목
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_outlined, size: 22, color: AppColors.organizer),
+                  const SizedBox(width: 8),
+                  Text(
+                    '참여 업체 목록 (${_vendors.length})',
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            // 업체 리스트
+            Expanded(
+              child: _vendors.isEmpty
+                  ? const Center(
+                      child: Text('참여한 업체가 없습니다', style: TextStyle(color: AppColors.textHint)),
+                    )
+                  : ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      itemCount: _vendors.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final vendor = _vendors[index];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.textPrimary,
+                            radius: 20,
+                            child: Text(
+                              (vendor['name'] ?? '?').toString().isNotEmpty
+                                  ? vendor['name'].toString()[0]
+                                  : '?',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          title: Text(
+                            vendor['name'] ?? '이름 없음',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: vendor['phone'] != null
+                              ? Text(vendor['phone'], style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))
+                              : null,
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),
@@ -1375,6 +1665,32 @@ class _OrganizerEventManageScreenState
             const Text('협력업체 입장코드', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             _buildCopyField(vendorCode),
+            const SizedBox(height: 12),
+            // 협력업체 초대 메시지 전체 복사 버튼 (행사명+URL+코드 포함)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  final vendorInviteUrl = 'https://signnote.pages.dev/entry-code?code=$vendorCode';
+                  final fullMessage = '${widget.eventTitle}\n'
+                      '입장 URL : $vendorInviteUrl\n'
+                      '초대코드 : $vendorCode\n'
+                      '위 링크로 입장하시거나 또는 앱에서 코드를 입력하세요.';
+                  Clipboard.setData(ClipboardData(text: fullMessage));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('행사명 포함 초대 메시지가 복사되었습니다')),
+                  );
+                },
+                icon: const Icon(Icons.content_copy, size: 16),
+                label: const Text('행사명 포함 초대 메시지 복사'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.organizer,
+                  side: const BorderSide(color: AppColors.organizer),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
           ],
         ),
@@ -1590,7 +1906,7 @@ class _OrganizerEventManageScreenState
         const SizedBox(width: 8),
         GestureDetector(
           onTap: onEdit,
-          child: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textSecondary),
+          child: Image.asset('assets/icons/vendor/write.png', width: 18, height: 18, color: AppColors.textSecondary),
         ),
       ],
     );

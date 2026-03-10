@@ -26,7 +26,7 @@ class AppTabBar extends StatelessWidget {
     required this.items,
   });
 
-  // 고객용 탭바 (4탭: 홈, 장바구니, 계약함, 마이페이지)
+  // 고객용 탭바 (4탭: 홈, 장바구니, 계약함, 마이페이지) — 2차 디자인 아이콘 적용
   factory AppTabBar.customer({
     required int currentIndex,
     required ValueChanged<int> onTap,
@@ -36,41 +36,42 @@ class AppTabBar extends StatelessWidget {
       currentIndex: currentIndex,
       onTap: onTap,
       items: [
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
+        BottomNavigationBarItem(
+          icon: Image.asset('assets/icons/customer/home_inactive.png', width: 24, height: 24),
+          activeIcon: Image.asset('assets/icons/customer/home_active.png', width: 24, height: 24),
           label: '홈',
         ),
+        // 장바구니 아이콘 (파일명이 뒤바뀌어있어서 active↔inactive 교차 사용)
         BottomNavigationBarItem(
           icon: cartBadgeCount > 0
               ? Badge(
                   label: Text('$cartBadgeCount'),
-                  child: const Icon(Icons.shopping_cart_outlined),
+                  child: Image.asset('assets/icons/customer/cart_active.png', width: 24, height: 24),
                 )
-              : const Icon(Icons.shopping_cart_outlined),
+              : Image.asset('assets/icons/customer/cart_active.png', width: 24, height: 24),
           activeIcon: cartBadgeCount > 0
               ? Badge(
                   label: Text('$cartBadgeCount'),
-                  child: const Icon(Icons.shopping_cart),
+                  child: Image.asset('assets/icons/customer/cart_inactive.png', width: 24, height: 24),
                 )
-              : const Icon(Icons.shopping_cart),
+              : Image.asset('assets/icons/customer/cart_inactive.png', width: 24, height: 24),
           label: '장바구니',
         ),
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.description_outlined),
-          activeIcon: Icon(Icons.description),
+        BottomNavigationBarItem(
+          icon: Image.asset('assets/icons/customer/contract_inactive.png', width: 24, height: 24),
+          activeIcon: Image.asset('assets/icons/customer/contract_active.png', width: 24, height: 24),
           label: '계약함',
         ),
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
+        BottomNavigationBarItem(
+          icon: Image.asset('assets/icons/customer/mypage_inactive.png', width: 24, height: 24),
+          activeIcon: Image.asset('assets/icons/customer/mypage_active.png', width: 24, height: 24),
           label: '마이페이지',
         ),
       ],
     );
   }
 
-  // 업체용 탭바 (2탭: 홈, 마이페이지) — 2차 디자인 기준
+  // 업체용 탭바 (2탭: 홈, 마이페이지) — 2차 디자인 아이콘 적용
   factory AppTabBar.vendor({
     required int currentIndex,
     required ValueChanged<int> onTap,
@@ -78,15 +79,15 @@ class AppTabBar extends StatelessWidget {
     return AppTabBar(
       currentIndex: currentIndex,
       onTap: onTap,
-      items: const [
+      items: [
         BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
+          icon: Image.asset('assets/icons/vendor/home_inactive.png', width: 24, height: 24),
+          activeIcon: Image.asset('assets/icons/vendor/home_active.png', width: 24, height: 24),
           label: '홈',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
+          icon: Image.asset('assets/icons/vendor/mypage_inactive.png', width: 24, height: 24),
+          activeIcon: Image.asset('assets/icons/vendor/mypage_active.png', width: 24, height: 24),
           label: '마이페이지',
         ),
       ],

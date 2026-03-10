@@ -191,9 +191,10 @@ class ProductCard extends StatelessWidget {
                     if (onEditTap != null)
                       GestureDetector(
                         onTap: onEditTap,
-                        child: const Icon(
-                          Icons.edit_outlined,
-                          size: 20,
+                        child: Image.asset(
+                          'assets/icons/vendor/write.png',
+                          width: 20,
+                          height: 20,
                           color: AppColors.textSecondary,
                         ),
                       ),

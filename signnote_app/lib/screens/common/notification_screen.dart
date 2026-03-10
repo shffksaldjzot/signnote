@@ -70,9 +70,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
     _loadNotifications(); // 새로고침
   }
 
-  // 알림 종류별 아이콘
+  // 알림 종류별 아이콘 (통일된 매뉴얼)
   IconData _getIcon(String type) {
     switch (type) {
+      case 'VENDOR_JOINED':
+        return Icons.person_add;
+      case 'PRODUCT_REGISTERED':
+        return Icons.inventory_2;
+      case 'PRODUCT_UPDATED':
+        return Icons.edit_note;
       case 'CONTRACT_CREATED':
         return Icons.description;
       case 'CONTRACT_CONFIRMED':
@@ -92,23 +98,30 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // 알림 종류별 색상
+  // 알림 종류별 색상 (통일된 매뉴얼)
   Color _getColor(String type) {
     switch (type) {
+      case 'VENDOR_JOINED':
+        return const Color(0xFF4CAF50); // 초록 (참여)
+      case 'PRODUCT_REGISTERED':
+        return const Color(0xFF2196F3); // 파랑 (등록)
+      case 'PRODUCT_UPDATED':
+        return const Color(0xFF9C27B0); // 보라 (수정)
       case 'CONTRACT_CREATED':
+        return AppColors.primary; // 파랑 (계약 생성)
       case 'CONTRACT_CONFIRMED':
-        return AppColors.primary;
+        return const Color(0xFF4CAF50); // 초록 (계약 확정)
       case 'CANCEL_REQUESTED':
-        return Colors.orange;
+        return Colors.orange; // 주황 (취소 요청)
       case 'CANCEL_APPROVED':
       case 'PAYMENT_REFUNDED':
-        return AppColors.priceRed;
+        return const Color(0xFFE53935); // 빨강 (취소/환불)
       case 'CANCEL_REJECTED':
-        return Colors.grey;
+        return Colors.grey; // 회색 (거절)
       case 'PAYMENT_COMPLETED':
-        return AppColors.success;
+        return const Color(0xFF4CAF50); // 초록 (결제 완료)
       default:
-        return AppColors.primary;
+        return const Color(0xFF757575); // 회색 (기타)
     }
   }
 

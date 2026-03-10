@@ -210,7 +210,7 @@ class _EventDetailPageState extends State<EventDetailPage>
               // 편집 버튼
               OutlinedButton.icon(
                 onPressed: _showEditDialog,
-                icon: const Icon(Icons.edit, size: 16),
+                icon: Image.asset('assets/icons/vendor/write.png', width: 16, height: 16),
                 label: const Text('행사 편집'),
                 style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary),
               ),

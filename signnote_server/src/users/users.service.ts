@@ -32,6 +32,9 @@ export class UsersService {
     const where: any = {};
     if (role) where.role = role;
 
+    // 고객 조회 시 행사 참여 정보(동/호수/타입/참여일/행사명) 포함
+    const includeParticipants = role === 'CUSTOMER';
+
     const users = await this.prisma.user.findMany({
       where,
       select: {
@@ -46,9 +49,48 @@ export class UsersService {
         businessLicenseImage: true,   // 사업자등록증 이미지
         isApproved: true,             // 승인 여부
         createdAt: true,
+        // 고객일 때 행사 참여 정보 포함
+        ...(includeParticipants && {
+          eventParticipants: {
+            select: {
+              dong: true,
+              ho: true,
+              housingType: true,
+              joinedAt: true,
+              event: { select: { id: true, title: true } },
+            },
+            orderBy: { joinedAt: 'desc' as const },
+          },
+        }),
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // 고객인 경우 참여 정보를 플랫하게 펼침 (최신 참여 기준)
+    if (includeParticipants) {
+      return users.map((u: any) => {
+        const participant = u.eventParticipants?.[0]; // 최신 참여 정보
+        return {
+          ...u,
+          dong: participant?.dong ?? null,
+          ho: participant?.ho ?? null,
+          housingType: participant?.housingType ?? null,
+          joinedAt: participant?.joinedAt ?? null,
+          eventTitle: participant?.event?.title ?? null,
+          eventId: participant?.event?.id ?? null,
+          // 여러 행사 참여 시 모든 행사 정보
+          events: u.eventParticipants?.map((ep: any) => ({
+            eventId: ep.event?.id,
+            eventTitle: ep.event?.title,
+            dong: ep.dong,
+            ho: ep.ho,
+            housingType: ep.housingType,
+            joinedAt: ep.joinedAt,
+          })) ?? [],
+          eventParticipants: undefined, // 원본 제거 (불필요한 중첩 방지)
+        };
+      });
+    }
 
     return users;
   }

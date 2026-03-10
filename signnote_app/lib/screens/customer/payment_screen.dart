@@ -5,6 +5,7 @@ import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
 import '../../services/payment_service.dart';
+import 'contract_screen.dart';
 
 // ============================================
 // 결제 화면
@@ -147,9 +148,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();       // 다이얼로그 닫기
-              Navigator.of(this.context).pop();   // 결제 화면 닫기
-              Navigator.of(this.context).pop(true); // 장바구니 화면 닫기 (계약함으로 이동)
+              Navigator.of(context).pop(); // 다이얼로그 닫기
+              // 현재 스택을 모두 정리하고 계약함 화면으로 이동
+              Navigator.of(this.context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const CustomerContractScreen()),
+                (route) => route.isFirst, // 홈(첫 화면)만 남기고 제거
+              );
             },
             child: const Text(
               '계약함으로 이동',

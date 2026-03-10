@@ -8,7 +8,7 @@ import '../../widgets/contract/contract_card.dart';
 import '../../widgets/common/app_card.dart';
 import '../../services/contract_service.dart';
 import 'home_screen.dart';
-import 'contract_detail_screen.dart';
+import '../customer/contract_detail_screen.dart';
 
 // ============================================
 // 업체용 계약함 화면
@@ -65,6 +65,9 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
             'id': c['id']?.toString() ?? '',
             'customerName': c['customerName'] ?? customer?['name'] ?? '고객',
             'customerAddress': c['customerAddress'] ?? '',
+            'customerDong': c['customerDong'] ?? '',
+            'customerHo': c['customerHo'] ?? '',
+            'customerHousingType': c['customerHousingType'] ?? '',
             'customerPhone': c['customerPhone'] ?? customer?['phone'] ?? '',
             'customerEmail': customer?['email'] ?? '',
             'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? c['productItemName'] ?? c['productName'] ?? '상품명 없음',
@@ -342,7 +345,7 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
                   // 계약 상세 화면으로 이동
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => VendorContractDetailScreen(
+                      builder: (_) => CustomerContractDetailScreen(
                         contract: contract,
                         categoryName: contract['productCategory'] ?? '계약 상세',
                       ),

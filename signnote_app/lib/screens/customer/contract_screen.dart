@@ -1,4 +1,6 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
@@ -6,6 +8,7 @@ import '../../config/routes.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../services/contract_service.dart';
+import '../../utils/image_download.dart';
 import 'home_screen.dart';
 import 'contract_detail_screen.dart';
 
@@ -78,6 +81,9 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             'customerName': c['customerName'] ?? '',
             'customerPhone': c['customerPhone'] ?? '',
             'customerAddress': c['customerAddress'] ?? '',
+            'customerDong': c['customerDong'] ?? '',
+            'customerHo': c['customerHo'] ?? '',
+            'customerHousingType': c['customerHousingType'] ?? '',
           };
         }).toList();
         _isLoading = false;
@@ -198,11 +204,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('각 계약의 상세보기에서 개별 다운로드를 이용해 주세요')),
-                );
-              },
+              onPressed: _downloadAllContracts,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,
                 foregroundColor: AppColors.white,
@@ -213,6 +215,118 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  // 전체 계약서 다운로드 (이미지 파일로 순차 다운로드)
+  Future<void> _downloadAllContracts() async {
+    if (_contracts.isEmpty) return;
+
+    // 진행 표시
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${_contracts.length}건의 계약서를 다운로드합니다...')),
+    );
+
+    int downloadCount = 0;
+    for (final contract in _contracts) {
+      final success = await _downloadContractAsImage(contract);
+      if (success) downloadCount++;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$downloadCount건의 계약서가 다운로드되었습니다')),
+      );
+    }
+  }
+
+  // 개별 계약을 이미지로 다운로드 (오프스크린 렌더링)
+  Future<bool> _downloadContractAsImage(Map<String, dynamic> contract) async {
+    try {
+      final captureKey = GlobalKey();
+
+      final overlay = OverlayEntry(
+        builder: (_) => Positioned(
+          left: -9999,
+          child: Material(
+            child: RepaintBoundary(
+              key: captureKey,
+              child: Container(
+                width: 400,
+                color: Colors.white,
+                padding: const EdgeInsets.all(24),
+                child: _buildContractImageContent(contract),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Overlay.of(context).insert(overlay);
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      final boundary = captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary != null) {
+        final image = await boundary.toImage(pixelRatio: 3.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData != null) {
+          final bytes = byteData.buffer.asUint8List();
+          final customerName = contract['customerName'] ?? '고객';
+          final productName = contract['productName'] ?? '품목';
+          final date = DateFormat('yyyyMMdd').format(DateTime.now());
+          final fileName = '계약서_${customerName}_${productName}_$date.png';
+          await downloadImageBytes(bytes, fileName);
+          overlay.remove();
+          return true;
+        }
+      }
+      overlay.remove();
+    } catch (_) {
+      // 실패 시 다음 건 진행
+    }
+    return false;
+  }
+
+  // 계약서 이미지 내용 위젯 (다운로드용)
+  Widget _buildContractImageContent(Map<String, dynamic> contract) {
+    final format = NumberFormat('#,###');
+    final originalPrice = contract['originalPrice'] ?? contract['price'] ?? 0;
+    final depositAmount = contract['depositAmount'] ?? 0;
+    final remainAmount = contract['remainAmount'] ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('계약서', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 16),
+        // 행사 정보
+        if ((contract['eventTitle'] as String?)?.isNotEmpty == true)
+          Text('행사: ${contract['eventTitle']}', style: const TextStyle(fontSize: 13)),
+        if ((contract['siteName'] as String?)?.isNotEmpty == true)
+          Text('현장: ${contract['siteName']}', style: const TextStyle(fontSize: 13)),
+        if ((contract['organizerName'] as String?)?.isNotEmpty == true)
+          Text('주관사: ${contract['organizerName']}', style: const TextStyle(fontSize: 13)),
+        const Divider(height: 24),
+        // 업체 정보
+        Text('업체: ${contract['vendorName'] ?? '-'}', style: const TextStyle(fontSize: 13)),
+        const Divider(height: 24),
+        // 고객 정보
+        if ((contract['customerAddress'] as String?)?.isNotEmpty == true)
+          Text('주소: ${contract['customerAddress']}', style: const TextStyle(fontSize: 13)),
+        Text('${contract['customerName'] ?? ''} 님 / ${contract['customerPhone'] ?? ''}', style: const TextStyle(fontSize: 13)),
+        const Divider(height: 24),
+        // 계약 내용
+        Text('품목: ${contract['productName'] ?? '-'}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        if ((contract['description'] as String?)?.isNotEmpty == true)
+          Text(contract['description'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 12),
+        Text('가격: ${format.format(originalPrice)}원', style: const TextStyle(fontSize: 14)),
+        Text('계약금: ${format.format(depositAmount)}원', style: const TextStyle(fontSize: 14, color: Colors.red, fontWeight: FontWeight.w600)),
+        Text('잔금: ${format.format(remainAmount)}원', style: const TextStyle(fontSize: 14)),
+        const Divider(height: 24),
+        Text('발행일: ${DateFormat('yyyy.MM.dd').format(DateTime.now())}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }

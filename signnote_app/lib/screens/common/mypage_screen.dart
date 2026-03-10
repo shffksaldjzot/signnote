@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
+import '../../widgets/layout/app_tab_bar.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import 'profile_edit_screen.dart';
@@ -107,6 +108,8 @@ class _MypageScreenState extends State<MypageScreen> {
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: const AppHeader(title: '마이페이지'),
+      // 역할별 하단 탭바
+      bottomNavigationBar: _buildBottomBar(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -117,7 +120,8 @@ class _MypageScreenState extends State<MypageScreen> {
                 const SizedBox(height: 24),
                 // 메뉴 항목들
                 _buildMenuItem(
-                  icon: Icons.edit_outlined,
+                  icon: null,
+                  customIcon: Image.asset('assets/icons/vendor/write.png', width: 22, height: 22),
                   title: '개인정보 수정',
                   onTap: () async {
                     final result = await Navigator.of(context).push<bool>(
@@ -173,6 +177,47 @@ class _MypageScreenState extends State<MypageScreen> {
               ],
             ),
     );
+  }
+
+  // 역할별 하단 탭바 생성
+  Widget? _buildBottomBar() {
+    switch (widget.role) {
+      case 'CUSTOMER':
+        return AppTabBar.customer(
+          currentIndex: 3, // 마이페이지 = 4번째 탭
+          onTap: _onCustomerTabChanged,
+        );
+      case 'VENDOR':
+        return AppTabBar.vendor(
+          currentIndex: 1, // 마이페이지 = 2번째 탭
+          onTap: _onVendorTabChanged,
+        );
+      case 'ORGANIZER':
+        return AppTabBar.organizer(
+          currentIndex: 1, // 마이페이지 = 2번째 탭
+          onTap: _onOrganizerTabChanged,
+        );
+      default:
+        return null;
+    }
+  }
+
+  // 고객 탭 이동
+  void _onCustomerTabChanged(int index) {
+    if (index == 3) return; // 마이페이지 현재 화면
+    Navigator.pop(context); // 현재 화면 닫고 이전 화면으로
+  }
+
+  // 업체 탭 이동
+  void _onVendorTabChanged(int index) {
+    if (index == 1) return; // 마이페이지 현재 화면
+    Navigator.pop(context);
+  }
+
+  // 주관사 탭 이동
+  void _onOrganizerTabChanged(int index) {
+    if (index == 1) return; // 마이페이지 현재 화면
+    Navigator.pop(context);
   }
 
   // 프로필 카드 (이름, 이메일, 역할 뱃지)
@@ -251,7 +296,8 @@ class _MypageScreenState extends State<MypageScreen> {
 
   // 메뉴 항목 (아이콘 + 제목 + 화살표)
   Widget _buildMenuItem({
-    required IconData icon,
+    IconData? icon,
+    Widget? customIcon,
     required String title,
     Color? titleColor,
     Widget? trailing,
@@ -259,7 +305,7 @@ class _MypageScreenState extends State<MypageScreen> {
   }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Icon(icon, color: titleColor ?? AppColors.textSecondary),
+      leading: customIcon ?? Icon(icon, color: titleColor ?? AppColors.textSecondary),
       title: Text(
         title,
         style: TextStyle(
