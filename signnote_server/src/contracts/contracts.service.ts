@@ -41,9 +41,10 @@ export class ContractsService {
     const contracts = [];
 
     for (const item of dto.items) {
-      // 품목 정보 조회 (1뎁스)
+      // 품목 정보 조회 (1뎁스) + 업체 정보 포함
       const product = await this.prisma.product.findUnique({
         where: { id: item.productId },
+        include: { vendor: { select: { name: true, businessNumber: true } } },
       });
 
       if (!product) {
@@ -60,6 +61,7 @@ export class ContractsService {
       // 상세 품목(2뎁스)에서 가격 가져오기
       let price = 0;
       let productItemId: string | null = null;
+      let productItemName: string | null = null;
 
       if (item.productItemId) {
         const productItem = await this.prisma.productItem.findUnique({
@@ -70,13 +72,14 @@ export class ContractsService {
         }
         price = productItem.price;
         productItemId = productItem.id;
+        productItemName = productItem.name;
       }
 
       // 계약금과 잔금 계산
       const depositAmount = Math.round(price * depositRate);
       const remainAmount = price - depositAmount;
 
-      // 계약 생성
+      // 계약 생성 (품목/업체 정보를 스냅샷으로 함께 저장)
       const contract = await this.prisma.contract.create({
         data: {
           customerId: userId,
@@ -85,6 +88,10 @@ export class ContractsService {
           customerAddress: dto.customerAddress,
           productId: item.productId,
           productItemId,
+          productName: product.name,
+          productItemName,
+          vendorName: product.vendorName ?? product.vendor?.name ?? null,
+          vendorBusinessNumber: product.vendor?.businessNumber ?? null,
           eventId: item.eventId,
           vendorId: product.vendorId ?? '',
           originalPrice: price,

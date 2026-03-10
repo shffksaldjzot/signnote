@@ -473,9 +473,9 @@ class _EventDetailPageState extends State<EventDetailPage>
               final status = c['status']?.toString();
               return DataRow(cells: [
                 DataCell(Text(customer?['name'] ?? '-')),
-                DataCell(Text(product?['name'] ?? '-')),
-                DataCell(Text(productItem?['name'] ?? '-')),
-                DataCell(Text(product?['vendorName'] ?? '-')),
+                DataCell(Text(product?['name'] ?? c['productName'] ?? '-')),
+                DataCell(Text(productItem?['name'] ?? c['productItemName'] ?? '-')),
+                DataCell(Text(product?['vendorName'] ?? c['vendorName'] ?? '-')),
                 DataCell(Text('${_priceFormat.format(originalPrice)}원', style: const TextStyle(fontWeight: FontWeight.w500))),
                 DataCell(Text('${_priceFormat.format(deposit)}원', style: const TextStyle(color: AppColors.priceRed, fontWeight: FontWeight.w600))),
                 DataCell(_buildStatusBadge(status)),

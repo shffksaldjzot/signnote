@@ -353,24 +353,37 @@ export class UsersService {
 
     // 1. 알림 삭제
     await this.prisma.notification.deleteMany({ where: { userId } });
-    // 2. 장바구니 삭제
+    // 2. 장바구니 삭제 (본인이 담은 것)
     await this.prisma.cartItem.deleteMany({ where: { userId } });
-    // 3. 계약 관련 삭제 (결제 → 정산 → 계약 순서)
-    const contracts = await this.prisma.contract.findMany({
+    // 3. 고객으로서의 계약 관련 삭제 (결제 → 정산 → 계약 순서)
+    const customerContracts = await this.prisma.contract.findMany({
       where: { customerId: userId },
       select: { id: true },
     });
-    const contractIds = contracts.map(c => c.id);
-    if (contractIds.length > 0) {
-      await this.prisma.payment.deleteMany({ where: { contractId: { in: contractIds } } });
-      await this.prisma.settlement.deleteMany({ where: { contractId: { in: contractIds } } });
+    const customerContractIds = customerContracts.map(c => c.id);
+    if (customerContractIds.length > 0) {
+      await this.prisma.payment.deleteMany({ where: { contractId: { in: customerContractIds } } });
+      await this.prisma.settlement.deleteMany({ where: { contractId: { in: customerContractIds } } });
       await this.prisma.contract.deleteMany({ where: { customerId: userId } });
     }
-    // 4. 업체가 등록한 상품의 vendorId를 null로 변경 (상품 자체는 유지)
-    await this.prisma.product.updateMany({
+    // 4. 업체가 등록한 품목 처리 (품목 + 상세품목 삭제, 계약은 스냅샷으로 보존)
+    const vendorProducts = await this.prisma.product.findMany({
       where: { vendorId: userId },
-      data: { vendorId: null, vendorName: null },
+      select: { id: true },
     });
+    const vendorProductIds = vendorProducts.map(p => p.id);
+    if (vendorProductIds.length > 0) {
+      // 4-1. 해당 품목의 장바구니 항목 삭제 (다른 고객이 담아둔 것)
+      await this.prisma.cartItem.deleteMany({
+        where: { productId: { in: vendorProductIds } },
+      });
+      // 4-2. 상세품목 삭제 (ProductItem은 Product에 Cascade이므로 Product 삭제 시 자동 삭제)
+      // 4-3. 품목 삭제 → 계약의 productId/productItemId는 SetNull로 null 처리됨
+      //       계약서에는 productName, vendorName 등 스냅샷이 남아있어 정보 보존
+      await this.prisma.product.deleteMany({
+        where: { vendorId: userId },
+      });
+    }
     // 5. 행사 참여 기록 삭제
     await this.prisma.eventParticipant.deleteMany({ where: { userId } });
     // 6. 주관사가 만든 행사가 있으면 관련 데이터 정리

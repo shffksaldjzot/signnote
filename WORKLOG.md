@@ -1820,3 +1820,44 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 **백엔드 (1개):** contracts.service.ts
 **프론트엔드 (4개):** vendor/contract_detail_screen.dart, vendor/contract_screen.dart, event_manage_screen.dart, event_detail_page.dart
 
+---
+
+### 2026-03-10 — 업체 삭제 시 품목 정리 + 계약 보존 (스냅샷 방식)
+
+**문제**: 관리자가 업체를 삭제하면 해당 업체의 품목에 연결된 계약이 깨지거나 사라질 수 있었음
+- 기존: 품목의 vendorId만 null로 변경 (품목/상세품목 유지), 업체 기준 계약 정리 없음
+- 계약 → 품목 관계가 `onDelete: Cascade`여서 품목 삭제 시 계약도 연쇄 삭제되는 위험
+
+**해결: 계약 스냅샷 방식 적용**
+
+1. **DB 스키마 변경 (Contract 모델) ✅**
+   - `productId`: 필수(String) → 선택(String?) + `onDelete: SetNull`
+   - `productItemId`: `onDelete: Cascade` → `onDelete: SetNull`
+   - 신규 필드 4개 추가: `productName`, `productItemName`, `vendorName`, `vendorBusinessNumber`
+   - 기존 계약 데이터에 스냅샷 필드 백필(backfill) SQL 실행 완료
+
+2. **계약 생성 시 스냅샷 저장 ✅**
+   - `contracts.service.ts`: 계약 생성 시 품목명, 상세품목명, 업체명, 사업자번호를 계약 자체에 복사 저장
+   - 원본 품목이 나중에 삭제되어도 계약서에는 정보가 남아있음
+
+3. **업체 삭제 로직 개선 ✅**
+   - `users.service.ts` deleteUser(): 업체 삭제 시 해당 업체 품목의 장바구니 → 품목+상세품목 삭제
+   - 품목 삭제 시 계약의 productId/productItemId는 SetNull로 null 처리 (계약은 보존)
+
+4. **프론트엔드 스냅샷 필드 폴백 적용 ✅**
+   - 고객 계약 목록: product 관계 null일 때 `vendorName`, `vendorBusinessNumber`, `productName` 스냅샷 사용
+   - 업체 계약 목록: `productName`, `vendorName` 스냅샷 폴백 추가
+   - 주관사 계약함: `productName`, `productItemName`, `vendorName` 스냅샷 폴백 추가
+   - 관리자 웹 계약 페이지 + 행사상세 계약 탭: 동일 폴백 적용
+
+### 수정 파일
+**스키마 (1개):** prisma/schema.prisma
+**백엔드 (2개):** contracts.service.ts, users.service.ts
+**프론트엔드 (5개):** customer/contract_screen.dart, vendor/contract_screen.dart, organizer/event_manage_screen.dart, organizer/web/contracts_page.dart, organizer/web/event_detail_page.dart
+
+### 빌드 & 배포
+- [x] Prisma db push 스키마 적용 완료
+- [x] 기존 계약 백필 SQL 실행 완료
+- [x] Flutter 빌드 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+

@@ -57,13 +57,13 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
           final event = c['event'] as Map<String, dynamic>?;
           return {
             'id': c['id']?.toString() ?? '',
-            'vendorName': c['product']?['vendorName'] ?? vendor?['name'] ?? '업체명 없음',
+            'vendorName': c['product']?['vendorName'] ?? vendor?['name'] ?? c['vendorName'] ?? '업체명 없음',
             'vendorPhone': vendor?['phone'] ?? '',
             'vendorRepresentative': vendor?['representativeName'] ?? '',
-            'vendorBusinessNumber': vendor?['businessNumber'] ?? '',
+            'vendorBusinessNumber': vendor?['businessNumber'] ?? c['vendorBusinessNumber'] ?? '',
             'vendorBusinessAddress': vendor?['businessAddress'] ?? '',
-            'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? c['productName'] ?? '상품명 없음',
-            'productCategory': c['product']?['category'] ?? c['productCategory'] ?? '기타',
+            'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? c['productItemName'] ?? c['productName'] ?? '상품명 없음',
+            'productCategory': c['product']?['category'] ?? c['productName'] ?? '기타',
             'description': c['productItem']?['description'] ?? c['product']?['description'] ?? '',
             'originalPrice': c['originalPrice'] ?? 0,
             'price': c['originalPrice'] ?? 0,

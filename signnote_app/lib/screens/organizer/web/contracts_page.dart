@@ -298,11 +298,11 @@ class _ContractsPageState extends State<ContractsPage> {
                                 return DataRow(cells: [
                                   DataCell(Text(contract['eventTitle'] ?? '-')),
                                   DataCell(Text(customer?['name'] ?? '-')),
-                                  // 품목 (1뎁스)
-                                  DataCell(Text(product?['name'] ?? product?['category'] ?? '-')),
-                                  // 패키지 (2뎁스)
-                                  DataCell(Text(productItem?['name'] ?? '-')),
-                                  DataCell(Text(product?['vendorName'] ?? '-')),
+                                  // 품목 (1뎁스) — 품목 삭제 시 스냅샷 필드 사용
+                                  DataCell(Text(product?['name'] ?? contract['productName'] ?? '-')),
+                                  // 패키지 (2뎁스) — 삭제 시 스냅샷 필드 사용
+                                  DataCell(Text(productItem?['name'] ?? contract['productItemName'] ?? '-')),
+                                  DataCell(Text(product?['vendorName'] ?? contract['vendorName'] ?? '-')),
                                   DataCell(Text(
                                     '${numberFormat.format(deposit)}원',
                                     style: const TextStyle(

@@ -67,10 +67,10 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
             'customerAddress': c['customerAddress'] ?? '',
             'customerPhone': c['customerPhone'] ?? customer?['phone'] ?? '',
             'customerEmail': customer?['email'] ?? '',
-            'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? '상품명 없음',
-            'productCategory': c['product']?['category'] ?? '',
+            'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? c['productItemName'] ?? c['productName'] ?? '상품명 없음',
+            'productCategory': c['product']?['category'] ?? c['productName'] ?? '',
             'description': c['productItem']?['description'] ?? c['product']?['description'] ?? '',
-            'price': c['originalPrice'] ?? c['price'] ?? c['product']?['price'] ?? 0,
+            'price': c['originalPrice'] ?? c['price'] ?? 0,
             'originalPrice': c['originalPrice'] ?? 0,
             'depositAmount': c['depositAmount'] ?? 0,
             'remainAmount': c['remainAmount'] ?? 0,
@@ -80,7 +80,7 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
             'siteName': event?['siteName'] ?? '',
             'organizerName': event?['organizer']?['name'] ?? '',
             // 업체 정보 (본인)
-            'vendorName': c['product']?['vendorName'] ?? '',
+            'vendorName': c['product']?['vendorName'] ?? c['vendorName'] ?? '',
             'vendorPhone': c['product']?['vendor']?['phone'] ?? '',
           };
         }).toList();

@@ -207,10 +207,14 @@ model Contract {
   customerName    String                              // 고객명
   customerPhone   String?                             // 고객 전화번호
   customerAddress String?                             // 고객 주소 (예: "창원 자이 201동 1305호")
-  productId       String                              // 품목 ID (1뎁스)
-  product         Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  productItemId   String?                             // 상세 품목 ID (2뎁스, 실제 계약 패키지)
-  productItem     ProductItem?   @relation(fields: [productItemId], references: [id], onDelete: Cascade)
+  productId       String?                             // 품목 ID (1뎁스, 삭제 시 null)
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productItemId   String?                             // 상세 품목 ID (2뎁스, 삭제 시 null)
+  productItem     ProductItem?   @relation(fields: [productItemId], references: [id], onDelete: SetNull)
+  productName     String?                             // 품목명 스냅샷 (품목 삭제돼도 보존)
+  productItemName String?                             // 상세품목명 스냅샷
+  vendorName      String?                             // 업체명 스냅샷
+  vendorBusinessNumber String?                        // 업체 사업자번호 스냅샷
   eventId         String                              // 행사 ID
   event           Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   vendorId        String                              // 업체 ID
