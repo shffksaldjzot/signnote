@@ -1457,7 +1457,7 @@ class _OrganizerEventManageScreenState
   }
 
   // 초대 버튼
-  // 고객 리스트 CSV(엑셀) 다운로드
+  // 고객 리스트 엑셀(xlsx) 다운로드 — 행사 제목 포함 + 중앙정렬
   void _downloadCustomerCsv({required bool selectedOnly}) {
     final List<Map<String, dynamic>> targets;
     if (selectedOnly) {
@@ -1467,20 +1467,21 @@ class _OrganizerEventManageScreenState
     }
     if (targets.isEmpty) return;
 
-    // CSV 행 구성 (헤더 + 데이터)
-    final rows = <List<String>>[
-      ['이름', '동', '호수', '타입', '연락처'], // 헤더
-      ...targets.map((c) => [
+    final eventTitle = _eventDetail?['title'] ?? widget.eventTitle;
+
+    // xlsx 다운로드 (행사 제목 + 중앙정렬)
+    downloadExcel(
+      title: eventTitle,
+      headers: ['이름', '동', '호수', '타입', '연락처'],
+      dataRows: targets.map<List<String>>((c) => [
         c['name'] ?? '',
         c['dong'] ?? '',
         c['ho'] ?? '',
         c['housingType'] ?? '',
         c['phone'] ?? '',
-      ]),
-    ];
-
-    final eventTitle = _eventDetail?['title'] ?? widget.eventTitle;
-    downloadCsv(rows, '${eventTitle}_고객리스트.csv');
+      ]).toList(),
+      fileName: '${eventTitle}_고객리스트.xlsx',
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${targets.length}명 고객 리스트 다운로드 완료')),
