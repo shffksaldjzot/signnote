@@ -42,8 +42,11 @@ export class UsersController {
   async findAll(@Query('role') role: string, @Request() req: any) {
     const currentUser = req.user;
 
-    // 주관사는 자기 행사에 참여한 업체(VENDOR)만 조회 가능
+    // 주관사: 고객(CUSTOMER) 조회 시 전체 고객 반환, 그 외는 자기 행사 업체만
     if (currentUser.role === 'ORGANIZER') {
+      if (role === 'CUSTOMER') {
+        return this.usersService.findAll('CUSTOMER');
+      }
       return this.usersService.findVendorsByOrganizer(currentUser.id);
     }
 
