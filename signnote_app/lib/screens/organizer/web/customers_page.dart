@@ -56,7 +56,15 @@ class _CustomersPageState extends State<CustomersPage> {
         setState(() {
           _isLoading = false;
           if (result['success'] == true) {
-            _customers = result['users'] as List? ?? [];
+            // 응답이 배열인 경우 직접 사용, 아니면 users 키에서 추출
+            final data = result['users'];
+            if (data is List) {
+              _customers = data;
+            } else {
+              _customers = [];
+            }
+          } else {
+            _customers = [];
           }
         });
       }

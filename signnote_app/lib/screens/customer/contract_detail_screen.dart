@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
+import '../../widgets/layout/app_header.dart';
 import '../../utils/image_download.dart';
 
 // ============================================
@@ -38,19 +39,8 @@ class CustomerContractDetailScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          categoryName,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-        ),
-      ),
+      // 통일된 AppHeader 사용 (뒤로가기 화살표 일관된 디자인)
+      appBar: AppHeader(title: categoryName),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: RepaintBoundary(

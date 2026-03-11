@@ -33,41 +33,45 @@ export class UsersService {
     if (role) where.role = role;
 
     // 고객 조회 시 행사 참여 정보(동/호수/타입/참여일/행사명) 포함
-    const includeParticipants = role === 'CUSTOMER';
+    const isCustomerQuery = role === 'CUSTOMER';
+
+    // select 객체를 명시적으로 구성 (spread 문법 대신 조건 분기)
+    const baseSelect: any = {
+      id: true,
+      email: true,
+      name: true,
+      phone: true,
+      role: true,
+      representativeName: true,     // 대표자 성명
+      businessNumber: true,
+      businessAddress: true,        // 사업장 주소
+      businessLicenseImage: true,   // 사업자등록증 이미지
+      isApproved: true,             // 승인 여부
+      createdAt: true,
+    };
+
+    // 고객 조회일 때만 참여 정보 포함
+    if (isCustomerQuery) {
+      baseSelect.eventParticipants = {
+        select: {
+          dong: true,
+          ho: true,
+          housingType: true,
+          joinedAt: true,
+          event: { select: { id: true, title: true } },
+        },
+        orderBy: { joinedAt: 'desc' as const },
+      };
+    }
 
     const users = await this.prisma.user.findMany({
       where,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        role: true,
-        representativeName: true,     // 대표자 성명
-        businessNumber: true,
-        businessAddress: true,        // 사업장 주소
-        businessLicenseImage: true,   // 사업자등록증 이미지
-        isApproved: true,             // 승인 여부
-        createdAt: true,
-        // 고객일 때 행사 참여 정보 포함
-        ...(includeParticipants && {
-          eventParticipants: {
-            select: {
-              dong: true,
-              ho: true,
-              housingType: true,
-              joinedAt: true,
-              event: { select: { id: true, title: true } },
-            },
-            orderBy: { joinedAt: 'desc' as const },
-          },
-        }),
-      },
+      select: baseSelect,
       orderBy: { createdAt: 'desc' },
     });
 
     // 고객인 경우 참여 정보를 플랫하게 펼침 (최신 참여 기준)
-    if (includeParticipants) {
+    if (isCustomerQuery) {
       return users.map((u: any) => {
         const participant = u.eventParticipants?.[0]; // 최신 참여 정보
         return {

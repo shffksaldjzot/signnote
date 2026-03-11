@@ -9,6 +9,7 @@ import '../../services/product_service.dart';
 import '../../services/contract_service.dart';
 import '../../services/event_service.dart';
 import '../../utils/image_download.dart';
+import '../../utils/image_helper.dart';
 import '../../services/notification_service.dart';
 import 'product_form_screen.dart';
 import '../customer/contract_detail_screen.dart';
@@ -488,9 +489,12 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
               width: 72,
               height: 72,
               color: AppColors.background,
-              child: item['imageUrl'] != null
-                  ? Image.network(item['imageUrl'], fit: BoxFit.cover)
-                  : const Icon(Icons.image_outlined, color: AppColors.textHint),
+              child: buildSmartImage(
+                item['imageUrl'] as String?,
+                width: 72,
+                height: 72,
+                placeholder: const Icon(Icons.image_outlined, color: AppColors.textHint),
+              ),
             ),
           ),
           const SizedBox(width: 12),

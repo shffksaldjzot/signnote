@@ -5,12 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../services/contract_service.dart';
 import '../../utils/image_download.dart';
-import 'home_screen.dart';
 import 'contract_detail_screen.dart';
+import 'cart_screen.dart';
 
 // ============================================
 // 고객용 계약함 화면 (리뉴얼)
@@ -74,6 +75,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             'remainAmount': c['remainAmount'] ?? 0,
             'status': c['status'] ?? 'PENDING',
             // 행사/주관사 정보
+            'eventId': c['eventId']?.toString() ?? event?['id']?.toString() ?? '',
             'eventTitle': event?['title'] ?? '',
             'siteName': event?['siteName'] ?? '',
             'organizerName': event?['organizer']?['name'] ?? '',
@@ -110,18 +112,24 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
   void _onTabChanged(int index) {
     if (index == _currentTabIndex) return;
     switch (index) {
-      case 0:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const CustomerHomeScreen()),
-        );
+      case 0: // 홈 탭 → 이전 화면(EventDetailScreen)으로 돌아가기
+        Navigator.of(context).pop();
         break;
-      case 1: // 장바구니 — 행사 ID 필요
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('홈에서 장바구니를 이용해 주세요')),
-        );
+      case 1: // 장바구니 — 계약 목록에서 행사 정보 추출하여 이동
+        if (_contracts.isNotEmpty) {
+          // 첫 번째 계약에서 행사 정보 가져오기
+          final firstContract = _contracts.first;
+          final eventId = firstContract['eventId']?.toString() ?? '';
+          final eventTitle = firstContract['eventTitle']?.toString() ?? '';
+          if (eventId.isNotEmpty) {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => CartScreen(eventId: eventId, eventTitle: eventTitle)),
+            );
+          }
+        }
         break;
-      case 2: break;
-      case 3:
+      case 2: break; // 현재 탭
+      case 3: // 마이페이지 — 돌아올 때 탭 상태 유지
         context.push(AppRoutes.mypage, extra: 'CUSTOMER');
         break;
     }
@@ -131,12 +139,8 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('계약함', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-      ),
+      // 계약함 — 탭 화면이므로 뒤로가기 없음, 통일된 AppHeader 사용
+      appBar: const AppHeader(title: '계약함', showBackButton: false),
       body: _buildBody(),
       bottomNavigationBar: AppTabBar.customer(
         currentIndex: _currentTabIndex,
@@ -288,45 +292,146 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     return false;
   }
 
-  // 계약서 이미지 내용 위젯 (다운로드용)
+  // 계약서 이미지 내용 위젯 (다운로드용 — 개별 상세보기와 동일한 형식)
   Widget _buildContractImageContent(Map<String, dynamic> contract) {
     final format = NumberFormat('#,###');
     final originalPrice = contract['originalPrice'] ?? contract['price'] ?? 0;
     final depositAmount = contract['depositAmount'] ?? 0;
-    final remainAmount = contract['remainAmount'] ?? 0;
+    final remainAmount = contract['remainAmount'] ?? (originalPrice - depositAmount);
+    final status = contract['status'] ?? 'PENDING';
+    final depositLabel = status == 'CONFIRMED' || status == 'CANCEL_REQUESTED'
+        ? '${format.format(depositAmount)}원 (결제 완료)'
+        : '${format.format(depositAmount)}원';
+
+    // 섹션 카드 빌더 (개별 상세보기와 동일)
+    Widget buildSection(String title, List<Widget> children) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            ...children,
+          ],
+        ),
+      );
+    }
+
+    Widget infoLine(String label, String value) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text('$label : $value', style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
+      );
+    }
+
+    Widget priceLine(String label, String value, {Color? color}) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: TextStyle(fontSize: 14, color: color ?? AppColors.textPrimary, fontWeight: color != null ? FontWeight.w600 : FontWeight.w400)),
+            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? AppColors.textPrimary)),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('계약서', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+        const Row(
+          children: [
+            Text('계약 내용', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 20),
+          ],
+        ),
         const SizedBox(height: 16),
         // 행사 정보
-        if ((contract['eventTitle'] as String?)?.isNotEmpty == true)
-          Text('행사: ${contract['eventTitle']}', style: const TextStyle(fontSize: 13)),
-        if ((contract['siteName'] as String?)?.isNotEmpty == true)
-          Text('현장: ${contract['siteName']}', style: const TextStyle(fontSize: 13)),
-        if ((contract['organizerName'] as String?)?.isNotEmpty == true)
-          Text('주관사: ${contract['organizerName']}', style: const TextStyle(fontSize: 13)),
-        const Divider(height: 24),
+        buildSection('행사 정보', [
+          infoLine('행사명', contract['eventTitle'] ?? '-'),
+          infoLine('현장명', contract['siteName'] ?? '-'),
+          infoLine('주관사', contract['organizerName'] ?? '-'),
+        ]),
+        const SizedBox(height: 16),
         // 업체 정보
-        Text('업체: ${contract['vendorName'] ?? '-'}', style: const TextStyle(fontSize: 13)),
-        const Divider(height: 24),
+        buildSection('업체 정보', [
+          infoLine('업체명', contract['vendorName'] ?? '-'),
+          infoLine('대표자', contract['vendorRepresentative'] ?? '-'),
+          infoLine('연락처', contract['vendorPhone'] ?? '-'),
+          if ((contract['vendorBusinessNumber'] as String?)?.isNotEmpty == true)
+            infoLine('사업자번호', contract['vendorBusinessNumber']),
+          if ((contract['vendorBusinessAddress'] as String?)?.isNotEmpty == true)
+            infoLine('사업장 주소', contract['vendorBusinessAddress']),
+        ]),
+        const SizedBox(height: 16),
         // 고객 정보
-        if ((contract['customerAddress'] as String?)?.isNotEmpty == true)
-          Text('주소: ${contract['customerAddress']}', style: const TextStyle(fontSize: 13)),
-        Text('${contract['customerName'] ?? ''} 님 / ${contract['customerPhone'] ?? ''}', style: const TextStyle(fontSize: 13)),
-        const Divider(height: 24),
+        buildSection('고객 정보', [
+          infoLine('고객명', contract['customerName'] ?? '-'),
+          infoLine('연락처', contract['customerPhone'] ?? '-'),
+          if ((contract['customerDong'] as String?)?.isNotEmpty == true ||
+              (contract['customerHo'] as String?)?.isNotEmpty == true)
+            infoLine('동/호수', '${contract['customerDong'] ?? ''}동 ${contract['customerHo'] ?? ''}호'),
+          if ((contract['customerHousingType'] as String?)?.isNotEmpty == true)
+            infoLine('타입', contract['customerHousingType']),
+          if ((contract['customerAddress'] as String?)?.isNotEmpty == true)
+            infoLine('주소', contract['customerAddress']),
+        ]),
+        const SizedBox(height: 16),
         // 계약 내용
-        Text('품목: ${contract['productName'] ?? '-'}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        if ((contract['description'] as String?)?.isNotEmpty == true)
-          Text(contract['description'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        const SizedBox(height: 12),
-        Text('가격: ${format.format(originalPrice)}원', style: const TextStyle(fontSize: 14)),
-        Text('계약금: ${format.format(depositAmount)}원', style: const TextStyle(fontSize: 14, color: Colors.red, fontWeight: FontWeight.w600)),
-        Text('잔금: ${format.format(remainAmount)}원', style: const TextStyle(fontSize: 14)),
-        const Divider(height: 24),
-        Text('발행일: ${DateFormat('yyyy.MM.dd').format(DateTime.now())}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        buildSection('계약 내용', [
+          infoLine('패키지명', contract['productName'] ?? '-'),
+          if ((contract['description'] as String?)?.isNotEmpty == true)
+            infoLine('상세 내용', contract['description']),
+        ]),
+        const SizedBox(height: 16),
+        // 계약 금액
+        buildSection('계약 금액', [
+          priceLine('가격', '${format.format(originalPrice)}원'),
+          priceLine('계약금', depositLabel, color: AppColors.priceRed),
+          priceLine('잔금', '${format.format(remainAmount)}원'),
+        ]),
+        const SizedBox(height: 16),
+        // 결제 정보
+        buildSection('결제 정보', [
+          infoLine('결제 수단', contract['paymentMethod'] ?? '카드결제'),
+          infoLine('카드/계좌', contract['paymentDetail'] ?? '-'),
+          infoLine('결제일시', contract['paidAt'] ?? '-'),
+        ]),
+        const SizedBox(height: 24),
+        // 환불 안내
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                  SizedBox(width: 6),
+                  Text('계약금 먼저 결제 되며, 취소 환불 조항에 동의합니다.',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+              SizedBox(height: 8),
+              Text('지금 결제 하시면 모두 결제되는 것이 아니라 계약금만 결제되며, 잔금은 해당 업체와 직접 결제하시면 됩니다.\n취소 지정 기간 이후 취소 건은 계약금 환불은 어렵습니다.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5)),
+            ],
+          ),
+        ),
       ],
     );
   }

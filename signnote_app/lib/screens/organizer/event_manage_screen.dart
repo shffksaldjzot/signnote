@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../config/theme.dart';
-import '../../config/routes.dart';
 import '../../services/product_service.dart';
 import '../../services/event_service.dart';
 import '../../services/contract_service.dart';
@@ -780,24 +778,7 @@ class _OrganizerEventManageScreenState
               ),
             ],
           ),
-          // 업체 참가 취소 (업체 배정된 경우에만)
-          if (hasVendor) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _showUnclaimConfirmDialog(product),
-                icon: const Icon(Icons.person_remove, size: 18),
-                label: const Text('참가 취소'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ),
-          ],
+          // 참가 취소는 드롭다운에서 "미배정" 선택으로 처리
         ],
       ),
           ), // Expanded (ExpansionTile)
@@ -1147,7 +1128,6 @@ class _OrganizerEventManageScreenState
       final parts = entry.key.split('|');
       final name = parts[0];
       final address = parts.length > 1 ? parts[1] : '';
-      final phone = parts.length > 2 ? parts[2] : '';
       final contracts = entry.value;
       final activeCount = contracts.where((c) => c['status'] != 'CANCELLED').length;
 
@@ -1482,9 +1462,14 @@ class _OrganizerEventManageScreenState
 
     final eventTitle = _eventDetail?['title'] ?? widget.eventTitle;
 
-    // xlsx 다운로드 (행사 제목 + 중앙정렬)
+    // 작성시간 포맷 (분 단위까지)
+    final now = DateTime.now();
+    final timeStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    // xlsx 다운로드 (행사 제목 + 작성시간 + 중앙정렬)
     downloadExcel(
       title: eventTitle,
+      subtitle: '작성시간: $timeStr',
       headers: ['이름', '동', '호수', '타입', '연락처'],
       dataRows: targets.map<List<String>>((c) => [
         c['name'] ?? '',
@@ -1680,23 +1665,51 @@ class _OrganizerEventManageScreenState
             const SizedBox(height: 8),
             _buildCopyField(vendorCode),
             const SizedBox(height: 12),
-            // 협력업체 초대 메시지 전체 복사 버튼 (행사명+URL+코드 포함)
+            // 고객 초대 메시지 복사 버튼
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  final customerInviteUrl = 'https://signnote.pages.dev/entry-code?code=$customerCode';
+                  final fullMessage = '[고객 초대]\n'
+                      '${widget.eventTitle}\n'
+                      '입장 URL : $customerInviteUrl\n'
+                      '초대코드 : $customerCode\n'
+                      '위 링크로 입장하시거나 또는 앱에서 코드를 입력하세요.';
+                  Clipboard.setData(ClipboardData(text: fullMessage));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('고객 초대 메시지가 복사되었습니다')),
+                  );
+                },
+                icon: const Icon(Icons.content_copy, size: 16),
+                label: const Text('고객 초대 메시지 복사'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // 협력업체 초대 메시지 복사 버튼
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () {
                   final vendorInviteUrl = 'https://signnote.pages.dev/entry-code?code=$vendorCode';
-                  final fullMessage = '${widget.eventTitle}\n'
+                  final fullMessage = '[협력업체 초대]\n'
+                      '${widget.eventTitle}\n'
                       '입장 URL : $vendorInviteUrl\n'
                       '초대코드 : $vendorCode\n'
                       '위 링크로 입장하시거나 또는 앱에서 코드를 입력하세요.';
                   Clipboard.setData(ClipboardData(text: fullMessage));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('행사명 포함 초대 메시지가 복사되었습니다')),
+                    const SnackBar(content: Text('협력업체 초대 메시지가 복사되었습니다')),
                   );
                 },
                 icon: const Icon(Icons.content_copy, size: 16),
-                label: const Text('행사명 포함 초대 메시지 복사'),
+                label: const Text('협력업체 초대 메시지 복사'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.organizer,
                   side: const BorderSide(color: AppColors.organizer),
@@ -2120,53 +2133,6 @@ class _OrganizerEventManageScreenState
     }
   }
 
-  // 업체 참가 취소 확인
-  void _showUnclaimConfirmDialog(Map<String, dynamic> product) {
-    final productName = product['name'] ?? '품목';
-    final vendorName = product['vendorName'] ?? '업체';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('참가 취소', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: Text(
-          '"$productName" 품목에서\n"$vendorName" 업체의 참가를 취소하시겠습니까?\n\n⚠️ 업체가 등록한 상세 품목이 모두 삭제됩니다.',
-          style: const TextStyle(fontSize: 14, height: 1.5),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('아니오')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _unclaimProduct(product);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('참가 취소'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 업체 참가 취소 API
-  Future<void> _unclaimProduct(Map<String, dynamic> product) async {
-    final productId = product['id'].toString();
-    final result = await _productService.unclaimProduct(productId);
-
-    if (!mounted) return;
-
-    if (result['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('업체 참가가 취소되었습니다')),
-      );
-      _loadProducts();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['error'] ?? '참가 취소에 실패했습니다')),
-      );
-    }
-  }
 }
 
 // 계약 집계 행 (라벨 + 값)

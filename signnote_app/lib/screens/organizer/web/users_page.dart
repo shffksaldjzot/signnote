@@ -1,3 +1,5 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../config/theme.dart';
@@ -384,12 +386,14 @@ class _UsersPageState extends State<UsersPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Container(
           width: 480,
+          // 최대 높이 제한 (아이패드 가로 등 작은 화면에서도 스크롤 가능)
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 제목
+              // 제목 (스크롤 밖에 고정)
               Row(
                 children: [
                   const Text('사용자 상세 정보',
@@ -404,126 +408,263 @@ class _UsersPageState extends State<UsersPage> {
               const Divider(),
               const SizedBox(height: 8),
 
-              // 기본 정보
-              _buildDetailRow('이름/업체명', user['name'] ?? '-'),
-              _buildDetailRow('이메일', user['email'] ?? '-'),
-              _buildDetailRow('전화번호', user['phone'] ?? '-'),
-              _buildDetailRow('역할', roleName),
-              _buildDetailRow('승인 상태', isApproved ? '승인됨' : '대기중',
-                  valueColor: isApproved ? Colors.green : Colors.orange),
+              // 스크롤 가능 영역
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 기본 정보
+                      _buildDetailRow('이름/업체명', user['name'] ?? '-'),
+                      _buildDetailRow('이메일', user['email'] ?? '-'),
+                      _buildDetailRow('전화번호', user['phone'] ?? '-'),
+                      _buildDetailRow('역할', roleName),
+                      _buildDetailRow('승인 상태', isApproved ? '승인됨' : '대기중',
+                          valueColor: isApproved ? Colors.green : Colors.orange),
 
-              // 사업자 정보 (업체/주관사만)
-              if (role == 'VENDOR' || role == 'ORGANIZER') ...[
-                const SizedBox(height: 8),
-                const Divider(),
-                const SizedBox(height: 8),
-                _buildDetailRow('대표자 성명', user['representativeName'] ?? '미등록'),
-                _buildDetailRow('사업자등록번호', user['businessNumber'] ?? '미등록'),
-                _buildDetailRow('사업장 주소', user['businessAddress'] ?? '미등록'),
+                      // 사업자 정보 (업체/주관사만)
+                      if (role == 'VENDOR' || role == 'ORGANIZER') ...[
+                        const SizedBox(height: 8),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('대표자 성명', user['representativeName'] ?? '미등록'),
+                        _buildDetailRow('사업자등록번호', user['businessNumber'] ?? '미등록'),
+                        _buildDetailRow('사업장 주소', user['businessAddress'] ?? '미등록'),
 
-                // 사업자등록증 이미지
-                const SizedBox(height: 12),
-                const Text('사업자등록증',
-                    style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                if (user['businessLicenseImage'] != null)
-                  Container(
-                    width: double.infinity,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        user['businessLicenseImage'],
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Center(
-                          child: Text('이미지를 불러올 수 없습니다', style: TextStyle(color: Colors.grey)),
+                        // 사업자등록증 이미지
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Text('사업자등록증',
+                                style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500)),
+                            const Spacer(),
+                            // 다운로드 버튼 (이미지 있을 때만)
+                            if (user['businessLicenseImage'] != null)
+                              TextButton.icon(
+                                onPressed: () => _downloadBusinessLicense(user),
+                                icon: const Icon(Icons.download, size: 16),
+                                label: const Text('다운로드', style: TextStyle(fontSize: 12)),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.blue,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                ),
+                              ),
+                          ],
                         ),
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: double.infinity,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Center(
-                      child: Text('사업자등록증 미첨부', style: TextStyle(color: Colors.grey)),
-                    ),
-                  ),
-              ],
+                        const SizedBox(height: 8),
+                        if (user['businessLicenseImage'] != null)
+                          // 클릭하면 크게 보기
+                          InkWell(
+                            onTap: () => _showLargeImage(context, user['businessLicenseImage'], user['name'] ?? '업체'),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              width: double.infinity,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      height: 200,
+                                      child: Image.network(
+                                        user['businessLicenseImage'],
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => const Center(
+                                          child: Text('이미지를 불러올 수 없습니다', style: TextStyle(color: Colors.grey)),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  // 크게보기 안내 아이콘
+                                  Positioned(
+                                    right: 8,
+                                    bottom: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Icon(Icons.zoom_in, color: Colors.white, size: 18),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: double.infinity,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Center(
+                              child: Text('사업자등록증 미첨부', style: TextStyle(color: Colors.grey)),
+                            ),
+                          ),
+                      ],
 
-              // 가입일
-              const SizedBox(height: 8),
-              _buildDetailRow('가입일',
-                  user['createdAt'] != null
-                      ? _dateFormat.format(DateTime.parse(user['createdAt']))
-                      : '-'),
+                      // 가입일
+                      const SizedBox(height: 8),
+                      _buildDetailRow('가입일',
+                          user['createdAt'] != null
+                              ? _dateFormat.format(DateTime.parse(user['createdAt']))
+                              : '-'),
 
-              // 관리자 전용 버튼들
-              if (_isAdmin) ...[
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // 회원 강제 탈퇴 버튼 (관리자 전용)
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _deleteUser(user);
-                      },
-                      icon: const Icon(Icons.person_remove, size: 18),
-                      label: const Text('회원 탈퇴'),
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                    ),
-                    const SizedBox(width: 8),
-                    // 비밀번호 초기화 버튼 (관리자 전용)
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _resetUserPassword(user);
-                      },
-                      icon: const Icon(Icons.lock_reset, size: 18),
-                      label: const Text('비밀번호 초기화'),
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
-                    ),
-                    const SizedBox(width: 8),
-                    // 미승인 사용자만 승인/거부 버튼 표시
-                    if (!isApproved) ...[
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _rejectUser(user);
-                        },
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                        child: const Text('거부'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _approveUser(user);
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                        child: const Text('승인', style: TextStyle(color: Colors.white)),
-                      ),
+                      // 관리자 전용 버튼들
+                      if (_isAdmin) ...[
+                        const SizedBox(height: 16),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            // 회원 강제 탈퇴 버튼 (관리자 전용)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _deleteUser(user);
+                              },
+                              icon: const Icon(Icons.person_remove, size: 18),
+                              label: const Text('회원 탈퇴'),
+                              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                            ),
+                            // 비밀번호 초기화 버튼 (관리자 전용)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _resetUserPassword(user);
+                              },
+                              icon: const Icon(Icons.lock_reset, size: 18),
+                              label: const Text('비밀번호 초기화'),
+                              style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
+                            ),
+                            // 미승인 사용자만 승인/거부 버튼 표시
+                            if (!isApproved) ...[
+                              OutlinedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _rejectUser(user);
+                                },
+                                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                                child: const Text('거부'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _approveUser(user);
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                                child: const Text('승인', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ],
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  // ---- 사업자등록증 크게 보기 다이얼로그 ----
+  void _showLargeImage(BuildContext parentContext, String imageUrl, String name) {
+    showDialog(
+      context: parentContext,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // 이미지 (전체화면)
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.9,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Center(
+                      child: Text('이미지를 불러올 수 없습니다'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // 닫기 버튼
+            Positioned(
+              top: 8,
+              right: 8,
+              child: CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+            // 다운로드 버튼
+            Positioned(
+              bottom: 16,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // 새 탭에서 열기 (다운로드)
+                  html.AnchorElement(href: imageUrl)
+                    ..setAttribute('download', '사업자등록증_$name.png')
+                    ..setAttribute('target', '_blank')
+                    ..click();
+                },
+                icon: const Icon(Icons.download),
+                label: const Text('다운로드'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---- 사업자등록증 다운로드 ----
+  void _downloadBusinessLicense(dynamic user) {
+    final imageUrl = user['businessLicenseImage'] as String?;
+    if (imageUrl == null) return;
+    final name = user['name'] ?? '업체';
+
+    // 브라우저에서 다운로드 트리거
+    html.AnchorElement(href: imageUrl)
+      ..setAttribute('download', '사업자등록증_$name.png')
+      ..setAttribute('target', '_blank')
+      ..click();
   }
 
   // 상세 정보 행 위젯

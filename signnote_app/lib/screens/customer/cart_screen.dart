@@ -3,8 +3,6 @@ import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
-import '../../widgets/common/app_button.dart';
-import '../../widgets/common/app_card.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../services/cart_service.dart';
@@ -16,10 +14,11 @@ import 'payment_screen.dart';
 // 장바구니 화면
 //
 // 디자인 참고: 7.고객용-장바구니.jpg
-// - 상단: ← "장바구니" 헤더
-// - 장바구니 항목 리스트 (서버에서 불러옴)
-// - 할인/합계 요약 바
-// - 하단: "계약하기" 버튼
+// - 상단: 행사명 헤더 + "장바구니 >" 부제목
+// - 1뎁스 품목별 카드 (업체명+패키지명+설명+가격/계약금/잔금+상세보기+삭제)
+// - 총 견적 바 (계약 총액 / 계약금 총액 / 잔금 총액)
+// - 동의 체크박스 + 상세 안내 문구
+// - "계약금 결제하기 + 금액" 버튼
 // ============================================
 
 class CartScreen extends StatefulWidget {
@@ -43,10 +42,9 @@ class _CartScreenState extends State<CartScreen> {
 
   // 장바구니 항목 목록 (서버에서 불러옴)
   List<Map<String, dynamic>> _cartItems = [];
-  final Set<String> _selectedIds = {};
-  bool _selectAll = true;
   bool _isLoading = true;
   bool _isContractLoading = false;
+  bool _agreedToTerms = false; // 동의 체크박스 상태
   String? _error;
   double _depositRate = AppConstants.depositRate; // 행사별 계약금 비율
 
@@ -85,10 +83,8 @@ class _CartScreenState extends State<CartScreen> {
       final items = List<Map<String, dynamic>>.from(result['items'] ?? []);
       setState(() {
         _cartItems = items.map((item) {
-          // 2뎁스 상세품목(productItem)이 있으면 거기서 가격/이름 가져오기
           final productItem = item['productItem'] as Map<String, dynamic>?;
           final product = item['product'] as Map<String, dynamic>?;
-          // 가격: productItem 가격 우선, 없으면 0 (Product 모델에는 price 없음)
           final rawPrice = productItem?['price'] ?? 0;
           final price = (rawPrice is num) ? rawPrice.toInt() : 0;
           return {
@@ -100,12 +96,9 @@ class _CartScreenState extends State<CartScreen> {
             'description': productItem?['description'] ?? product?['description'] ?? '',
             'price': price,
             'imageUrl': productItem?['image'] ?? product?['image'],
-            'categoryName': product?['name'] ?? '',  // 1뎁스 품목명
+            'categoryName': product?['name'] ?? '', // 1뎁스 품목명
           };
         }).toList();
-        // 처음엔 모두 선택
-        _selectedIds.addAll(_cartItems.map((e) => e['id'] as String));
-        _selectAll = true;
         _isLoading = false;
       });
     } else {
@@ -116,70 +109,37 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  // 선택된 상품들의 합계 계산
+  // 전체 합계
   int get _totalPrice {
-    return _cartItems
-        .where((item) => _selectedIds.contains(item['id']))
-        .fold(0, (sum, item) => sum + ((item['price'] as num?)?.toInt() ?? 0));
+    return _cartItems.fold(0, (sum, item) => sum + ((item['price'] as num?)?.toInt() ?? 0));
   }
 
-  // 계약금 (행사별 비율 적용)
-  int get _depositAmount {
-    return (_totalPrice * _depositRate).round();
-  }
+  // 계약금
+  int get _depositAmount => (_totalPrice * _depositRate).round();
+
+  // 잔금
+  int get _remainAmount => _totalPrice - _depositAmount;
 
   // 계약금 비율 퍼센트 표시
   int get _depositPercent => (_depositRate * 100).round();
 
-  // 숫자를 콤마 표시
+  // 숫자 콤마 표시
   String _formatPrice(int price) {
     return NumberFormat('#,###').format(price);
   }
 
-  // 전체 선택/해제
-  void _toggleSelectAll(bool? value) {
-    setState(() {
-      _selectAll = value ?? false;
-      if (_selectAll) {
-        _selectedIds.addAll(_cartItems.map((e) => e['id'] as String));
-      } else {
-        _selectedIds.clear();
-      }
-    });
-  }
-
-  // 개별 선택/해제
-  void _toggleItem(String id) {
-    setState(() {
-      if (_selectedIds.contains(id)) {
-        _selectedIds.remove(id);
-      } else {
-        _selectedIds.add(id);
-      }
-      _selectAll = _selectedIds.length == _cartItems.length;
-    });
-  }
-
   // 항목 삭제 (서버 + 로컬)
   Future<void> _removeItem(String id) async {
-    // 로컬 먼저 반영 (빠른 응답)
     setState(() {
       _cartItems.removeWhere((item) => item['id'] == id);
-      _selectedIds.remove(id);
-      _selectAll = _selectedIds.length == _cartItems.length && _cartItems.isNotEmpty;
     });
-    // 서버에서도 삭제
     await _cartService.removeItem(id);
   }
 
   // 계약하기 → 계약 API 호출 → 결제 화면으로 이동
   void _handleContract() {
-    if (_selectedIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('계약할 상품을 선택해 주세요')),
-      );
-      return;
-    }
+    if (_cartItems.isEmpty) return;
+    if (!_agreedToTerms) return;
 
     // 계약 확인 다이얼로그
     showDialog(
@@ -194,7 +154,7 @@ class _CartScreenState extends State<CartScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('선택 품목: ${_selectedIds.length}개'),
+            Text('선택 품목: ${_cartItems.length}개'),
             const SizedBox(height: 4),
             Text('합계: ${_formatPrice(_totalPrice)}원'),
             const SizedBox(height: 4),
@@ -238,7 +198,6 @@ class _CartScreenState extends State<CartScreen> {
   // 계약 API 호출 후 결제 화면으로 이동
   Future<void> _createContractAndPay() async {
     final selectedItems = _cartItems
-        .where((item) => _selectedIds.contains(item['id']))
         .map((item) => {
               'productId': item['productId'] as String,
               'eventId': widget.eventId,
@@ -253,7 +212,6 @@ class _CartScreenState extends State<CartScreen> {
       items: selectedItems,
     );
 
-    // 화면이 아직 살아있는지 확인 후 setState 호출 (크래시 방지)
     if (!mounted) return;
     setState(() => _isContractLoading = false);
 
@@ -278,25 +236,25 @@ class _CartScreenState extends State<CartScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // 안드로이드 뒤로가기 버튼 → 이전 화면으로 (로그인 화면 방지)
       canPop: true,
       child: Scaffold(
         backgroundColor: AppColors.white,
-        appBar: AppHeader(title: '장바구니'),
+        // 상단: 행사명 헤더
+        appBar: AppHeader(title: widget.eventTitle),
         body: _buildBody(),
         // 하단 네비게이션 바 (고객용 4탭)
         bottomNavigationBar: AppTabBar.customer(
           currentIndex: 1, // 장바구니 탭 활성화
           onTap: (index) {
-            if (index == 1) return; // 현재 탭
-            Navigator.pop(context); // 장바구니에서 나가기
+            if (index == 1) return;
+            Navigator.pop(context);
           },
         ),
       ),
     );
   }
 
-  // 본문: 로딩 / 에러 / 비어있음 / 목록
+  // 본문
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -317,162 +275,283 @@ class _CartScreenState extends State<CartScreen> {
       );
     }
 
-    return Column(
-      children: [
-        // 전체 선택 체크박스
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-          child: Row(
-            children: [
-              Checkbox(
-                value: _selectAll,
-                onChanged: _toggleSelectAll,
-                activeColor: AppColors.primary,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // "장바구니 >" 부제목
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 12, 24, 8),
+            child: Row(
+              children: [
+                Text('장바구니', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                SizedBox(width: 4),
+                Icon(Icons.chevron_right, size: 20),
+              ],
+            ),
+          ),
+          // 장바구니 품목 카드 목록
+          ...(_groupedCartItems.entries.map((entry) =>
+            _buildCategoryCard(entry.key, entry.value))),
+          const SizedBox(height: 24),
+          // 총 견적 바
+          _buildSummaryBar(),
+          const SizedBox(height: 16),
+          // 동의 체크박스 + 안내 문구
+          _buildAgreementSection(),
+          const SizedBox(height: 12),
+          // 계약금 결제하기 버튼
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                onPressed: (_agreedToTerms && !_isContractLoading) ? _handleContract : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  disabledBackgroundColor: AppColors.border,
+                  foregroundColor: AppColors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isContractLoading
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('계약금 결제하기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          Text('${_formatPrice(_depositAmount)}원', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                        ],
+                      ),
               ),
-              Text(
-                '전체 선택 (${_selectedIds.length}/${_cartItems.length})',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-            ],
+            ),
           ),
-        ),
-        const Divider(height: 1),
-        // 장바구니 항목 리스트
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            itemCount: _cartItems.length,
-            separatorBuilder: (_, __) => const Divider(height: 16),
-            itemBuilder: (context, index) {
-              final item = _cartItems[index];
-              return _buildCartItem(item);
-            },
-          ),
-        ),
-        // 합계 요약 바
-        _buildSummaryBar(),
-        // 계약하기 버튼
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-          child: AppButton(
-            text: '계약하기',
-            enabled: _selectedIds.isNotEmpty,
-            isLoading: _isContractLoading,
-            onPressed: _handleContract,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  // 장바구니 항목 1개
-  Widget _buildCartItem(Map<String, dynamic> item) {
-    final isSelected = _selectedIds.contains(item['id']);
+  // 1뎁스 카테고리별로 그룹핑
+  Map<String, List<Map<String, dynamic>>> get _groupedCartItems {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final item in _cartItems) {
+      final cat = item['categoryName'] as String? ?? '기타';
+      grouped.putIfAbsent(cat, () => []).add(item);
+    }
+    return grouped;
+  }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Checkbox(
-          value: isSelected,
-          onChanged: (_) => _toggleItem(item['id']),
-          activeColor: AppColors.primary,
-        ),
-        // 상품 이미지
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: 72,
-            height: 72,
-            color: AppColors.background,
-            child: item['imageUrl'] != null
-                ? Image.network(item['imageUrl'], fit: BoxFit.cover)
-                : const Icon(Icons.image_outlined, color: AppColors.textHint),
+  // 1뎁스 카테고리 카드
+  Widget _buildCategoryCard(String category, List<Map<String, dynamic>> items) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(24, 6, 24, 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 카테고리 헤더
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+            ),
+            child: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           ),
-        ),
-        const SizedBox(width: 12),
-        // 상품 정보
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // 품목 항목들
+          ...items.map((item) => _buildCartItemCard(item)),
+        ],
+      ),
+    );
+  }
+
+  // 개별 품목 카드 (디자인: 7.고객용-장바구니.jpg)
+  Widget _buildCartItemCard(Map<String, dynamic> item) {
+    final price = (item['price'] as num?)?.toInt() ?? 0;
+    final deposit = (price * _depositRate).round();
+    final remain = price - deposit;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 업체명 + 삭제(휴지통) 버튼
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                item['vendorName'],
+                item['vendorName'] ?? '',
                 style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 2),
-              Text(
-                item['productName'],
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${_formatPrice(item['price'])}원',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.priceRed,
-                ),
+              GestureDetector(
+                onTap: () => _removeItem(item['id']),
+                child: const Icon(Icons.delete_outline, size: 20, color: AppColors.textHint),
               ),
             ],
           ),
-        ),
-        // 삭제 버튼
-        GestureDetector(
-          onTap: () => _removeItem(item['id']),
-          child: const Icon(Icons.close, size: 20, color: AppColors.textHint),
-        ),
-      ],
+          const SizedBox(height: 4),
+          // 패키지명
+          Text(
+            item['productName'] ?? '',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          // 설명
+          if ((item['description'] as String?)?.isNotEmpty == true) ...[
+            const SizedBox(height: 2),
+            Text(
+              item['description'],
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 10),
+          // 가격 / 계약금 / 잔금 (우측 정렬)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '가격 : ${_formatPrice(price)}원',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '계약금 : ${_formatPrice(deposit)}원',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.priceRed),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '잔금 : ${_formatPrice(remain)}원',
+                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 상세보기 버튼
+          OutlinedButton(
+            onPressed: () {}, // 상세보기 (추후 연동)
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              side: const BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              minimumSize: Size.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+            child: const Text('상세보기'),
+          ),
+        ],
+      ),
     );
   }
 
-  // 합계 요약 바
+  // 총 견적 바 (디자인: 검정 배경 카드)
   Widget _buildSummaryBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: AppCard.dark(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildSummaryRow('품목가', '${_formatPrice(_totalPrice)}원'),
-            const Divider(height: 16, color: Colors.white24),
-            _buildSummaryRow('합계', '${_formatPrice(_totalPrice)}원', isBold: true),
-            const SizedBox(height: 4),
-            _buildSummaryRow(
-              '계약금($_depositPercent%)',
-              '${_formatPrice(_depositAmount)}원',
-              valueColor: AppColors.priceRed,
+      child: Column(
+        children: [
+          // "총 견적" 헤더
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: const BoxDecoration(
+              color: AppColors.textPrimary,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
             ),
-          ],
-        ),
+            child: const Text(
+              '총 견적',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
+            ),
+          ),
+          // 견적 내용
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.border),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+            ),
+            child: Column(
+              children: [
+                _buildSummaryRow('계약 총액', '${_formatPrice(_totalPrice)}원'),
+                const Divider(height: 20),
+                _buildSummaryRow('계약금 총액', '${_formatPrice(_depositAmount)}원', valueColor: AppColors.priceRed),
+                const SizedBox(height: 6),
+                _buildSummaryRow('잔금 총액', '${_formatPrice(_remainAmount)}원'),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   // 요약 행
-  Widget _buildSummaryRow(String label, String value, {
-    bool isBold = false,
-    Color valueColor = Colors.white,
-  }) {
+  Widget _buildSummaryRow(String label, String value, {Color valueColor = AppColors.textPrimary}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: isBold ? 15 : 13,
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
-            color: Colors.white70,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isBold ? 16 : 14,
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-            color: valueColor,
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 14, color: valueColor == AppColors.priceRed ? AppColors.priceRed : AppColors.textSecondary)),
+        Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: valueColor)),
       ],
+    );
+  }
+
+  // 동의 체크박스 + 안내 문구 (디자인: 7.고객용-장바구니.jpg)
+  Widget _buildAgreementSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 체크박스 + 동의 문구 (1줄)
+          GestureDetector(
+            onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: Checkbox(
+                    value: _agreedToTerms,
+                    onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
+                    activeColor: AppColors.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '계약금 먼저 결제 되며, 취소 환불 조항에 동의합니다.',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 상세 안내 문구
+          const Padding(
+            padding: EdgeInsets.only(left: 30, top: 8),
+            child: Text(
+              '지금 결제 하시면 모두 결제되는 것이 아니라 계약금만 결제되며, 잔금은 해당 업체와 직접 결제하시면 됩니다.\n'
+              '취소 지정 기간 이후 취소 건은 계약금 환불은 어렵습니다.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.5),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

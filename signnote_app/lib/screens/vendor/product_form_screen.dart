@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../services/product_service.dart';
 import '../../services/event_service.dart';
 import '../../utils/number_formatter.dart';
+import '../../utils/image_helper.dart';
 
 // ============================================
 // 업체용 상세 품목(2뎁스) 추가/수정 폼 화면
@@ -16,6 +19,7 @@ import '../../utils/number_formatter.dart';
 // - 적용 타입 (칩)
 // - 상세 품목 (설명)
 // - 비용 (원)
+// - 품목 이미지 (카메라/갤러리에서 선택)
 // - 하단: "작성 완료" 버튼
 // ============================================
 
@@ -53,6 +57,9 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
   late Set<String> _selectedTypes;
   List<String> _eventHousingTypes = [];
 
+  // 품목 이미지 (base64 데이터 URL)
+  String? _imageBase64;
+
   bool _isLoading = false;
   bool get _isEditMode => widget.product != null;
 
@@ -69,6 +76,8 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
       text: widget.product?['price'] != null ? formatWithComma(widget.product!['price'] as int) : '',
     );
     _selectedTypes = Set<String>.from(widget.product?['housingTypes'] ?? []);
+    // 수정 모드: 기존 이미지 로드
+    _imageBase64 = widget.product?['imageUrl'] as String?;
   }
 
   @override
@@ -118,6 +127,32 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     }
   }
 
+  // 갤러리에서 이미지 선택
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 70,
+    );
+    if (picked == null) return;
+
+    // base64로 변환
+    final bytes = await picked.readAsBytes();
+    final base64String = base64Encode(bytes);
+    final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+    setState(() {
+      _imageBase64 = 'data:$mimeType;base64,$base64String';
+    });
+  }
+
+  // 이미지 제거
+  void _removeImage() {
+    setState(() => _imageBase64 = null);
+  }
+
   // 폼 제출
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -139,7 +174,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     Map<String, dynamic> result;
 
     if (_isEditMode) {
-      // 수정: ProductItem 수정 API
+      // 수정: ProductItem 수정 API (이미지 포함)
       result = await _productService.updateProductItem(
         widget.product!['id'].toString(),
         {
@@ -147,16 +182,19 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
           'description': _descriptionController.text,
           'price': parseCommaNumber(_priceController.text),
           'housingTypes': _selectedTypes.toList(),
+          // 이미지: null이면 제거, 있으면 업데이트
+          'image': _imageBase64,
         },
       );
     } else {
-      // 생성: ProductItem 생성 API
+      // 생성: ProductItem 생성 API (이미지 포함)
       result = await _productService.createProductItem(
         productId: _selectedProductId!,
         name: _nameController.text,
         housingTypes: _selectedTypes.toList(),
         price: parseCommaNumber(_priceController.text),
         description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
+        image: _imageBase64,
       );
     }
 
@@ -246,6 +284,12 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 20),
+
+              // 품목 이미지
+              _buildLabel('품목 이미지'),
+              const SizedBox(height: 8),
+              _buildImagePicker(),
               const SizedBox(height: 32),
 
               // "작성 완료" 검정 버튼
@@ -268,6 +312,87 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
               const SizedBox(height: 16),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // 이미지 선택 위젯
+  Widget _buildImagePicker() {
+    // 이미지가 있을 때: 미리보기 + 변경/삭제 버튼
+    if (_imageBase64 != null && _imageBase64!.isNotEmpty) {
+      return Column(
+        children: [
+          // 이미지 미리보기
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: double.infinity,
+              height: 180,
+              child: buildSmartImage(_imageBase64, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // 변경 / 삭제 버튼
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('변경'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.border),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _removeImage,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('삭제'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.priceRed,
+                    side: const BorderSide(color: AppColors.priceRed),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // 이미지가 없을 때: 회백 배경 + 추가 안내
+    return GestureDetector(
+      onTap: _pickImage,
+      child: Container(
+        width: double.infinity,
+        height: 140,
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate_outlined, size: 36, color: AppColors.textHint),
+            SizedBox(height: 8),
+            Text(
+              '이미지를 추가하세요',
+              style: TextStyle(fontSize: 13, color: AppColors.textHint),
+            ),
+            SizedBox(height: 4),
+            Text(
+              '탭하여 갤러리에서 선택',
+              style: TextStyle(fontSize: 11, color: AppColors.textHint),
+            ),
+          ],
         ),
       ),
     );

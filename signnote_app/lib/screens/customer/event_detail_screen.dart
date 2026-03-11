@@ -3,11 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../services/product_service.dart';
 import '../../services/cart_service.dart';
 import '../../services/event_service.dart';
+import '../../utils/image_helper.dart';
 import 'cart_screen.dart';
 import 'contract_screen.dart';
 
@@ -40,7 +42,7 @@ class EventDetailScreen extends StatefulWidget {
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
-  int _currentTabIndex = 0;
+  final int _currentTabIndex = 0;
   String? _myHousingType; // 내 평형 타입
 
   // 서버에서 불러온 1뎁스 품목 목록 (각각 items: 2뎁스 배열 포함)
@@ -301,9 +303,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // 탭 클릭 시 화면 이동
+  // 주의: setState로 탭 인덱스를 먼저 바꾸면 화면이 깜빡이므로,
+  // Navigator 완료 후 .then()에서만 탭 복원
   void _onTabChanged(int index) {
     if (index == _currentTabIndex) return;
-    setState(() => _currentTabIndex = index);
 
     switch (index) {
       case 0: // 홈 — 현재
@@ -317,14 +320,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ),
         ).then((_) {
-          setState(() => _currentTabIndex = 0);
-          _loadCartItems(); // 장바구니 변경 반영
+          if (mounted) _loadCartItems(); // 장바구니 변경 반영
         });
         break;
       case 2: // 계약함
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const CustomerContractScreen()),
-        ).then((_) => setState(() => _currentTabIndex = 0));
+        );
         break;
       case 3: // 마이페이지
         context.push(AppRoutes.mypage, extra: 'CUSTOMER');
@@ -336,15 +338,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          widget.eventTitle,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-          overflow: TextOverflow.ellipsis,
-        ),
+      // 고객 행사 상세 — 탭 화면이므로 뒤로가기 없음, 통일된 AppHeader 사용
+      appBar: AppHeader(
+        title: widget.eventTitle,
+        showBackButton: false,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,60 +378,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           Expanded(child: _buildProductList()),
         ],
       ),
-      // 하단: 장바구니 버튼 + 탭바
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 장바구니 버튼 (담긴 게 있을 때만)
-          if (_cartItemIds.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-              child: SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CartScreen(
-                          eventId: widget.eventId,
-                          eventTitle: widget.eventTitle,
-                        ),
-                      ),
-                    ).then((_) => _loadCartItems());
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('장바구니', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      const SizedBox(width: 8),
-                      // 수량 뱃지
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.priceRed,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${_cartItemIds.length}',
-                          style: const TextStyle(color: AppColors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          AppTabBar.customer(
-            currentIndex: _currentTabIndex,
-            onTap: _onTabChanged,
-          ),
-        ],
+      // 하단 탭바 — 장바구니 아이콘에 담긴 수량 배지 표시
+      bottomNavigationBar: AppTabBar.customer(
+        currentIndex: _currentTabIndex,
+        onTap: _onTabChanged,
+        cartBadgeCount: _cartItemIds.length,
       ),
     );
   }
@@ -483,13 +431,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       child: _ExpandableProductTile(
         category: category,
         items: items,
-        itemBuilder: (item) => _buildItemCard(item),
+        // 첫번째 품목(index 0)만 이미지 표시, 나머지는 이미지 영역 없음
+        itemBuilder: (item, index) => _buildItemCard(item, isFirstItem: index == 0),
       ),
     );
   }
 
-  // 2뎁스 상세 품목 카드 (이미지 + 업체명 + 패키지명 + 설명 + 가격 + 상세보기 + 장바구니)
-  Widget _buildItemCard(Map<String, dynamic> item) {
+  // 2뎁스 상세 품목 카드
+  // isFirstItem: true이면 좌측 이미지 썸네일 표시, false이면 이미지 자리만큼 패딩
+  Widget _buildItemCard(Map<String, dynamic> item, {bool isFirstItem = false}) {
     final isInCart = _cartItemIds.contains(item['id']);
     final formattedPrice = _priceFormat.format(item['price']);
 
@@ -498,19 +448,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 이미지 썸네일
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: 72,
-              height: 72,
-              color: AppColors.background,
-              child: item['imageUrl'] != null
-                  ? Image.network(item['imageUrl'], fit: BoxFit.cover)
-                  : const Icon(Icons.image_outlined, color: AppColors.textHint),
+          // 이미지 썸네일 — 첫번째 품목만 표시, 나머지는 동일 너비 패딩으로 정렬 맞춤
+          if (isFirstItem) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 72,
+                height: 72,
+                color: AppColors.background,
+                child: buildSmartImage(
+                  item['imageUrl'] as String?,
+                  width: 72,
+                  height: 72,
+                  placeholder: const Icon(Icons.image_outlined, color: AppColors.textHint),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
+          ] else ...[
+            // 이미지 없는 품목도 동일한 왼쪽 여백으로 텍스트 라인 정렬
+            const SizedBox(width: 84), // 72(이미지) + 12(간격)
+          ],
           // 품목 정보
           Expanded(
             child: Column(
@@ -591,7 +549,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 class _ExpandableProductTile extends StatefulWidget {
   final String category;
   final List<Map<String, dynamic>> items;
-  final Widget Function(Map<String, dynamic>) itemBuilder;
+  // itemBuilder(item, index) — index로 첫번째 품목 여부 판단
+  final Widget Function(Map<String, dynamic>, int) itemBuilder;
 
   const _ExpandableProductTile({
     required this.category,
@@ -641,10 +600,10 @@ class _ExpandableProductTileState extends State<_ExpandableProductTile> {
             child: Column(
               children: [
                 if (_isExpanded)
-                  ...widget.items.map((item) => widget.itemBuilder(item))
+                  ...widget.items.asMap().entries.map((e) => widget.itemBuilder(e.value, e.key))
                 else ...[
                   // 접힌 상태: 첫 1개만 표시
-                  widget.itemBuilder(widget.items.first),
+                  widget.itemBuilder(widget.items.first, 0),
                   // "외 N개 더보기" — 클릭하면 아코디언 펼침
                   if (widget.items.length > 1)
                     GestureDetector(

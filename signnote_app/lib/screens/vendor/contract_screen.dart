@@ -14,11 +14,11 @@ import '../customer/contract_detail_screen.dart';
 // 업체용 계약함 화면
 //
 // 디자인 참고: 10.업체용-계약함.jpg, 11.업체용-계약함 상세.jpg
-// - 상단: ← "계약함" 헤더
+// - 상단: ← "계약함" 헤더 + 돋보기(검색) 아이콘
+// - 상태 필터 칩 (전체/계약/취소요청/취소)
 // - 집계 요약 카드 (총 계약건수, 총 금액, 취소건수)
 // - 계약 카드 목록
-//   - 각 카드: 고객 정보(동/호수/이름/전화) + 상품명 + 상태 뱃지 + 가격
-// - 하단: 3탭 네비게이션
+// - 하단: 탭 네비게이션
 // ============================================
 
 class VendorContractScreen extends StatefulWidget {
@@ -29,19 +29,33 @@ class VendorContractScreen extends StatefulWidget {
 }
 
 class _VendorContractScreenState extends State<VendorContractScreen> {
-  final int _currentTabIndex = 1;  // 계약함 탭이 선택된 상태
+  final int _currentTabIndex = 1; // 계약함 탭이 선택된 상태
 
   // API에서 가져온 계약 목록
   List<Map<String, dynamic>> _contracts = [];
   bool _isLoading = true;
   String? _error;
 
+  // 검색 기능
+  bool _showSearch = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  // 상태 필터 (null = 전체)
+  String? _statusFilter;
+
   final ContractService _contractService = ContractService();
 
   @override
   void initState() {
     super.initState();
-    _loadContracts(); // 화면 열릴 때 계약 목록 불러오기
+    _loadContracts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   // 서버에서 계약 목록 가져오기
@@ -97,7 +111,36 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
     }
   }
 
-  // 상태 파싱 (PENDING/CANCEL_REQUESTED 추가)
+  // 필터 + 검색 적용된 계약 목록
+  List<Map<String, dynamic>> get _filteredContracts {
+    var list = _contracts;
+
+    // 상태 필터 적용
+    if (_statusFilter != null) {
+      if (_statusFilter == 'ACTIVE') {
+        // 계약건 = CONFIRMED + PENDING
+        list = list.where((c) =>
+          c['status'] == 'CONFIRMED' || c['status'] == 'PENDING').toList();
+      } else {
+        list = list.where((c) => c['status'] == _statusFilter).toList();
+      }
+    }
+
+    // 검색어 필터 적용 (고객명, 품목명으로 검색)
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((c) {
+        final name = (c['customerName'] as String? ?? '').toLowerCase();
+        final product = (c['productName'] as String? ?? '').toLowerCase();
+        final phone = (c['customerPhone'] as String? ?? '').toLowerCase();
+        return name.contains(q) || product.contains(q) || phone.contains(q);
+      }).toList();
+    }
+
+    return list;
+  }
+
+  // 상태 파싱
   ContractCardStatus _parseStatus(String status) {
     switch (status) {
       case 'CONFIRMED':
@@ -174,7 +217,6 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
-      // 성공 시 목록 전체 새로고침 (서버 최신 상태 반영)
       _loadContracts();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('취소가 승인되었습니다.')),
@@ -238,7 +280,6 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
-      // 성공 시 목록 전체 새로고침
       _loadContracts();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('취소 요청이 거부되었습니다. 계약이 유지됩니다.')),
@@ -250,7 +291,7 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
     }
   }
 
-  // 집계 데이터 — 실제 API 데이터 기반 계산
+  // 집계 데이터 — 전체 데이터 기준 (필터 무관)
   int get _totalCount => _contracts.where((c) => c['status'] != 'CANCELLED').length;
   int get _cancelCount => _contracts.where((c) =>
       c['status'] == 'CANCELLED' || c['status'] == 'CANCEL_REQUESTED').length;
@@ -277,8 +318,7 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
           MaterialPageRoute(builder: (_) => const VendorHomeScreen()),
         );
         break;
-      case 1: // 계약함 — 현재 화면이므로 무시
-        break;
+      case 1: break; // 현재
       case 2: // 마이페이지
         context.push(AppRoutes.mypage, extra: 'VENDOR');
         break;
@@ -289,9 +329,28 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: const AppHeader(title: '계약함'),
+      appBar: AppHeader(
+        title: '계약함',
+        actions: [
+          // 돋보기 검색 버튼
+          IconButton(
+            icon: Icon(
+              _showSearch ? Icons.close : Icons.search,
+              color: AppColors.textPrimary,
+            ),
+            onPressed: () {
+              setState(() {
+                _showSearch = !_showSearch;
+                if (!_showSearch) {
+                  _searchController.clear();
+                  _searchQuery = '';
+                }
+              });
+            },
+          ),
+        ],
+      ),
       body: _buildBody(),
-      // 하단 탭바 (업체용 3탭)
       bottomNavigationBar: AppTabBar.vendor(
         currentIndex: _currentTabIndex,
         onTap: _onTabChanged,
@@ -299,7 +358,7 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
     );
   }
 
-  // 본문: 로딩 / 에러 / 계약 목록 분기
+  // 본문
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -320,74 +379,147 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
     }
     if (_contracts.isEmpty) return _buildEmptyState();
 
+    final filtered = _filteredContracts;
+
     return Column(
       children: [
+        // 검색창 (돋보기 클릭 시 노출)
+        if (_showSearch)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+            child: TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: '고객명, 품목명, 연락처 검색',
+                hintStyle: const TextStyle(fontSize: 14, color: AppColors.textHint),
+                prefixIcon: const Icon(Icons.search, size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.textPrimary),
+                ),
+              ),
+              onChanged: (v) => setState(() => _searchQuery = v),
+            ),
+          ),
+        // 상태 필터 칩
+        _buildFilterChips(),
         // 집계 요약 카드
         _buildSummaryCards(),
-        // 계약 카드 목록
+        // 계약 카드 목록 (필터 적용)
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: _contracts.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final contract = _contracts[index];
-              return ContractCard.vendor(
-                customerName: contract['customerName'],
-                customerAddress: contract['customerAddress'],
-                customerPhone: contract['customerPhone'],
-                productName: contract['productName'],
-                productDescription: contract['description'],
-                price: contract['price'],
-                depositAmount: contract['depositAmount'],
-                status: _parseStatus(contract['status']),
-                onDetailTap: () {
-                  // 계약 상세 화면으로 이동
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => CustomerContractDetailScreen(
-                        contract: contract,
-                        categoryName: contract['productCategory'] ?? '계약 상세',
-                      ),
-                    ),
-                  );
-                },
-                // 확정/대기 상태일 때 업체 직접 취소 버튼 표시
-                onVendorCancelTap: (contract['status'] == 'CONFIRMED' || contract['status'] == 'PENDING')
-                    ? () => _showVendorCancelDialog(contract)
-                    : null,
-                // 취소 요청 상태일 때 승인/거부 버튼 표시
-                onApproveTap: contract['status'] == 'CANCEL_REQUESTED'
-                    ? () => _showApproveCancelDialog(contract)
-                    : null,
-                onRejectTap: contract['status'] == 'CANCEL_REQUESTED'
-                    ? () => _showRejectCancelDialog(contract)
-                    : null,
-              );
-            },
-          ),
+          child: filtered.isEmpty
+              ? const Center(
+                  child: Text('검색 결과가 없습니다', style: TextStyle(color: AppColors.textSecondary)),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final contract = filtered[index];
+                    return ContractCard.vendor(
+                      customerName: contract['customerName'],
+                      customerAddress: contract['customerAddress'],
+                      customerPhone: contract['customerPhone'],
+                      productName: contract['productName'],
+                      productDescription: contract['description'],
+                      price: contract['price'],
+                      depositAmount: contract['depositAmount'],
+                      status: _parseStatus(contract['status']),
+                      onDetailTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => CustomerContractDetailScreen(
+                              contract: contract,
+                              categoryName: contract['productCategory'] ?? '계약 상세',
+                            ),
+                          ),
+                        );
+                      },
+                      onVendorCancelTap: (contract['status'] == 'CONFIRMED' || contract['status'] == 'PENDING')
+                          ? () => _showVendorCancelDialog(contract)
+                          : null,
+                      onApproveTap: contract['status'] == 'CANCEL_REQUESTED'
+                          ? () => _showApproveCancelDialog(contract)
+                          : null,
+                      onRejectTap: contract['status'] == 'CANCEL_REQUESTED'
+                          ? () => _showRejectCancelDialog(contract)
+                          : null,
+                    );
+                  },
+                ),
         ),
       ],
     );
   }
 
-  // 집계 요약 카드 (어두운 바)
+  // 상태 필터 칩 (전체 / 계약건 / 취소요청 / 취소)
+  Widget _buildFilterChips() {
+    final filters = <Map<String, String?>>[
+      {'label': '전체', 'value': null},
+      {'label': '계약건', 'value': 'ACTIVE'},
+      {'label': '취소요청', 'value': 'CANCEL_REQUESTED'},
+      {'label': '취소', 'value': 'CANCELLED'},
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+      child: Row(
+        children: filters.map((f) {
+          final isSelected = _statusFilter == f['value'];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(
+                f['label']!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isSelected ? AppColors.white : AppColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+              selected: isSelected,
+              selectedColor: AppColors.textPrimary,
+              backgroundColor: AppColors.background,
+              side: BorderSide.none,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              onSelected: (_) {
+                setState(() => _statusFilter = f['value']);
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // 집계 요약 카드
   Widget _buildSummaryCards() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       child: AppCard.dark(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatItem('총 계약', '$_totalCount건'),
-          Container(width: 1, height: 32, color: Colors.white24),
-          _buildStatItem('총 금액', '${_formatPrice(_totalAmount)}원'),
-          Container(width: 1, height: 32, color: Colors.white24),
-          _buildStatItem('취소', '$_cancelCount건',
-              valueColor: _cancelCount > 0 ? AppColors.priceRed : Colors.white),
-        ],
-      ),
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildStatItem('총 계약', '$_totalCount건'),
+            Container(width: 1, height: 32, color: Colors.white24),
+            _buildStatItem('총 금액', '${_formatPrice(_totalAmount)}원'),
+            Container(width: 1, height: 32, color: Colors.white24),
+            _buildStatItem('취소', '$_cancelCount건',
+                valueColor: _cancelCount > 0 ? AppColors.priceRed : Colors.white),
+          ],
+        ),
       ),
     );
   }
@@ -395,19 +527,9 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
   Widget _buildStatItem(String label, String value, {Color valueColor = Colors.white}) {
     return Column(
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Colors.white54),
-        ),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.white54)),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: valueColor,
-          ),
-        ),
+        Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: valueColor)),
       ],
     );
   }
@@ -420,10 +542,7 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
         children: [
           Icon(Icons.description_outlined, size: 48, color: AppColors.textHint),
           SizedBox(height: 12),
-          Text(
-            '계약 내역이 없습니다',
-            style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
-          ),
+          Text('계약 내역이 없습니다', style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
         ],
       ),
     );

@@ -7,6 +7,7 @@ import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/common/app_button.dart';
 import '../../services/product_service.dart';
+import '../../utils/image_helper.dart';
 import 'product_form_screen.dart';
 import 'contract_screen.dart';
 
@@ -194,16 +195,19 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 왼쪽: 썸네일 이미지
+              // 왼쪽: 썸네일 이미지 (base64 데이터 URL / 네트워크 URL 둘 다 지원)
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   width: 80,
                   height: 80,
                   color: AppColors.background,
-                  child: product['imageUrl'] != null
-                      ? Image.network(product['imageUrl'], fit: BoxFit.cover)
-                      : const Icon(Icons.image_outlined, color: AppColors.textHint),
+                  child: buildSmartImage(
+                    product['imageUrl'] as String?,
+                    width: 80,
+                    height: 80,
+                    placeholder: const Icon(Icons.image_outlined, color: AppColors.textHint),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

@@ -33,12 +33,13 @@ Future<void> downloadCsv(List<List<String>> rows, String fileName) async {
   html.Url.revokeObjectUrl(url);
 }
 
-// 엑셀(xlsx) 다운로드 — 제목행 + 중앙정렬 지원
+// 엑셀(xlsx) 다운로드 — 제목행 + 작성시간 + 중앙정렬 지원
 Future<void> downloadExcel({
   required String title,         // 맨 윗줄에 표시할 행사 제목
   required List<String> headers, // 헤더 행 (컬럼명)
   required List<List<String>> dataRows, // 데이터 행들
   required String fileName,      // 파일명 (.xlsx 포함)
+  String? subtitle,              // 2행에 표시할 부제목 (예: 작성시간)
 }) async {
   final excel = Excel.createExcel();
   // 기본 시트 이름 변경
@@ -64,7 +65,25 @@ Future<void> downloadExcel({
     CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: 0),
   );
 
-  // 2행: 헤더 (굵게 + 중앙정렬 + 배경색)
+  // subtitle이 있으면 2행에 작성시간 등 부제목 표시
+  int headerRowIndex = 1; // 헤더 시작 행 (기본: 2행)
+  if (subtitle != null) {
+    final subtitleStyle = CellStyle(
+      fontSize: 10,
+      horizontalAlign: HorizontalAlign.Center,
+      fontColorHex: ExcelColor.fromHexString('#666666'),
+    );
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1))
+      ..value = TextCellValue(subtitle)
+      ..cellStyle = subtitleStyle;
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: 1),
+    );
+    headerRowIndex = 2; // 부제목이 있으면 헤더는 3행으로 밀림
+  }
+
+  // 헤더 행 (굵게 + 중앙정렬 + 배경색)
   final headerStyle = CellStyle(
     bold: true,
     fontSize: 11,
@@ -72,19 +91,20 @@ Future<void> downloadExcel({
     backgroundColorHex: ExcelColor.fromHexString('#E0E0E0'),
   );
   for (var col = 0; col < headers.length; col++) {
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 1))
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: headerRowIndex))
       ..value = TextCellValue(headers[col])
       ..cellStyle = headerStyle;
   }
 
-  // 3행~: 데이터 (모두 중앙정렬)
+  // 데이터 행 (모두 중앙정렬)
+  final dataStartRow = headerRowIndex + 1;
   final dataStyle = CellStyle(
     fontSize: 11,
     horizontalAlign: HorizontalAlign.Center,
   );
   for (var row = 0; row < dataRows.length; row++) {
     for (var col = 0; col < dataRows[row].length; col++) {
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row + 2))
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row + dataStartRow))
         ..value = TextCellValue(dataRows[row][col])
         ..cellStyle = dataStyle;
     }
