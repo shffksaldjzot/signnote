@@ -114,6 +114,7 @@ model Event {
   vendorEntryCode     String?     @unique             // 협력업체 참여 코드 (6자리, 별도 생성)
   status              EventStatus @default(UPCOMING)  // 행사 상태
   createdAt           DateTime    @default(now())
+  deletedAt           DateTime?                       // 소프트 삭제 시각 (null이면 활성)
 
   // 관계 설정
   products            Product[]                       // 이 행사의 상품들

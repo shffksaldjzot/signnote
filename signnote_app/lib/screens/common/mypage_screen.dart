@@ -18,10 +18,12 @@ import 'profile_edit_screen.dart';
 
 class MypageScreen extends StatefulWidget {
   final String role; // 현재 사용자 역할
+  final bool embedded; // true이면 body만 반환
 
   const MypageScreen({
     super.key,
     required this.role,
+    this.embedded = false,
   });
 
   @override
@@ -103,16 +105,10 @@ class _MypageScreenState extends State<MypageScreen> {
     context.go(AppRoutes.login);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: const AppHeader(title: '마이페이지'),
-      // 역할별 하단 탭바
-      bottomNavigationBar: _buildBottomBar(),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
+  // 마이페이지 본문 위젯
+  Widget _buildMypageBody() {
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    return ListView(
               padding: const EdgeInsets.all(24),
               children: [
                 // 프로필 카드
@@ -175,7 +171,21 @@ class _MypageScreenState extends State<MypageScreen> {
                   onTap: _showLogoutDialog,
                 ),
               ],
-            ),
+            );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 임베디드 모드: body만 반환 (EventDetailScreen의 IndexedStack에서 사용)
+    if (widget.embedded) {
+      return _buildMypageBody();
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      appBar: const AppHeader(title: '마이페이지'),
+      bottomNavigationBar: _buildBottomBar(),
+      body: _buildMypageBody(),
     );
   }
 

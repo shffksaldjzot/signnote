@@ -16,24 +16,25 @@ export class EventsService {
   ) {}
 
   // 행사 목록 조회 (역할별 필터링)
-  // - ADMIN: 전체 행사 조회
-  // - ORGANIZER: 본인이 만든 행사만
-  // - VENDOR/CUSTOMER: 참여 코드로 입장한 행사만
+  // - ADMIN: 전체 행사 조회 (삭제된 행사 포함)
+  // - ORGANIZER: 본인이 만든 행사만 (삭제 제외)
+  // - VENDOR/CUSTOMER: 참여한 행사만 (삭제 제외)
   async findAll(userId: string, role: string) {
     let where: any = {};
 
     if (role === 'ORGANIZER') {
-      // 주관사는 본인이 만든 행사만 조회
-      where = { organizerId: userId };
+      // 주관사는 본인이 만든 행사만 조회 (삭제 제외)
+      where = { organizerId: userId, deletedAt: null };
     } else if (role === 'VENDOR' || role === 'CUSTOMER') {
-      // 업체/고객은 참여한 행사만 조회 (EventParticipant 테이블 기준)
+      // 업체/고객은 참여한 행사만 조회 (삭제 제외)
       where = {
+        deletedAt: null,
         participants: {
           some: { userId },
         },
       };
     }
-    // ADMIN은 where 없음 → 전체 조회
+    // ADMIN은 전체 조회 (삭제된 행사 포함하여 관리)
 
     return this.prisma.event.findMany({
       where,
@@ -142,16 +143,19 @@ export class EventsService {
     return updated;
   }
 
-  // 행사 삭제 (주관사/관리자만 가능)
+  // 행사 소프트 삭제 (주관사/관리자만 가능)
+  // 실제 DB에서 삭제하지 않고 deletedAt만 설정 → 관리자는 계속 볼 수 있음
   async remove(id: string, userId: string) {
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) {
       throw new NotFoundException('행사를 찾을 수 없습니다');
     }
 
-    // 관련 참여 기록, 상품 등 연쇄 삭제
-    await this.prisma.eventParticipant.deleteMany({ where: { eventId: id } });
-    await this.prisma.event.delete({ where: { id } });
+    // 소프트 삭제: deletedAt 시각만 설정
+    await this.prisma.event.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
 
     // 삭제 로그 기록
     await this.activityLogs.log({

@@ -102,8 +102,11 @@ class _EventsPageState extends State<EventsPage> {
     });
   }
 
-  // 행사 상태 텍스트 계산
+  // 행사 상태 텍스트 계산 (소프트 삭제 포함)
   String _getEventStatus(Map<String, dynamic> event) {
+    // 소프트 삭제된 행사
+    if (event['deletedAt'] != null) return '삭제됨';
+
     try {
       final now = DateTime.now();
       final startStr = event['startDate']?.toString();
@@ -131,6 +134,8 @@ class _EventsPageState extends State<EventsPage> {
         return AppColors.primary;
       case '종료':
         return AppColors.textSecondary;
+      case '삭제됨':
+        return AppColors.priceRed;
       default:
         return AppColors.textHint;
     }
@@ -382,19 +387,42 @@ class _EventsPageState extends State<EventsPage> {
 
                                 return DataRow(
                                   cells: [
-                                    // 행사명 — 클릭 시 상세 이동 + 말줄임 + 툴팁
+                                    // 행사명 — 클릭 시 상세 이동 + 말줄임 + 삭제 배지
                                     DataCell(
                                       Tooltip(
                                         message: event['title'] ?? '-',
                                         child: ConstrainedBox(
-                                          constraints: const BoxConstraints(maxWidth: 180),
-                                          child: Text(
-                                            event['title'] ?? '-',
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: AppColors.primary,
-                                              fontWeight: FontWeight.w500,
-                                            ),
+                                          constraints: const BoxConstraints(maxWidth: 220),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  event['title'] ?? '-',
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: event['deletedAt'] != null ? AppColors.textHint : AppColors.primary,
+                                                    fontWeight: FontWeight.w500,
+                                                    decoration: event['deletedAt'] != null ? TextDecoration.lineThrough : null,
+                                                  ),
+                                                ),
+                                              ),
+                                              // 소프트 삭제 배지
+                                              if (event['deletedAt'] != null) ...[
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.priceRed.withValues(alpha: 0.1),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: const Text(
+                                                    '주관사가 삭제함',
+                                                    style: TextStyle(fontSize: 10, color: AppColors.priceRed, fontWeight: FontWeight.w600),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
                                           ),
                                         ),
                                       ),

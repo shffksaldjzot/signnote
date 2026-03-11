@@ -1916,3 +1916,37 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 - [x] Flutter 빌드 에러 0건
 - [x] Cloudflare Pages 프론트엔드 배포 완료
 
+### 2026-03-11 — 피드백 4건 처리 (고객 탭, 품목 이미지, 소프트 삭제, 계약금 비율)
+
+#### 처리 항목
+1. **고객 탭 네비게이션 버그 수정** — IndexedStack 방식으로 전면 교체
+   - `event_detail_screen.dart`: 4개 탭(홈/장바구니/계약함/마이페이지)을 IndexedStack으로 관리
+   - `cart_screen.dart`, `contract_screen.dart`, `mypage_screen.dart`: embedded 파라미터 추가하여 body만 반환 가능
+   - Navigator.push/pop 기반 탭 전환 제거 → setState 기반 인덱스 전환
+
+2. **업체 품목 이미지 업로드 위치 변경** — 폼에서 목록으로 이동
+   - `product_form_screen.dart`: ImagePicker, base64 변환, 이미지 UI 섹션 전부 제거
+   - `product_manage_screen.dart`: 썸네일 이미지 GestureDetector로 감싸, 탭하면 갤러리에서 선택/업로드
+   - `vendor/event_detail_screen.dart`: 동일하게 판매 품목 탭에서 이미지 탭→업로드 가능
+
+3. **행사 소프트 삭제 구현** — 서버에서는 유지, 사용자에게만 숨김
+   - `schema.prisma`: Event 모델에 deletedAt DateTime? 필드 추가
+   - `events.service.ts`: findAll()에서 ORGANIZER/VENDOR/CUSTOMER는 deletedAt=null 필터, ADMIN은 전체 조회
+   - `events.service.ts`: remove()를 hard delete → soft delete(deletedAt 설정)로 변경
+   - `events_page.dart`: 관리자 행사 목록에 삭제된 행사 "주관사가 삭제함" 빨간 배지 + 취소선 표시
+
+4. **계약금 비율 UI 개선** — 행사 추가 폼에서 제거, 품목관리에서 설정
+   - `event_form_screen.dart`: depositRate 컨트롤러/필드/UI 전부 제거
+   - `event_manage_screen.dart`: 품목관리 내 계약금 비율 라벨 '계약금 비율'로 변경, 미설정 시 '미설정 (기본 30%)' 표시
+
+#### 변경 파일
+**백엔드 (2개):** prisma/schema.prisma, events/events.service.ts
+**프론트엔드 (8개):** customer/event_detail_screen.dart, customer/cart_screen.dart, customer/contract_screen.dart, common/mypage_screen.dart, vendor/product_form_screen.dart, vendor/product_manage_screen.dart, vendor/event_detail_screen.dart, organizer/web/events_page.dart
+**기타:** organizer/event_form_screen.dart, organizer/event_manage_screen.dart
+
+#### 빌드 & 배포
+- [x] Prisma DB push 완료 (deletedAt 필드 추가)
+- [x] Flutter 빌드 에러 0건
+- [ ] Cloudflare Pages 프론트엔드 배포
+- [ ] Render 백엔드 배포 (git push)
+

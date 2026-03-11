@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
@@ -46,6 +48,7 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
   String? _error;
 
   final ProductService _productService = ProductService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -88,6 +91,42 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
         _error = result['error'] ?? '상품 목록을 불러올 수 없습니다';
         _isLoading = false;
       });
+    }
+  }
+
+  // 갤러리에서 이미지 선택 → 서버에 업데이트
+  Future<void> _pickAndUploadImage(Map<String, dynamic> product) async {
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 70,
+    );
+    if (picked == null) return;
+
+    // base64로 변환
+    final bytes = await picked.readAsBytes();
+    final base64String = base64Encode(bytes);
+    final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    final dataUrl = 'data:$mimeType;base64,$base64String';
+
+    // 서버에 이미지 업데이트
+    final result = await _productService.updateProductItem(
+      product['id'].toString(),
+      {'image': dataUrl},
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미지가 업데이트되었습니다')),
+      );
+      _loadProducts(); // 목록 새로고침
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '이미지 업로드에 실패했습니다')),
+      );
     }
   }
 
@@ -195,18 +234,30 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 왼쪽: 썸네일 이미지 (base64 데이터 URL / 네트워크 URL 둘 다 지원)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  color: AppColors.background,
-                  child: buildSmartImage(
-                    product['imageUrl'] as String?,
+              // 왼쪽: 썸네일 이미지 (탭하면 갤러리에서 이미지 선택/변경)
+              GestureDetector(
+                onTap: () => _pickAndUploadImage(product),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
                     width: 80,
                     height: 80,
-                    placeholder: const Icon(Icons.image_outlined, color: AppColors.textHint),
+                    color: AppColors.background,
+                    child: (product['imageUrl'] != null && (product['imageUrl'] as String).isNotEmpty)
+                        ? buildSmartImage(
+                            product['imageUrl'] as String?,
+                            width: 80,
+                            height: 80,
+                          )
+                        // 이미지 미등록: 회백 배경에 + 표시
+                        : const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_photo_alternate_outlined, size: 28, color: AppColors.textHint),
+                              SizedBox(height: 2),
+                              Text('이미지 추가', style: TextStyle(fontSize: 9, color: AppColors.textHint)),
+                            ],
+                          ),
                   ),
                 ),
               ),

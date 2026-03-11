@@ -12,6 +12,7 @@ import '../../services/event_service.dart';
 import '../../utils/image_helper.dart';
 import 'cart_screen.dart';
 import 'contract_screen.dart';
+import '../common/mypage_screen.dart';
 
 // ============================================
 // 행사 상세 화면 (구매 품목 리스트 — 2뎁스 구조)
@@ -42,7 +43,7 @@ class EventDetailScreen extends StatefulWidget {
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
-  final int _currentTabIndex = 0;
+  int _currentTabIndex = 0;
   String? _myHousingType; // 내 평형 타입
 
   // 서버에서 불러온 1뎁스 품목 목록 (각각 items: 2뎁스 배열 포함)
@@ -302,35 +303,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  // 탭 클릭 시 화면 이동
-  // 주의: setState로 탭 인덱스를 먼저 바꾸면 화면이 깜빡이므로,
-  // Navigator 완료 후 .then()에서만 탭 복원
+  // 탭 전환 — IndexedStack으로 즉시 전환 (Navigator.push 없음)
   void _onTabChanged(int index) {
     if (index == _currentTabIndex) return;
+    setState(() => _currentTabIndex = index);
+    // 홈 탭으로 돌아올 때 장바구니 변경사항 반영
+    if (index == 0) _loadCartItems();
+  }
 
-    switch (index) {
-      case 0: // 홈 — 현재
-        break;
-      case 1: // 장바구니
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => CartScreen(
-              eventId: widget.eventId,
-              eventTitle: widget.eventTitle,
-            ),
-          ),
-        ).then((_) {
-          if (mounted) _loadCartItems(); // 장바구니 변경 반영
-        });
-        break;
-      case 2: // 계약함
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CustomerContractScreen()),
-        );
-        break;
-      case 3: // 마이페이지
-        context.push(AppRoutes.mypage, extra: 'CUSTOMER');
-        break;
+  // 탭별 AppBar 제목
+  String get _appBarTitle {
+    switch (_currentTabIndex) {
+      case 2: return '계약함';
+      case 3: return '마이페이지';
+      default: return widget.eventTitle;
     }
   }
 
@@ -338,44 +324,26 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      // 고객 행사 상세 — 탭 화면이므로 뒤로가기 없음, 통일된 AppHeader 사용
       appBar: AppHeader(
-        title: widget.eventTitle,
+        title: _appBarTitle,
         showBackButton: false,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      // IndexedStack: 모든 탭 위젯을 유지하며 현재 탭만 표시
+      body: IndexedStack(
+        index: _currentTabIndex,
         children: [
-          // "구매 품목 리스트 >" + 내 타입 뱃지
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-            child: Row(
-              children: [
-                const Text(
-                  '구매 품목 리스트',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, size: 20),
-                const Spacer(),
-                // 내 타입 뱃지
-                if (_myHousingType != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppColors.textPrimary,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '$_myHousingType타입',
-                      style: const TextStyle(color: AppColors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-              ],
-            ),
+          // 탭 0: 홈 (구매 품목 리스트)
+          _buildHomeBody(),
+          // 탭 1: 장바구니
+          CartScreen(
+            eventId: widget.eventId,
+            eventTitle: widget.eventTitle,
+            embedded: true,
           ),
-          // 품목 목록
-          Expanded(child: _buildProductList()),
+          // 탭 2: 계약함
+          const CustomerContractScreen(embedded: true),
+          // 탭 3: 마이페이지
+          const MypageScreen(role: 'CUSTOMER', embedded: true),
         ],
       ),
       // 하단 탭바 — 장바구니 아이콘에 담긴 수량 배지 표시
@@ -384,6 +352,45 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         onTap: _onTabChanged,
         cartBadgeCount: _cartItemIds.length,
       ),
+    );
+  }
+
+  // 홈 탭 본문 (구매 품목 리스트)
+  Widget _buildHomeBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // "구매 품목 리스트 >" + 내 타입 뱃지
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          child: Row(
+            children: [
+              const Text(
+                '구매 품목 리스트',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, size: 20),
+              const Spacer(),
+              // 내 타입 뱃지
+              if (_myHousingType != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.textPrimary,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$_myHousingType타입',
+                    style: const TextStyle(color: AppColors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        // 품목 목록
+        Expanded(child: _buildProductList()),
+      ],
     );
   }
 

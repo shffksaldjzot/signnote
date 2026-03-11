@@ -664,15 +664,15 @@ class _OrganizerEventManageScreenState
             onEdit: () => _editField(product, '수수료', 'commissionRate', ratePercent),
           ),
           const SizedBox(height: 10),
-          // 계약금 비율 (품목별 설정, 미설정 시 행사 기본값 사용)
+          // 계약금 비율 (품목별 설정)
           Builder(builder: (_) {
             final depositRate = product['depositRate'];
             final depositPercent = depositRate is num ? (depositRate * 100).toStringAsFixed(0) : '';
-            final displayValue = depositPercent.isNotEmpty ? '$depositPercent%' : '행사 기본값';
+            final displayValue = depositPercent.isNotEmpty ? '$depositPercent%' : '미설정 (기본 30%)';
             return _buildDetailRow(
-              label: '계약금',
+              label: '계약금 비율',
               value: displayValue,
-              onEdit: () => _editField(product, '계약금 비율', 'depositRate', depositPercent),
+              onEdit: () => _editField(product, '계약금 비율 (%)', 'depositRate', depositPercent),
             );
           }),
           const SizedBox(height: 10),

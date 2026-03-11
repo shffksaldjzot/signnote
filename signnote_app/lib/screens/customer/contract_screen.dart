@@ -23,7 +23,8 @@ import 'cart_screen.dart';
 // ============================================
 
 class CustomerContractScreen extends StatefulWidget {
-  const CustomerContractScreen({super.key});
+  final bool embedded; // true이면 body만 반환
+  const CustomerContractScreen({super.key, this.embedded = false});
 
   @override
   State<CustomerContractScreen> createState() => _CustomerContractScreenState();
@@ -137,9 +138,13 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 임베디드 모드: body만 반환 (EventDetailScreen의 IndexedStack에서 사용)
+    if (widget.embedded) {
+      return _buildBody();
+    }
+
     return Scaffold(
       backgroundColor: AppColors.white,
-      // 계약함 — 탭 화면이므로 뒤로가기 없음, 통일된 AppHeader 사용
       appBar: const AppHeader(title: '계약함', showBackButton: false),
       body: _buildBody(),
       bottomNavigationBar: AppTabBar.customer(

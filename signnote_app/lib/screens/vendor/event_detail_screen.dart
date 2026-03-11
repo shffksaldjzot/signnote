@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
@@ -40,6 +42,7 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     with SingleTickerProviderStateMixin {
 
   late TabController _tabController;
+  final ImagePicker _imagePicker = ImagePicker();
 
   // 품목 데이터
   List<Map<String, dynamic>> _products = [];
@@ -474,6 +477,39 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     );
   }
 
+  // 갤러리에서 이미지 선택 → 서버에 업데이트
+  Future<void> _pickAndUploadImage(Map<String, dynamic> item) async {
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 70,
+    );
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    final b64 = base64Encode(bytes);
+    final mime = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    final dataUrl = 'data:$mime;base64,$b64';
+
+    final result = await _productService.updateProductItem(
+      item['id'].toString(),
+      {'image': dataUrl},
+    );
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미지가 업데이트되었습니다')),
+      );
+      _loadProducts();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '이미지 업로드에 실패했습니다')),
+      );
+    }
+  }
+
   // 2뎁스 상세 품목 카드 (이미지 + 이름 + 설명 + 가격 + 수정)
   Widget _buildProductItemCard(Map<String, dynamic> item, Map<String, dynamic> parentProduct) {
     final formattedPrice = NumberFormat('#,###').format(item['price']);
@@ -482,18 +518,29 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 썸네일 이미지
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: 72,
-              height: 72,
-              color: AppColors.background,
-              child: buildSmartImage(
-                item['imageUrl'] as String?,
+          // 썸네일 이미지 (탭하면 갤러리에서 이미지 선택/변경)
+          GestureDetector(
+            onTap: () => _pickAndUploadImage(item),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
                 width: 72,
                 height: 72,
-                placeholder: const Icon(Icons.image_outlined, color: AppColors.textHint),
+                color: AppColors.background,
+                child: (item['imageUrl'] != null && (item['imageUrl'] as String).isNotEmpty)
+                    ? buildSmartImage(
+                        item['imageUrl'] as String?,
+                        width: 72,
+                        height: 72,
+                      )
+                    : const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_photo_alternate_outlined, size: 24, color: AppColors.textHint),
+                          SizedBox(height: 2),
+                          Text('이미지 추가', style: TextStyle(fontSize: 9, color: AppColors.textHint)),
+                        ],
+                      ),
               ),
             ),
           ),

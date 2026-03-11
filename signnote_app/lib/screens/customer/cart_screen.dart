@@ -24,11 +24,13 @@ import 'payment_screen.dart';
 class CartScreen extends StatefulWidget {
   final String eventId;
   final String eventTitle;
+  final bool embedded; // true이면 Scaffold/AppBar/BottomNav 없이 body만 반환
 
   const CartScreen({
     super.key,
     required this.eventId,
     required this.eventTitle,
+    this.embedded = false,
   });
 
   @override
@@ -235,16 +237,19 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 임베디드 모드: body만 반환 (EventDetailScreen의 IndexedStack에서 사용)
+    if (widget.embedded) {
+      return _buildBody();
+    }
+
     return PopScope(
       canPop: true,
       child: Scaffold(
         backgroundColor: AppColors.white,
-        // 상단: 행사명 헤더
         appBar: AppHeader(title: widget.eventTitle),
         body: _buildBody(),
-        // 하단 네비게이션 바 (고객용 4탭)
         bottomNavigationBar: AppTabBar.customer(
-          currentIndex: 1, // 장바구니 탭 활성화
+          currentIndex: 1,
           onTap: (index) {
             if (index == 1) return;
             Navigator.pop(context);
