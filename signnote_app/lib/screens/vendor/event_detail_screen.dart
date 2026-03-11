@@ -247,10 +247,30 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
           indicatorWeight: 2,
           labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
-          tabs: const [
-            Tab(text: '판매 품목'),
-            Tab(text: '계약함'),
-            Tab(text: '알림'),
+          tabs: [
+            const Tab(text: '판매 품목'),
+            const Tab(text: '계약함'),
+            // 알림 탭에 읽지 않은 수 배지 표시
+            Tab(child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('알림'),
+                if (_notifications.any((n) => n['isRead'] != true)) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${_notifications.where((n) => n['isRead'] != true).length}',
+                      style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ],
+            )),
           ],
           ),
           // 탭 내용 (스크롤 감지)
@@ -471,7 +491,9 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
                 style: TextStyle(fontSize: 13, color: AppColors.textHint)),
             )
           else
-            ...items.map((item) => _buildProductItemCard(item, product)),
+            // 1뎁스당 첫 번째 item만 이미지 표시, 나머지는 이미지 없음
+            ...items.asMap().entries.map((entry) =>
+              _buildProductItemCard(entry.value, product, isFirstItem: entry.key == 0)),
         ],
       ),
     );
@@ -511,40 +533,46 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
   }
 
   // 2뎁스 상세 품목 카드 (이미지 + 이름 + 설명 + 가격 + 수정)
-  Widget _buildProductItemCard(Map<String, dynamic> item, Map<String, dynamic> parentProduct) {
+  // isFirstItem: 1뎁스당 첫 번째 item만 이미지 표시
+  Widget _buildProductItemCard(Map<String, dynamic> item, Map<String, dynamic> parentProduct, {bool isFirstItem = false}) {
     final formattedPrice = NumberFormat('#,###').format(item['price']);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 썸네일 이미지 (탭하면 갤러리에서 이미지 선택/변경)
-          GestureDetector(
-            onTap: () => _pickAndUploadImage(item),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 72,
-                height: 72,
-                color: AppColors.background,
-                child: (item['imageUrl'] != null && (item['imageUrl'] as String).isNotEmpty)
-                    ? buildSmartImage(
-                        item['imageUrl'] as String?,
-                        width: 72,
-                        height: 72,
-                      )
-                    : const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_photo_alternate_outlined, size: 24, color: AppColors.textHint),
-                          SizedBox(height: 2),
-                          Text('이미지 추가', style: TextStyle(fontSize: 9, color: AppColors.textHint)),
-                        ],
-                      ),
+          // 첫 번째 item만 이미지 영역 표시
+          if (isFirstItem) ...[
+            GestureDetector(
+              onTap: () => _pickAndUploadImage(item),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  color: AppColors.background,
+                  child: (item['imageUrl'] != null && (item['imageUrl'] as String).isNotEmpty)
+                      ? buildSmartImage(
+                          item['imageUrl'] as String?,
+                          width: 72,
+                          height: 72,
+                        )
+                      : const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined, size: 24, color: AppColors.textHint),
+                            SizedBox(height: 2),
+                            Text('이미지 추가', style: TextStyle(fontSize: 9, color: AppColors.textHint)),
+                          ],
+                        ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
+          ] else ...[
+            // 이미지 없는 item은 동일한 너비로 들여쓰기 (라인 정렬)
+            const SizedBox(width: 84),
+          ],
           // 품목 정보
           Expanded(
             child: Column(

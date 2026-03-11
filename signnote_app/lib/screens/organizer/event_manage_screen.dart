@@ -9,6 +9,7 @@ import '../../services/contract_service.dart';
 import '../../services/notification_service.dart';
 import '../../utils/number_formatter.dart';
 import '../../utils/csv_download.dart';
+import '../../utils/image_helper.dart';
 import '../customer/contract_detail_screen.dart';
 import 'product_add_screen.dart';
 
@@ -123,6 +124,7 @@ class _OrganizerEventManageScreenState
             'description': item['description'] ?? '',
             'price': item['price'] ?? 0,
             'housingTypes': item['housingTypes'] != null ? List<String>.from(item['housingTypes']) : <String>[],
+            'imageUrl': item['image'],  // 2뎁스 품목 이미지 (주관사 검토용)
           }).toList() ?? [];
 
           return {
@@ -815,6 +817,23 @@ class _OrganizerEventManageScreenState
         ),
         if (items.isNotEmpty) ...[
           const SizedBox(height: 8),
+          // 첫 번째 item에 이미지가 있으면 썸네일 표시 (1뎁스당 1장)
+          Builder(builder: (_) {
+            final firstImage = items.first['imageUrl'] as String?;
+            if (firstImage != null && firstImage.isNotEmpty) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8, left: 92),
+                child: GestureDetector(
+                  onTap: () => _showImagePreview(firstImage),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: buildSmartImage(firstImage, width: 72, height: 72),
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          }),
           ...items.map((item) {
             final formattedPrice = NumberFormat('#,###').format(item['price'] ?? 0);
             final types = (item['housingTypes'] as List?)?.join(', ') ?? '';
@@ -1239,23 +1258,52 @@ class _OrganizerEventManageScreenState
               ],
             ),
             const SizedBox(height: 12),
-            // 상세보기 버튼
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  // 고객별 뷰로 전환하여 해당 품목 계약만 보여주기
-                  setState(() => _contractViewMode = 'customer');
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textSecondary,
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+            // 건별 계약서 목록 (품목별 뷰 안에서 바로 표시)
+            const Text('계약 목록', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            ...contracts.map((c) {
+              final status = c['status'] as String? ?? 'PENDING';
+              final statusLabel = status == 'CONFIRMED' ? '계약완료' : status == 'CANCELLED' ? '취소' : status == 'CANCEL_REQUESTED' ? '취소요청' : '대기';
+              final statusColor = status == 'CONFIRMED' ? const Color(0xFF4CAF50) : status == 'CANCELLED' ? Colors.red : status == 'CANCEL_REQUESTED' ? Colors.orange : AppColors.textHint;
+              return GestureDetector(
+                onTap: () => _openContractDetail(c),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(c['customerName'] ?? '고객', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 2),
+                            Text(c['productName'] ?? '', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                          ],
+                        ),
+                      ),
+                      // 상태 배지
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(statusLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor)),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('${format.format((c['originalPrice'] as num?)?.toInt() ?? 0)}원', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right, size: 16, color: AppColors.textHint),
+                    ],
+                  ),
                 ),
-                child: const Text('상세보기', style: TextStyle(fontSize: 12)),
-              ),
-            ),
+              );
+            }),
           ],
         ),
       );
@@ -1693,6 +1741,15 @@ class _OrganizerEventManageScreenState
 
   // 참여 업체 목록 슬라이드 패널 (우측에서 열림)
   void _showVendorListPanel() {
+    // 업체별 배정 품목 Map 생성 (vendorId → 품목명 리스트)
+    final Map<String, List<String>> vendorProducts = {};
+    for (final p in _products) {
+      final vendorId = p['vendorId']?.toString() ?? '';
+      if (vendorId.isNotEmpty) {
+        vendorProducts.putIfAbsent(vendorId, () => []).add(p['name'] ?? '');
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1745,6 +1802,12 @@ class _OrganizerEventManageScreenState
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final vendor = _vendors[index];
+                        final vendorId = vendor['id']?.toString() ?? '';
+                        // 해당 업체에 배정된 품목명 리스트
+                        final assignedProducts = vendorProducts[vendorId] ?? [];
+                        final productText = assignedProducts.isNotEmpty
+                            ? ' (${assignedProducts.join(', ')})'
+                            : '';
                         return ListTile(
                           contentPadding: const EdgeInsets.symmetric(vertical: 4),
                           leading: CircleAvatar(
@@ -1757,9 +1820,20 @@ class _OrganizerEventManageScreenState
                               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                             ),
                           ),
-                          title: Text(
-                            vendor['name'] ?? '이름 없음',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                          title: RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: vendor['name'] ?? '이름 없음',
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                ),
+                                if (productText.isNotEmpty)
+                                  TextSpan(
+                                    text: productText,
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  ),
+                              ],
+                            ),
                           ),
                           subtitle: vendor['phone'] != null
                               ? Text(vendor['phone'], style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))
@@ -2181,6 +2255,30 @@ class _OrganizerEventManageScreenState
         SnackBar(content: Text(result['error'] ?? '수정에 실패했습니다')),
       );
     }
+  }
+
+  // 이미지 크게보기 (주관사 품목 이미지 검토용)
+  void _showImagePreview(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          children: [
+            Center(child: buildSmartImage(imageUrl, width: double.infinity, height: double.infinity)),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // 상세 품목 상세보기 다이얼로그 (#7)

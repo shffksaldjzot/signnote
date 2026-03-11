@@ -165,6 +165,30 @@ class CustomerContractDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                // 계약 취소 안내
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8F0),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFFE0B2)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline, size: 16, color: Color(0xFFFF6A00)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: const Text(
+                          '계약 취소를 원하시는 경우, 해당 협력업체로 직접 연락해 주세요.',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF7C4D00), height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

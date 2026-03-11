@@ -210,7 +210,7 @@ export class EventsService {
           select: { id: true, name: true, email: true, phone: true, role: true },
         },
       },
-      orderBy: { joinedAt: 'asc' },
+      orderBy: { joinedAt: 'desc' },  // 최근 참여순 정렬
     });
 
     // user 정보 + 동호수/타입을 플랫하게 반환

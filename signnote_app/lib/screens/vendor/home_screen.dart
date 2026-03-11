@@ -6,6 +6,7 @@ import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import 'event_detail_screen.dart';
 
 // ============================================
@@ -35,13 +36,30 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // 행사별 읽지 않은 알림 수 (알림 배지용)
+  Map<String, int> _unreadCounts = {};
+
   final EventService _eventService = EventService();
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
     super.initState();
     _loadEvents();
+    _loadUnreadCounts();
+  }
+
+  // 행사별 읽지 않은 알림 수 가져오기
+  Future<void> _loadUnreadCounts() async {
+    final result = await _notificationService.getUnreadCountByEvents();
+    if (!mounted) return;
+    if (result['success'] == true) {
+      final Map<String, dynamic> counts = result['counts'] ?? {};
+      setState(() {
+        _unreadCounts = counts.map((k, v) => MapEntry(k, (v as num).toInt()));
+      });
+    }
   }
 
   // 서버에서 행사 목록 가져오기
@@ -282,11 +300,13 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
         }
 
         final event = _events[index - 1];
+        final eventId = event['id']?.toString() ?? '';
         return EventCard(
           title: event['title'],
           coverImageUrl: event['coverImageUrl'],
           startDate: event['startDate'],
           endDate: event['endDate'],
+          notificationCount: _unreadCounts[eventId] ?? 0,  // 알림 배지 숫자
           onTap: () {
             // 행사 상세 (3탭) 화면으로 이동
             Navigator.of(context).push(
@@ -296,7 +316,7 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                   eventTitle: event['title'],
                 ),
               ),
-            );
+            ).then((_) => _loadUnreadCounts());  // 돌아오면 알림 수 갱신
           },
           onMoreTap: () => _showEventMenu(event),
         );
