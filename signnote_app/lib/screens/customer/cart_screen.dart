@@ -34,10 +34,10 @@ class CartScreen extends StatefulWidget {
   });
 
   @override
-  State<CartScreen> createState() => _CartScreenState();
+  State<CartScreen> createState() => CartScreenState();
 }
 
-class _CartScreenState extends State<CartScreen> {
+class CartScreenState extends State<CartScreen> {
   final CartService _cartService = CartService();
   final ContractService _contractService = ContractService();
   final EventService _eventService = EventService();
@@ -48,7 +48,13 @@ class _CartScreenState extends State<CartScreen> {
   bool _isContractLoading = false;
   bool _agreedToTerms = false; // 동의 체크박스 상태
   String? _error;
-  double _depositRate = AppConstants.depositRate; // 행사별 계약금 비율
+  double _defaultDepositRate = AppConstants.depositRate; // 행사 기본 계약금 비율
+
+  // 외부에서 호출 가능한 새로고침 메서드 (탭 전환 시 사용)
+  void reload() {
+    _loadCartItems();
+    _loadEventDepositRate();
+  }
 
   @override
   void initState() {
@@ -65,7 +71,7 @@ class _CartScreenState extends State<CartScreen> {
       final event = result['event'] as Map<String, dynamic>? ?? {};
       final rate = event['depositRate'];
       if (rate != null) {
-        setState(() => _depositRate = (rate as num).toDouble());
+        setState(() => _defaultDepositRate = (rate as num).toDouble());
       }
     }
   }
@@ -89,6 +95,8 @@ class _CartScreenState extends State<CartScreen> {
           final product = item['product'] as Map<String, dynamic>?;
           final rawPrice = productItem?['price'] ?? 0;
           final price = (rawPrice is num) ? rawPrice.toInt() : 0;
+          // 품목별 계약금 비율 (null이면 행사 기본값 사용)
+          final productDepositRate = product?['depositRate'];
           return {
             'id': item['id']?.toString() ?? '',
             'productId': item['productId']?.toString() ?? '',
@@ -97,6 +105,7 @@ class _CartScreenState extends State<CartScreen> {
             'productName': productItem?['name'] ?? product?['name'] ?? '상품명 없음',
             'description': productItem?['description'] ?? product?['description'] ?? '',
             'price': price,
+            'depositRate': productDepositRate is num ? productDepositRate.toDouble() : null,
             'imageUrl': productItem?['image'] ?? product?['image'],
             'categoryName': product?['name'] ?? '', // 1뎁스 품목명
           };
@@ -116,14 +125,25 @@ class _CartScreenState extends State<CartScreen> {
     return _cartItems.fold(0, (sum, item) => sum + ((item['price'] as num?)?.toInt() ?? 0));
   }
 
-  // 계약금
-  int get _depositAmount => (_totalPrice * _depositRate).round();
+  // 품목별 계약금 비율 가져오기 (품목별 설정이 없으면 행사 기본값)
+  double _getItemDepositRate(Map<String, dynamic> item) {
+    return (item['depositRate'] as double?) ?? _defaultDepositRate;
+  }
+
+  // 계약금 (품목별 비율 적용)
+  int get _depositAmount {
+    return _cartItems.fold(0, (sum, item) {
+      final price = (item['price'] as num?)?.toInt() ?? 0;
+      final rate = _getItemDepositRate(item);
+      return sum + (price * rate).round();
+    });
+  }
 
   // 잔금
   int get _remainAmount => _totalPrice - _depositAmount;
 
-  // 계약금 비율 퍼센트 표시
-  int get _depositPercent => (_depositRate * 100).round();
+  // 계약금 비율 퍼센트 표시 (혼합 비율일 경우 대표값)
+  int get _depositPercent => (_defaultDepositRate * 100).round();
 
   // 숫자 콤마 표시
   String _formatPrice(int price) {
@@ -377,7 +397,8 @@ class _CartScreenState extends State<CartScreen> {
   // 개별 품목 카드 (디자인: 7.고객용-장바구니.jpg)
   Widget _buildCartItemCard(Map<String, dynamic> item) {
     final price = (item['price'] as num?)?.toInt() ?? 0;
-    final deposit = (price * _depositRate).round();
+    final rate = _getItemDepositRate(item);
+    final deposit = (price * rate).round();
     final remain = price - deposit;
 
     return Padding(

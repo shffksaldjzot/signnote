@@ -70,6 +70,7 @@ class _OrganizerEventManageScreenState
   // 계약 데이터
   List<Map<String, dynamic>> _contracts = [];
   bool _isLoadingContracts = true;
+  String _contractViewMode = 'customer'; // 'customer' 또는 'product' (고객별/품목별)
 
   // 알림 데이터
   List<Map<String, dynamic>> _notifications = [];
@@ -204,6 +205,7 @@ class _OrganizerEventManageScreenState
           'customerHousingType': c['customerHousingType'] ?? '',
           'productName': c['productItem']?['name'] ?? c['product']?['name'] ?? c['productItemName'] ?? c['productName'] ?? '품목',
           'productCategory': c['product']?['category'] ?? c['productName'] ?? '기타',
+          'vendorName': c['product']?['vendorName'] ?? c['vendorName'] ?? '업체명 없음',
           'originalPrice': c['originalPrice'] ?? 0,
           'depositAmount': c['depositAmount'] ?? 0,
           'remainAmount': c['remainAmount'] ?? 0,
@@ -1091,16 +1093,21 @@ class _OrganizerEventManageScreenState
             ),
           ),
           const SizedBox(height: 24),
-          // 계약 건 >
-          const Row(
+          // 계약 건 > + 뷰 모드 전환
+          Row(
             children: [
-              Text('계약 건', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 20),
+              const Text('계약 건', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, size: 20),
+              const Spacer(),
+              // 고객별/품목별 전환 칩
+              _buildViewModeChip('고객별', 'customer'),
+              const SizedBox(width: 6),
+              _buildViewModeChip('품목별', 'product'),
             ],
           ),
           const SizedBox(height: 16),
-          // 계약 목록 (고객별 그룹핑) 또는 빈 상태
+          // 계약 목록 또는 빈 상태
           if (_contracts.isEmpty)
             const Center(
               child: Padding(
@@ -1108,10 +1115,161 @@ class _OrganizerEventManageScreenState
                 child: Text('아직 계약 건이 없습니다', style: TextStyle(color: AppColors.textHint)),
               ),
             )
+          else if (_contractViewMode == 'customer')
+            ..._buildGroupedContracts()
           else
-            ..._buildGroupedContracts(),
+            ..._buildProductGroupedContracts(),
         ],
       ),
+    );
+  }
+
+  // 뷰 모드 전환 칩 (고객별/품목별)
+  Widget _buildViewModeChip(String label, String mode) {
+    final isSelected = _contractViewMode == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _contractViewMode = mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.organizer : AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppColors.organizer : AppColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? AppColors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 품목별 계약 그룹핑 (디자인: 7.주관사용-계약함.jpg)
+  // 1뎁스 품목명 → 협력업체 / 계약건수 / 총 결제금액 / 협력업체 수익 / 주관사 수익
+  List<Widget> _buildProductGroupedContracts() {
+    final format = NumberFormat('#,###');
+
+    // productCategory(1뎁스 품목명) 기준으로 그룹핑
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final c in _contracts) {
+      final category = c['productCategory'] as String? ?? '기타';
+      grouped.putIfAbsent(category, () => []).add(c);
+    }
+
+    // 품목별로 매칭되는 _products에서 수수료율 가져오기
+    Map<String, double> commissionRates = {};
+    Map<String, String> vendorNames = {};
+    for (final p in _products) {
+      final name = p['name'] as String? ?? '';
+      final rate = p['commissionRate'];
+      commissionRates[name] = rate is num ? rate.toDouble() : 0;
+      vendorNames[name] = p['vendorName'] as String? ?? '미배정';
+    }
+
+    return grouped.entries.map((entry) {
+      final category = entry.key;
+      final contracts = entry.value;
+      final activeContracts = contracts.where((c) => c['status'] != 'CANCELLED').toList();
+      final activeCount = activeContracts.length;
+      final totalAmount = activeContracts.fold<int>(
+        0, (sum, c) => sum + ((c['originalPrice'] as num?)?.toInt() ?? 0),
+      );
+      final commRate = commissionRates[category] ?? 0.0;
+      final commPercent = (commRate * 100).round();
+      final organizerRevenue = (totalAmount * commRate).round();
+      final vendorRevenue = totalAmount - organizerRevenue;
+      final vendorName = vendorNames[category] ?? contracts.first['vendorName'] ?? '업체명 없음';
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: ExpansionTile(
+          shape: const Border(),
+          collapsedShape: const Border(),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+              // 계약건수 + 총액
+              Text(
+                '${activeCount}건  |  ${format.format(totalAmount)}원',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+          // 펼쳤을 때: 상세 정보
+          children: [
+            _productGroupRow('협력 업체', vendorName),
+            const SizedBox(height: 6),
+            _productGroupRow('계약 건', '$activeCount건'),
+            const SizedBox(height: 6),
+            _productGroupRow('총 결제금액', '${format.format(totalAmount)}원'),
+            const SizedBox(height: 6),
+            _productGroupRow('협력업체 수익', '${format.format(vendorRevenue)}원'),
+            const SizedBox(height: 6),
+            // 주관사 수익 (주황색 강조)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('주관사 수익($commPercent%)', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.organizer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${format.format(organizerRevenue)}원',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.white),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 상세보기 버튼
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  // 고객별 뷰로 전환하여 해당 품목 계약만 보여주기
+                  setState(() => _contractViewMode = 'customer');
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                child: const Text('상세보기', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  // 품목별 그룹 정보 행
+  Widget _productGroupRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+      ],
     );
   }
 

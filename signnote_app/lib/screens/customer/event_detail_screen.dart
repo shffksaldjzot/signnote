@@ -45,6 +45,11 @@ class EventDetailScreen extends StatefulWidget {
 class _EventDetailScreenState extends State<EventDetailScreen> {
   int _currentTabIndex = 0;
   String? _myHousingType; // 내 평형 타입
+  String? _myDong;        // 내 동
+  String? _myHo;          // 내 호
+
+  // 장바구니 탭 전환 시 reload를 위한 GlobalKey
+  final GlobalKey<CartScreenState> _cartKey = GlobalKey<CartScreenState>();
 
   // 서버에서 불러온 1뎁스 품목 목록 (각각 items: 2뎁스 배열 포함)
   List<Map<String, dynamic>> _products = [];
@@ -72,6 +77,180 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Future<void> _initData() async {
     await _loadMyInfo();
     _loadProducts();
+    // 동호수 또는 타입이 비어있으면 입력 유도
+    _checkRequiredInfo();
+  }
+
+  // 동호수/타입 미입력 시 필수 입력 팝업 표시
+  void _checkRequiredInfo() {
+    final dongEmpty = _myDong == null || _myDong!.isEmpty;
+    final hoEmpty = _myHo == null || _myHo!.isEmpty;
+    final typeEmpty = _myHousingType == null || _myHousingType!.isEmpty;
+
+    if (dongEmpty || hoEmpty || typeEmpty) {
+      // 행사의 타입 목록 가져와서 입력 팝업 표시
+      _showRequiredInfoDialog();
+    }
+  }
+
+  // 동호수/타입 필수 입력 바텀시트
+  Future<void> _showRequiredInfoDialog() async {
+    // 행사의 타입 목록 가져오기
+    final eventResult = await _eventService.getEventDetail(widget.eventId);
+    if (!mounted) return;
+    List<String> housingTypes = [];
+    if (eventResult['success'] == true) {
+      final event = eventResult['event'] as Map<String, dynamic>? ?? {};
+      housingTypes = List<String>.from(event['housingTypes'] ?? []);
+    }
+
+    final dongController = TextEditingController(text: _myDong ?? '');
+    final hoController = TextEditingController(text: _myHo ?? '');
+    String? selectedType = _myHousingType;
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            24, 24, 24,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '동호수 및 타입 입력',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '서비스 이용을 위해 동호수와 타입을 입력해 주세요.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              // 동호수 입력
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: dongController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: '',
+                        suffixText: '동',
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.primary),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.primary),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: hoController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: '',
+                        suffixText: '호',
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.primary),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.primary),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // 타입 선택
+              const Text('타입을 선택해 주세요.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              ...housingTypes.map((type) => RadioListTile<String>(
+                title: Text('$type 타입'),
+                value: type,
+                groupValue: selectedType,
+                onChanged: (v) => setSheetState(() => selectedType = v),
+                activeColor: AppColors.primary,
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              )),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (dongController.text.isEmpty || hoController.text.isEmpty) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('동호수를 입력해 주세요')),
+                      );
+                      return;
+                    }
+                    if (selectedType == null) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('타입을 선택해 주세요')),
+                      );
+                      return;
+                    }
+
+                    // 서버에 저장
+                    await _eventService.updateParticipantInfo(
+                      widget.eventId,
+                      dong: dongController.text,
+                      ho: hoController.text,
+                      housingType: selectedType,
+                    );
+
+                    if (!mounted) return;
+                    Navigator.of(ctx).pop();
+
+                    // 정보 갱신
+                    setState(() {
+                      _myDong = dongController.text;
+                      _myHo = hoController.text;
+                      _myHousingType = selectedType;
+                    });
+                    // 타입 변경 시 품목 다시 로드
+                    _loadProducts();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('완료'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // 내 평형 정보 가져오기
@@ -82,6 +261,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final data = result['data'] as Map<String, dynamic>? ?? {};
       setState(() {
         _myHousingType = data['housingType']?.toString();
+        _myDong = data['dong']?.toString();
+        _myHo = data['ho']?.toString();
       });
     }
   }
@@ -309,6 +490,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     setState(() => _currentTabIndex = index);
     // 홈 탭으로 돌아올 때 장바구니 변경사항 반영
     if (index == 0) _loadCartItems();
+    // 장바구니 탭으로 전환 시 최신 데이터 로드
+    if (index == 1) _cartKey.currentState?.reload();
   }
 
   // 탭별 AppBar 제목
@@ -334,8 +517,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         children: [
           // 탭 0: 홈 (구매 품목 리스트)
           _buildHomeBody(),
-          // 탭 1: 장바구니
+          // 탭 1: 장바구니 (GlobalKey로 외부에서 reload 가능)
           CartScreen(
+            key: _cartKey,
             eventId: widget.eventId,
             eventTitle: widget.eventTitle,
             embedded: true,

@@ -156,6 +156,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       return;
     }
 
+    // 고객: 동호수/타입 필수 검증
+    if (widget.role == 'CUSTOMER' && _eventId != null) {
+      if (_dongController.text.trim().isEmpty || _hoController.text.trim().isEmpty) {
+        _showError('동호수를 입력해 주세요');
+        return;
+      }
+      if (_selectedHousingType == null || _selectedHousingType!.isEmpty) {
+        _showError('평형 타입을 선택해 주세요');
+        return;
+      }
+    }
+
     // 비밀번호 변경 검증 (입력한 경우만)
     final hasNewPassword = _newPasswordController.text.isNotEmpty;
     if (hasNewPassword) {

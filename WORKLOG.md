@@ -1947,6 +1947,33 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 #### 빌드 & 배포
 - [x] Prisma DB push 완료 (deletedAt 필드 추가)
 - [x] Flutter 빌드 에러 0건
+- [x] Cloudflare Pages 프론트엔드 배포
+- [x] Render 백엔드 배포 (git push)
+
+### 2026-03-11 — 피드백 4건 처리 (동호수 필수, 장바구니 로드, 품목별 계약금, 계약함 뷰)
+
+#### 처리 항목
+1. **동호수/타입 미입력 시 필수 입력 유도**
+   - `event_detail_screen.dart`: _initData 후 dong/ho/housingType 체크 → 미입력 시 강제 입력 바텀시트
+   - `profile_edit_screen.dart`: CUSTOMER 저장 시 동호수/타입 빈 값이면 저장 거부
+
+2. **장바구니 탭 전환 시 최신 데이터 미반영 수정**
+   - `cart_screen.dart`: State를 public(CartScreenState)으로 변경 + reload() 메서드 추가
+   - `event_detail_screen.dart`: CartScreen에 GlobalKey 부여, 장바구니 탭 전환 시 reload() 호출
+
+3. **품목별 계약금 비율 장바구니 적용**
+   - `cart_screen.dart`: product.depositRate 추출, 품목별 비율 우선 적용 → 없으면 행사 기본값
+   - 개별 카드 + 총합 모두 품목별 비율 반영
+
+4. **주관사 계약함 품목별 그룹핑 뷰 추가**
+   - `event_manage_screen.dart`: "고객별/품목별" 전환 칩 추가
+   - 품목별 뷰: productCategory 기준 그룹핑 → 협력업체명/계약건수/총결제금액/업체수익/주관사수익(수수료%)
+
+#### 변경 파일
+**프론트엔드 (4개):** customer/event_detail_screen.dart, customer/cart_screen.dart, common/profile_edit_screen.dart, organizer/event_manage_screen.dart
+
+#### 빌드 & 배포
+- [x] Flutter 빌드 에러 0건
 - [ ] Cloudflare Pages 프론트엔드 배포
-- [ ] Render 백엔드 배포 (git push)
+- [ ] git push (Render 백엔드 변경 없음)
 
