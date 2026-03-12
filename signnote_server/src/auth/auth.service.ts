@@ -23,6 +23,7 @@ import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { EnterEventDto } from './dto/enter-event.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
 @Injectable()
 export class AuthService {
@@ -31,6 +32,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ---- 회원가입 ----
@@ -198,6 +200,22 @@ export class AuthService {
         target: event.id,
         detail: `행사 입장: ${event.title} (코드: ${dto.entryCode})`,
       });
+
+      // 협력업체가 행사에 참여하면 주관사에게 알림 전송
+      if (userRole === 'VENDOR' && event.organizerId) {
+        const vendor = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        });
+        const vendorName = vendor?.name ?? '업체';
+        await this.notifications.send({
+          userId: event.organizerId,
+          type: NotificationType.VENDOR_JOINED,
+          title: '새 업체가 행사에 참여했습니다',
+          body: `${vendorName}이(가) '${event.title}' 행사에 참여했습니다.`,
+          data: { eventId: event.id, vendorId: userId },
+        });
+      }
     }
 
     return {

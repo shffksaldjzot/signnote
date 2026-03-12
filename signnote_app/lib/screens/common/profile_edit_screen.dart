@@ -229,6 +229,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       }
 
       setState(() => _isSaving = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('프로필이 수정되었습니다')),
       );

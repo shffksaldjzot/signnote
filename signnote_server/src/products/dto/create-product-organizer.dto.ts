@@ -36,6 +36,9 @@ export class CreateProductOrganizerDto {
   depositRate?: number;                   // 품목별 계약금 비율 (0~1, null이면 행사 기본값)
 
   @IsOptional()
+  paymentSchedule?: any;                  // 품목별 결제 일정 JSON (null이면 행사 기본값)
+
+  @IsOptional()
   @IsString()
   image?: string;                         // 품목 설명 이미지 URL
 }

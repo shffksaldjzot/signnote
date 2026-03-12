@@ -31,5 +31,10 @@ export class CreateProductItemDto {
 
   @IsOptional()
   @IsString()
-  image?: string;                         // 이미지 URL
+  image?: string;                         // 이미지 URL (대표 1장, 하위호환)
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];                      // 이미지 URL 배열 (최대 5장)
 }

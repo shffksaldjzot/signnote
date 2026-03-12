@@ -43,7 +43,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<dynamic> _allContracts = [];
   List<dynamic> _vendors = [];
   List<dynamic> _organizers = [];
-  List<dynamic> _settlements = [];
+  List<dynamic> _settlements = []; // ignore: unused_field — 추후 정산 기능에 사용 예정
 
   // --- 필터 상태 ---
   String _periodFilter = '전체';  // 오늘 / 1주 / 1개월 / 3개월 / 전체

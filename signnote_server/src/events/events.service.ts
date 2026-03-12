@@ -90,6 +90,7 @@ export class EventsService {
           ? new Date(dto.cancelDeadlineEnd) : null,
         allowOnlineContract: dto.allowOnlineContract ?? false,
         ...(dto.depositRate !== undefined && { depositRate: dto.depositRate }),
+        ...(dto.paymentSchedule !== undefined && { paymentSchedule: dto.paymentSchedule }),
         entryCode,
         vendorEntryCode,
       },
@@ -129,6 +130,7 @@ export class EventsService {
         ...(dto.cancelDeadlineEnd && { cancelDeadlineEnd: new Date(dto.cancelDeadlineEnd) }),
         ...(dto.allowOnlineContract !== undefined && { allowOnlineContract: dto.allowOnlineContract }),
         ...(dto.depositRate !== undefined && { depositRate: dto.depositRate }),
+        ...(dto.paymentSchedule !== undefined && { paymentSchedule: dto.paymentSchedule }),
       },
     });
 

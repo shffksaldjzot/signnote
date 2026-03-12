@@ -13,6 +13,7 @@ import '../../services/event_service.dart';
 import '../../utils/image_download.dart';
 import '../../utils/image_helper.dart';
 import '../../services/notification_service.dart';
+import '../../utils/csv_download.dart';
 import 'product_form_screen.dart';
 import '../customer/contract_detail_screen.dart';
 
@@ -700,8 +701,26 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
                 ),
                 const SizedBox(height: 24),
 
-                // 카테고리별 아코디언 (품목별 참가비/수수료/계약건)
+                // 카테고리별 아코디언 (품목별 참가비/수수료/계약건/수익정산)
                 ..._buildCategoryContractSummaries(),
+
+                const SizedBox(height: 16),
+                // 수익 정산 엑셀 다운로드 버튼
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: _contracts.isEmpty ? null : _downloadRevenueExcel,
+                    icon: const Icon(Icons.download, size: 18),
+                    label: const Text('수익 정산 엑셀 다운로드'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.vendor,
+                      side: const BorderSide(color: AppColors.vendor),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
 
                 const SizedBox(height: 24),
                 // 계약 건 >
@@ -865,10 +884,137 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
             _buildInfoRow('취소 요청 건', '총 $cancelRequestCount건', valueColor: AppColors.priceRed),
             const SizedBox(height: 6),
             _buildInfoRow('취소 완료 건', '총 $cancelDoneCount건'),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            // 품목별 수익 정산
+            () {
+              final format = NumberFormat('#,###');
+              final activeOnly = contracts.where((c) => c['status'] != 'CANCELLED').toList();
+              final totalAmount = activeOnly.fold<int>(0, (sum, c) => sum + ((c['originalPrice'] as num?)?.toInt() ?? 0));
+              final totalDeposit = activeOnly.fold<int>(0, (sum, c) => sum + ((c['depositAmount'] as num?)?.toInt() ?? 0));
+              final commRate = commissionRate is num ? commissionRate.toDouble() : 0.0;
+              final feeAmount = (totalAmount * commRate).round();
+              final vendorRevenue = totalAmount - feeAmount;
+              return Column(
+                children: [
+                  _buildInfoRow('총 계약 금액', '${format.format(totalAmount)}원'),
+                  const SizedBox(height: 6),
+                  _buildInfoRow('총 계약금 수입', '${format.format(totalDeposit)}원'),
+                  const SizedBox(height: 6),
+                  _buildInfoRow('수수료 공제', '-${format.format(feeAmount)}원', valueColor: AppColors.priceRed),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.vendor,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('순수익', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text('${format.format(vendorRevenue)}원', style: const TextStyle(color: AppColors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }(),
           ],
         ),
       );
     }).toList();
+  }
+
+  // 수익 정산 엑셀 다운로드
+  Future<void> _downloadRevenueExcel() async {
+    if (_contracts.isEmpty) return;
+
+    final format = NumberFormat('#,###');
+
+    // 품목별 수수료율 매핑
+    Map<String, double> commRates = {};
+    Map<String, int> feeMap = {};
+    for (final p in _products) {
+      final name = p['category'] as String? ?? p['name'] as String? ?? '';
+      final rate = p['commissionRate'];
+      commRates[name] = rate is num ? rate.toDouble() : 0;
+      feeMap[name] = (p['participationFee'] as num?)?.toInt() ?? 0;
+    }
+
+    final headers = [
+      '품목', '고객명', '동/호', '타입', '연락처',
+      '패키지명', '가격', '계약금', '잔금', '상태',
+      '수수료율', '수수료 금액', '순수익',
+    ];
+
+    final dataRows = _contracts.map<List<String>>((c) {
+      final category = c['productCategory'] as String? ?? '기타';
+      final price = (c['originalPrice'] as num?)?.toInt() ?? 0;
+      final deposit = (c['depositAmount'] as num?)?.toInt() ?? 0;
+      final remain = (c['remainAmount'] as num?)?.toInt() ?? (price - deposit);
+      final status = c['status'] as String? ?? 'PENDING';
+      final statusText = status == 'CONFIRMED' ? '계약완료' : status == 'CANCELLED' ? '취소' : status == 'CANCEL_REQUESTED' ? '취소요청' : '대기';
+      final commRate = commRates[category] ?? 0.0;
+      final feeAmount = (price * commRate).round();
+      final vendorRevenue = price - feeAmount;
+      final dong = c['customerDong'] ?? '';
+      final ho = c['customerHo'] ?? '';
+
+      return [
+        category,
+        c['customerName'] ?? '',
+        '$dong동 $ho호',
+        c['customerHousingType'] ?? '',
+        c['customerPhone'] ?? '',
+        c['productName'] ?? '',
+        format.format(price),
+        format.format(deposit),
+        format.format(remain),
+        statusText,
+        '${(commRate * 100).round()}%',
+        format.format(feeAmount),
+        format.format(vendorRevenue),
+      ];
+    }).toList();
+
+    // 합계 행 (취소 건 제외)
+    final activeOnly = _contracts.where((c) => c['status'] != 'CANCELLED').toList();
+    final totalPrice = activeOnly.fold<int>(0, (sum, c) => sum + ((c['originalPrice'] as num?)?.toInt() ?? 0));
+    final totalDeposit = activeOnly.fold<int>(0, (sum, c) => sum + ((c['depositAmount'] as num?)?.toInt() ?? 0));
+    int totalFee = 0;
+    int totalRevenue = 0;
+    for (final c in activeOnly) {
+      final cat = c['productCategory'] as String? ?? '기타';
+      final price = (c['originalPrice'] as num?)?.toInt() ?? 0;
+      final rate = commRates[cat] ?? 0.0;
+      final fee = (price * rate).round();
+      totalFee += fee;
+      totalRevenue += price - fee;
+    }
+
+    dataRows.add([
+      '합계', '${activeOnly.length}건', '', '', '', '',
+      format.format(totalPrice), format.format(totalDeposit),
+      format.format(totalPrice - totalDeposit), '',
+      '', format.format(totalFee), format.format(totalRevenue),
+    ]);
+
+    await downloadExcel(
+      title: widget.eventTitle,
+      subtitle: '수익 정산 내역 (${DateFormat('yyyy.MM.dd HH:mm').format(DateTime.now())})',
+      headers: headers,
+      dataRows: dataRows,
+      fileName: '${widget.eventTitle}_수익정산.xlsx',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('수익 정산 엑셀이 다운로드되었습니다')),
+      );
+    }
   }
 
   Widget _buildInfoRow(String label, String value, {Color? valueColor}) {
@@ -945,7 +1091,7 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
                 width: 400,
                 color: Colors.white,
                 padding: const EdgeInsets.all(24),
-                child: _buildContractImageContent(contract),
+                child: CustomerContractDetailScreen.buildContractContent(contract),
               ),
             ),
           ),
@@ -970,36 +1116,6 @@ class _VendorEventDetailScreenState extends State<VendorEventDetailScreen>
     } catch (e) {
       // 다운로드 실패 시 무시하고 다음 건 진행
     }
-  }
-
-  // 계약서 이미지 내용 위젯
-  Widget _buildContractImageContent(Map<String, dynamic> contract) {
-    final format = NumberFormat('#,###');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('계약서', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 16),
-        // 고객 정보 (동/호수 포함)
-        if ((contract['customerDong'] as String?)?.isNotEmpty == true)
-          Text('동/호수: ${contract['customerDong']}동 ${contract['customerHo']}호${(contract['customerHousingType'] as String?)?.isNotEmpty == true ? ' (${contract['customerHousingType']})' : ''}', style: const TextStyle(fontSize: 13)),
-        if ((contract['customerAddress'] as String?)?.isNotEmpty == true)
-          Text('주소: ${contract['customerAddress']}', style: const TextStyle(fontSize: 13)),
-        Text('${contract['customerName']} 님 / ${contract['customerPhone']}', style: const TextStyle(fontSize: 13)),
-        const Divider(height: 24),
-        Text('품목: ${contract['productName']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        if ((contract['description'] as String).isNotEmpty)
-          Text(contract['description'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        const SizedBox(height: 12),
-        Text('가격: ${format.format(contract['originalPrice'] ?? contract['price'])}원', style: const TextStyle(fontSize: 14)),
-        Text('계약금: ${format.format(contract['depositAmount'])}원', style: const TextStyle(fontSize: 14, color: Colors.red, fontWeight: FontWeight.w600)),
-        Text('잔금: ${format.format(contract['remainAmount'])}원', style: const TextStyle(fontSize: 14)),
-        const Divider(height: 24),
-        Text('행사: ${widget.eventTitle}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        Text('발행일: ${DateFormat('yyyy.MM.dd').format(DateTime.now())}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      ],
-    );
   }
 
   // 개별 계약 카드

@@ -277,6 +277,10 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                       return;
                     }
 
+                    // async 호출 전에 router/navigator 미리 캡처
+                    final router = GoRouter.of(context);
+                    final ctxNavigator = Navigator.of(ctx);
+
                     // 서버에 동호수/타입 정보 저장
                     await _eventService.updateParticipantInfo(
                       eventId,
@@ -285,9 +289,9 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                       housingType: selectedType,
                     );
 
-                    if (!mounted) return;
-                    Navigator.of(ctx).pop();
-                    context.go(AppRoutes.customerHome);
+                    if (!context.mounted) return;
+                    ctxNavigator.pop();
+                    router.go(AppRoutes.customerHome);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -404,7 +408,7 @@ class _EntryCodeScreenState extends State<EntryCodeScreen> {
                 child: TextButton.icon(
                   onPressed: () async {
                     await _authService.logout();
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     context.go(AppRoutes.login);
                   },
                   icon: const Icon(Icons.logout, size: 16),

@@ -66,6 +66,7 @@ class EventService {
     double? depositRate,
     String? cancelDeadlineStart,
     String? cancelDeadlineEnd,
+    Map<String, dynamic>? paymentSchedule,  // 결제 일정 (계약금/중도금/잔금 요율+날짜)
   }) async {
     try {
       final response = await _api.post('/events', data: {
@@ -82,6 +83,7 @@ class EventService {
         if (depositRate != null) 'depositRate': depositRate,
         if (cancelDeadlineStart != null) 'cancelDeadlineStart': cancelDeadlineStart,
         if (cancelDeadlineEnd != null) 'cancelDeadlineEnd': cancelDeadlineEnd,
+        if (paymentSchedule != null) 'paymentSchedule': paymentSchedule,
       });
 
       return {

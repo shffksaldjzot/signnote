@@ -11,11 +11,14 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { UsersModule } from '../users/users.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     // 사용자 모듈 (사용자 조회/생성 기능)
     UsersModule,
+    // 알림 모듈 (업체 참여 시 주관사 알림 전송)
+    NotificationsModule,
     // Passport (인증 프레임워크)
     PassportModule,
     // JWT 토큰 설정

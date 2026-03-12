@@ -54,8 +54,22 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
   String? _coverImageBase64;
   Uint8List? _coverImageBytes;
 
+  // 계약 조건 결제 일정 (#14)
+  // 계약금 비율(%), 중도금 리스트(각각 비율%+날짜), 잔금 날짜
+  double _depositRate = 30; // 계약금 비율(%)
+  DateTime? _depositDueDate;
+  final List<Map<String, dynamic>> _interimPayments = []; // 중도금 [{rate: 30, dueDate: DateTime?}]
+  DateTime? _balanceDueDate; // 잔금 납부일
+  bool _showPaymentSchedule = false; // 계약 조건 섹션 펼침 여부
+
   bool _isLoading = false;
   bool get _isEditMode => widget.event != null;
+
+  // 잔금 비율 자동 계산 (100% - 계약금 - 중도금 합계)
+  double get _balanceRate {
+    final interimTotal = _interimPayments.fold<double>(0, (sum, item) => sum + ((item['rate'] as double?) ?? 0));
+    return (100 - _depositRate - interimTotal).clamp(0, 100);
+  }
 
   // 날짜 문자열/DateTime 변환 헬퍼 (API 응답이 문자열일 수 있음)
   DateTime? _tryParseDate(dynamic value) {
@@ -94,6 +108,29 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           final base64Str = existingImage.split(',').last;
           _coverImageBytes = base64Decode(base64Str);
         } catch (_) {}
+      }
+      // 기존 결제 일정 복원
+      final schedule = widget.event!['paymentSchedule'];
+      if (schedule is Map) {
+        final deposit = schedule['deposit'];
+        if (deposit is Map) {
+          _depositRate = ((deposit['rate'] as num?) ?? 0.3) * 100;
+          _depositDueDate = _tryParseDate(deposit['dueDate']);
+        }
+        final interim = schedule['interim'];
+        if (interim is List) {
+          for (final item in interim) {
+            _interimPayments.add({
+              'rate': ((item['rate'] as num?) ?? 0) * 100,
+              'dueDate': _tryParseDate(item['dueDate']),
+            });
+          }
+        }
+        final balance = schedule['balance'];
+        if (balance is Map) {
+          _balanceDueDate = _tryParseDate(balance['dueDate']);
+        }
+        _showPaymentSchedule = true; // 기존 데이터 있으면 섹션 펼침
       }
     }
   }
@@ -204,6 +241,25 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
 
     Map<String, dynamic> result;
 
+    // 결제 일정 JSON 생성
+    Map<String, dynamic>? paymentSchedule;
+    if (_showPaymentSchedule) {
+      paymentSchedule = {
+        'deposit': {
+          'rate': _depositRate / 100,
+          if (_depositDueDate != null) 'dueDate': _toIsoDate(_depositDueDate!),
+        },
+        'interim': _interimPayments.map((item) => {
+          'rate': ((item['rate'] as double?) ?? 0) / 100,
+          if (item['dueDate'] != null) 'dueDate': _toIsoDate(item['dueDate'] as DateTime),
+        }).toList(),
+        'balance': {
+          'rate': _balanceRate / 100,
+          if (_balanceDueDate != null) 'dueDate': _toIsoDate(_balanceDueDate!),
+        },
+      };
+    }
+
     try {
     if (_isEditMode) {
       result = await _eventService.updateEvent(
@@ -221,6 +277,8 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
           'housingTypes': _selectedTypes.toList(),
           'contractMethod': _contractMethod,
           'allowOnlineContract': _allowOnlineContract,
+          'depositRate': _depositRate / 100, // 계약금 비율도 동기화
+          if (paymentSchedule != null) 'paymentSchedule': paymentSchedule,
           if (_coverImageBase64 != null)
             'coverImage': _coverImageBase64,
           if (_cancelDeadlineStart != null)
@@ -245,6 +303,8 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
         coverImage: _coverImageBase64,
         contractMethod: _contractMethod,
         allowOnlineContract: _allowOnlineContract,
+        depositRate: _depositRate / 100, // 계약금 비율 동기화
+        paymentSchedule: paymentSchedule,
         cancelDeadlineStart: _cancelDeadlineStart != null
             ? _toIsoDate(_cancelDeadlineStart!)
             : null,
@@ -531,6 +591,8 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
               ),
               const SizedBox(height: 20),
 
+              // ── 계약 조건 설정 (#14) ──
+              _buildPaymentScheduleSection(),
               const SizedBox(height: 32),
 
               // ── 작성 완료 / 수정하기 버튼 (주황색) ──
@@ -806,30 +868,307 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
     }
   }
 
-  // 커버 이미지 미리보기
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 계약 조건 설정 섹션 (#14)
+  // 계약금/중도금/잔금 요율 + 날짜 설정
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Widget _buildPaymentScheduleSection() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          // 헤더 (탭으로 펼치기/접기)
+          InkWell(
+            onTap: () => setState(() => _showPaymentSchedule = !_showPaymentSchedule),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_long, size: 20, color: AppColors.organizer),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('계약 조건 설정', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  ),
+                  Icon(
+                    _showPaymentSchedule ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // 내용 (펼친 상태)
+          if (_showPaymentSchedule) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '설정한 조건이 개별 품목에 기본 적용됩니다.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── 계약금 (1회차 고정) ──
+                  _buildPaymentRow(
+                    label: '계약금',
+                    rateText: '${_depositRate.toStringAsFixed(0)}%',
+                    date: _depositDueDate,
+                    onRateTap: () => _editRate('계약금', _depositRate, (val) {
+                      setState(() => _depositRate = val);
+                    }),
+                    onDateTap: () => _pickSingleDate(_depositDueDate, (d) {
+                      setState(() => _depositDueDate = d);
+                    }),
+                    color: AppColors.organizer,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── 중도금 (동적 추가) ──
+                  ..._interimPayments.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final item = entry.value;
+                    final rate = (item['rate'] as double?) ?? 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildPaymentRow(
+                        label: '중도금 ${idx + 1}회',
+                        rateText: '${rate.toStringAsFixed(0)}%',
+                        date: item['dueDate'] as DateTime?,
+                        onRateTap: () => _editRate('중도금 ${idx + 1}회', rate, (val) {
+                          setState(() => _interimPayments[idx]['rate'] = val);
+                        }),
+                        onDateTap: () => _pickSingleDate(item['dueDate'] as DateTime?, (d) {
+                          setState(() => _interimPayments[idx]['dueDate'] = d);
+                        }),
+                        onDelete: () => setState(() => _interimPayments.removeAt(idx)),
+                        color: AppColors.primary,
+                      ),
+                    );
+                  }),
+                  // "+ 중도금 추가" 버튼
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _interimPayments.add({'rate': 0.0, 'dueDate': null});
+                    }),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add, size: 18, color: AppColors.primary),
+                          SizedBox(width: 4),
+                          Text('중도금 추가', style: TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── 잔금 (자동 계산) ──
+                  _buildPaymentRow(
+                    label: '잔금',
+                    rateText: '${_balanceRate.toStringAsFixed(0)}% (자동)',
+                    date: _balanceDueDate,
+                    onRateTap: null, // 잔금 비율은 자동 계산
+                    onDateTap: () => _pickSingleDate(_balanceDueDate, (d) {
+                      setState(() => _balanceDueDate = d);
+                    }),
+                    color: AppColors.textSecondary,
+                  ),
+
+                  // 합계 표시
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('합계', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        Text(
+                          '${(_depositRate + _interimPayments.fold<double>(0, (s, i) => s + ((i['rate'] as double?) ?? 0)) + _balanceRate).toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: (_depositRate + _interimPayments.fold<double>(0, (s, i) => s + ((i['rate'] as double?) ?? 0)) + _balanceRate) == 100
+                                ? AppColors.textPrimary
+                                : AppColors.priceRed,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // 결제 항목 행 (라벨 + 비율 + 날짜 + 삭제)
+  Widget _buildPaymentRow({
+    required String label,
+    required String rateText,
+    required DateTime? date,
+    required VoidCallback? onRateTap,
+    required VoidCallback onDateTap,
+    VoidCallback? onDelete,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        // 라벨
+        Container(
+          width: 76,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color), textAlign: TextAlign.center),
+        ),
+        const SizedBox(width: 8),
+        // 비율
+        GestureDetector(
+          onTap: onRateTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(rateText, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // 날짜
+        Expanded(
+          child: GestureDetector(
+            onTap: onDateTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                date != null ? _formatDate(date) : '날짜 선택',
+                style: TextStyle(fontSize: 12, color: date != null ? AppColors.textPrimary : AppColors.textHint),
+              ),
+            ),
+          ),
+        ),
+        // 삭제 버튼 (중도금만)
+        if (onDelete != null)
+          GestureDetector(
+            onTap: onDelete,
+            child: const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Icon(Icons.close, size: 18, color: AppColors.priceRed),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // 비율 수정 다이얼로그
+  void _editRate(String label, double currentRate, void Function(double) onConfirm) {
+    final controller = TextEditingController(text: currentRate.toStringAsFixed(0));
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('$label 비율 설정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            suffixText: '%',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onSubmitted: (_) {
+            final val = double.tryParse(controller.text) ?? 0;
+            Navigator.pop(ctx);
+            onConfirm(val.clamp(0, 100));
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              final val = double.tryParse(controller.text) ?? 0;
+              Navigator.pop(ctx);
+              onConfirm(val.clamp(0, 100));
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.organizer),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 단일 날짜 선택
+  Future<void> _pickSingleDate(DateTime? current, void Function(DateTime) onPicked) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2030),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(primary: AppColors.organizer),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) onPicked(picked);
+  }
+
+  // 커버 이미지 미리보기 (정사각형 — 행사카드와 동일 비율)
   Widget _buildCoverImagePicker() {
     return GestureDetector(
       onTap: _pickCoverImage,
-      child: Container(
-        width: double.infinity,
-        height: 180,
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: _coverImageBytes != null
-            ? Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.memory(
-                      _coverImageBytes!,
-                      width: double.infinity,
-                      height: 180,
-                      fit: BoxFit.cover,
+      child: AspectRatio(
+        aspectRatio: 1.0, // 정사각형
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: _coverImageBytes != null
+              ? Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        _coverImageBytes!,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                  ),
                   Positioned(
                     top: 8,
                     right: 8,
@@ -861,6 +1200,7 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
                   ),
                 ],
               ),
+        ),
       ),
     );
   }

@@ -165,6 +165,7 @@ class ProductService {
     required String name,
     int? participationFee,
     double? commissionRate,
+    double? depositRate,
     String? image,
   }) async {
     try {
@@ -173,6 +174,7 @@ class ProductService {
         'name': name,
         if (participationFee != null) 'participationFee': participationFee,
         if (commissionRate != null) 'commissionRate': commissionRate,
+        if (depositRate != null) 'depositRate': depositRate,
         if (image != null) 'image': image,
       });
       return {
@@ -320,6 +322,7 @@ class ProductService {
   }
 
   // 상세 품목 등록 (업체가 2뎁스 패키지 추가)
+  // images: 이미지 URL 배열 (최대 5장, base64 데이터 URL 지원)
   Future<Map<String, dynamic>> createProductItem({
     required String productId,
     required String name,
@@ -327,6 +330,7 @@ class ProductService {
     required int price,
     String? description,
     String? image,
+    List<String>? images,
   }) async {
     try {
       final response = await _api.post('/products/$productId/items', data: {
@@ -335,6 +339,7 @@ class ProductService {
         'price': price,
         if (description != null) 'description': description,
         if (image != null) 'image': image,
+        if (images != null && images.isNotEmpty) 'images': images,
       });
       return {
         'success': true,

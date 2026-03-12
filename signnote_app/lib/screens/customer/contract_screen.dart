@@ -37,6 +37,9 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // 선택 다운로드용 체크 상태 (contractId → 선택 여부)
+  final Set<String> _selectedIds = {};
+
   final ContractService _contractService = ContractService();
   final _priceFormat = NumberFormat('#,###');
 
@@ -165,17 +168,57 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
 
     final grouped = _groupedContracts;
 
+    // 전체 선택 여부
+    final allSelected = _contracts.isNotEmpty && _selectedIds.length == _contracts.length;
+
     return Column(
       children: [
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              const Row(
+              // 계약함 헤더 + 전체 선택 체크박스
+              Row(
                 children: [
-                  Text('계약함', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                  SizedBox(width: 4),
-                  Icon(Icons.chevron_right, size: 20),
+                  const Text('계약함', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, size: 20),
+                  const Spacer(),
+                  // 전체 선택 체크박스
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (allSelected) {
+                          _selectedIds.clear();
+                        } else {
+                          _selectedIds.addAll(_contracts.map((c) => c['id'] as String));
+                        }
+                      });
+                    },
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 20, height: 20,
+                          child: Checkbox(
+                            value: allSelected,
+                            onChanged: (_) {
+                              setState(() {
+                                if (allSelected) {
+                                  _selectedIds.clear();
+                                } else {
+                                  _selectedIds.addAll(_contracts.map((c) => c['id'] as String));
+                                }
+                              });
+                            },
+                            activeColor: AppColors.primary,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text('전체 선택', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -206,21 +249,23 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
             ],
           ),
         ),
-        // 하단: 계약서 전체 다운로드 버튼
+        // 하단: 선택 다운로드 / 전체 다운로드 버튼
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           child: SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: _downloadAllContracts,
+              onPressed: _selectedIds.isEmpty ? _downloadAllContracts : _downloadSelectedContracts,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,
                 foregroundColor: AppColors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
-              child: const Text('계약서 전체 다운로드'),
+              child: Text(_selectedIds.isEmpty
+                  ? '계약서 전체 다운로드'
+                  : '선택 계약서 다운로드 (${_selectedIds.length}건)'),
             ),
           ),
         ),
@@ -231,14 +276,24 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
   // 전체 계약서 다운로드 (이미지 파일로 순차 다운로드)
   Future<void> _downloadAllContracts() async {
     if (_contracts.isEmpty) return;
+    await _downloadContractList(_contracts);
+  }
 
-    // 진행 표시
+  // 선택한 계약서만 다운로드
+  Future<void> _downloadSelectedContracts() async {
+    if (_selectedIds.isEmpty) return;
+    final selected = _contracts.where((c) => _selectedIds.contains(c['id'])).toList();
+    await _downloadContractList(selected);
+  }
+
+  // 계약서 목록 다운로드 공통 로직
+  Future<void> _downloadContractList(List<Map<String, dynamic>> contracts) async {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${_contracts.length}건의 계약서를 다운로드합니다...')),
+      SnackBar(content: Text('${contracts.length}건의 계약서를 다운로드합니다...')),
     );
 
     int downloadCount = 0;
-    for (final contract in _contracts) {
+    for (final contract in contracts) {
       final success = await _downloadContractAsImage(contract);
       if (success) downloadCount++;
     }
@@ -265,7 +320,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                 width: 400,
                 color: Colors.white,
                 padding: const EdgeInsets.all(24),
-                child: _buildContractImageContent(contract),
+                child: CustomerContractDetailScreen.buildContractContent(contract),
               ),
             ),
           ),
@@ -297,152 +352,10 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     return false;
   }
 
-  // 계약서 이미지 내용 위젯 (다운로드용 — 개별 상세보기와 동일한 형식)
-  Widget _buildContractImageContent(Map<String, dynamic> contract) {
-    final format = NumberFormat('#,###');
-    final originalPrice = contract['originalPrice'] ?? contract['price'] ?? 0;
-    final depositAmount = contract['depositAmount'] ?? 0;
-    final remainAmount = contract['remainAmount'] ?? (originalPrice - depositAmount);
-    final status = contract['status'] ?? 'PENDING';
-    final depositLabel = status == 'CONFIRMED' || status == 'CANCEL_REQUESTED'
-        ? '${format.format(depositAmount)}원 (결제 완료)'
-        : '${format.format(depositAmount)}원';
-
-    // 섹션 카드 빌더 (개별 상세보기와 동일)
-    Widget buildSection(String title, List<Widget> children) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 12),
-            ...children,
-          ],
-        ),
-      );
-    }
-
-    Widget infoLine(String label, String value) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text('$label : $value', style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
-      );
-    }
-
-    Widget priceLine(String label, String value, {Color? color}) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: TextStyle(fontSize: 14, color: color ?? AppColors.textPrimary, fontWeight: color != null ? FontWeight.w600 : FontWeight.w400)),
-            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? AppColors.textPrimary)),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Row(
-          children: [
-            Text('계약 내용', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            SizedBox(width: 4),
-            Icon(Icons.chevron_right, size: 20),
-          ],
-        ),
-        const SizedBox(height: 16),
-        // 행사 정보
-        buildSection('행사 정보', [
-          infoLine('행사명', contract['eventTitle'] ?? '-'),
-          infoLine('현장명', contract['siteName'] ?? '-'),
-          infoLine('주관사', contract['organizerName'] ?? '-'),
-        ]),
-        const SizedBox(height: 16),
-        // 업체 정보
-        buildSection('업체 정보', [
-          infoLine('업체명', contract['vendorName'] ?? '-'),
-          infoLine('대표자', contract['vendorRepresentative'] ?? '-'),
-          infoLine('연락처', contract['vendorPhone'] ?? '-'),
-          if ((contract['vendorBusinessNumber'] as String?)?.isNotEmpty == true)
-            infoLine('사업자번호', contract['vendorBusinessNumber']),
-          if ((contract['vendorBusinessAddress'] as String?)?.isNotEmpty == true)
-            infoLine('사업장 주소', contract['vendorBusinessAddress']),
-        ]),
-        const SizedBox(height: 16),
-        // 고객 정보
-        buildSection('고객 정보', [
-          infoLine('고객명', contract['customerName'] ?? '-'),
-          infoLine('연락처', contract['customerPhone'] ?? '-'),
-          if ((contract['customerDong'] as String?)?.isNotEmpty == true ||
-              (contract['customerHo'] as String?)?.isNotEmpty == true)
-            infoLine('동/호수', '${contract['customerDong'] ?? ''}동 ${contract['customerHo'] ?? ''}호'),
-          if ((contract['customerHousingType'] as String?)?.isNotEmpty == true)
-            infoLine('타입', contract['customerHousingType']),
-          if ((contract['customerAddress'] as String?)?.isNotEmpty == true)
-            infoLine('주소', contract['customerAddress']),
-        ]),
-        const SizedBox(height: 16),
-        // 계약 내용
-        buildSection('계약 내용', [
-          infoLine('패키지명', contract['productName'] ?? '-'),
-          if ((contract['description'] as String?)?.isNotEmpty == true)
-            infoLine('상세 내용', contract['description']),
-        ]),
-        const SizedBox(height: 16),
-        // 계약 금액
-        buildSection('계약 금액', [
-          priceLine('가격', '${format.format(originalPrice)}원'),
-          priceLine('계약금', depositLabel, color: AppColors.priceRed),
-          priceLine('잔금', '${format.format(remainAmount)}원'),
-        ]),
-        const SizedBox(height: 16),
-        // 결제 정보
-        buildSection('결제 정보', [
-          infoLine('결제 수단', contract['paymentMethod'] ?? '카드결제'),
-          infoLine('카드/계좌', contract['paymentDetail'] ?? '-'),
-          infoLine('결제일시', contract['paidAt'] ?? '-'),
-        ]),
-        const SizedBox(height: 24),
-        // 환불 안내
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.info_outline, size: 16, color: AppColors.primary),
-                  SizedBox(width: 6),
-                  Text('계약금 먼저 결제 되며, 취소 환불 조항에 동의합니다.',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
-              ),
-              SizedBox(height: 8),
-              Text('지금 결제 하시면 모두 결제되는 것이 아니라 계약금만 결제되며, 잔금은 해당 업체와 직접 결제하시면 됩니다.\n취소 지정 기간 이후 취소 건은 계약금 환불은 어렵습니다.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   // 계약 카드
   Widget _buildContractCard(Map<String, dynamic> contract) {
+    final contractId = contract['id'] as String;
+    final isSelected = _selectedIds.contains(contractId);
     final status = contract['status'] as String;
     final price = contract['originalPrice'] ?? contract['price'] ?? 0;
     final deposit = contract['depositAmount'] ?? 0;
@@ -469,78 +382,114 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
         statusBgColor = AppColors.warning;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 업체명 + 상태 뱃지
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(contract['vendorName'] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: statusBgColor, borderRadius: BorderRadius.circular(6)),
-                child: Text(statusText, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.white)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // 패키지명
-          Text(contract['productName'] ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          // 설명
-          if ((contract['description'] as String?)?.isNotEmpty == true) ...[
-            const SizedBox(height: 2),
-            Text(contract['description'], style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          ],
-          const SizedBox(height: 12),
-          // 가격/계약금/잔금
-          Align(
-            alignment: Alignment.centerRight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    return GestureDetector(
+      onTap: () {
+        // 카드 전체 탭으로 선택/해제 토글
+        setState(() {
+          if (isSelected) {
+            _selectedIds.remove(contractId);
+          } else {
+            _selectedIds.add(contractId);
+          }
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: isSelected ? AppColors.primary : AppColors.border, width: isSelected ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 체크박스 + 업체명 + 상태 뱃지
+            Row(
               children: [
-                Text('가격 : ${_priceFormat.format(price)}원', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text('계약금 : ${_priceFormat.format(deposit)}원', style: const TextStyle(fontSize: 14, color: AppColors.priceRed, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text('잔금 : ${_priceFormat.format(remain)}원', style: const TextStyle(fontSize: 14)),
+                SizedBox(
+                  width: 20, height: 20,
+                  child: Checkbox(
+                    value: isSelected,
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == true) {
+                          _selectedIds.add(contractId);
+                        } else {
+                          _selectedIds.remove(contractId);
+                        }
+                      });
+                    },
+                    activeColor: AppColors.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(contract['vendorName'] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: statusBgColor, borderRadius: BorderRadius.circular(6)),
+                  child: Text(statusText, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.white)),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          // 상세보기 + 취소 요청 버튼
-          Row(
-            children: [
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => CustomerContractDetailScreen(
-                        contract: contract,
-                        categoryName: contract['productCategory'] ?? '계약 상세',
-                      ),
-                    ),
-                  );
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.border),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                ),
-                child: const Text('상세보기', style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 4),
+            // 패키지명
+            Padding(
+              padding: const EdgeInsets.only(left: 28), // 체크박스(20) + 간격(8) 만큼 들여쓰기
+              child: Text(contract['productName'] ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+            // 설명
+            if ((contract['description'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 2),
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: Text(contract['description'], style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               ),
-              // 취소는 전화 문의 후 협력업체에서 처리 (고객 직접 취소 불가)
             ],
-          ),
-        ],
+            const SizedBox(height: 12),
+            // 가격/계약금/잔금
+            Align(
+              alignment: Alignment.centerRight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('가격 : ${_priceFormat.format(price)}원', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text('계약금 : ${_priceFormat.format(deposit)}원', style: const TextStyle(fontSize: 14, color: AppColors.priceRed, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text('잔금 : ${_priceFormat.format(remain)}원', style: const TextStyle(fontSize: 14)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 상세보기 버튼
+            Row(
+              children: [
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => CustomerContractDetailScreen(
+                          contract: contract,
+                          categoryName: contract['productCategory'] ?? '계약 상세',
+                        ),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.border),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('상세보기', style: TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -79,6 +79,8 @@ class _VendorProductManageScreenState extends State<VendorProductManageScreen> {
             'description': p['description'] ?? '',
             'price': p['price'] ?? 0,
             'imageUrl': p['image'],
+            'image': p['image'],
+            'images': p['images'] != null ? List<String>.from(p['images']) : <String>[],
             'housingTypes': p['housingTypes'] != null
                 ? List<String>.from(p['housingTypes'])
                 : <String>[],

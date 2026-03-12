@@ -532,7 +532,6 @@ class _OrganizerEventManageScreenState
         _moveProduct(oldIndex, newIndex);
       },
       children: _products.asMap().entries.map((entry) {
-        final index = entry.key;
         final product = entry.value;
         return KeyedSubtree(
           key: ValueKey(product['id']),
@@ -817,54 +816,72 @@ class _OrganizerEventManageScreenState
         ),
         if (items.isNotEmpty) ...[
           const SizedBox(height: 8),
-          // 첫 번째 item에 이미지가 있으면 썸네일 표시 (1뎁스당 1장)
+          // 이미지(왼쪽) + 전체 아이템 목록(오른쪽) — "22222" 스크린샷 참고
+          // 이미지는 "상세 품목" 라벨 바로 아래, 왼쪽 끝에서 시작
           Builder(builder: (_) {
             final firstImage = items.first['imageUrl'] as String?;
-            if (firstImage != null && firstImage.isNotEmpty) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8, left: 92),
-                child: GestureDetector(
-                  onTap: () => _showImagePreview(firstImage),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: buildSmartImage(firstImage, width: 72, height: 72),
-                  ),
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          }),
-          ...items.map((item) {
-            final formattedPrice = NumberFormat('#,###').format(item['price'] ?? 0);
-            final types = (item['housingTypes'] as List?)?.join(', ') ?? '';
-            return GestureDetector(
-              onTap: () => _showItemDetailDialog(item, product['name'] ?? ''),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 6, left: 92),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          if (types.isNotEmpty)
-                            Text(types, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                        ],
+            final hasImage = firstImage != null && firstImage.isNotEmpty;
+
+            return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 이미지 (72x72 고정, 늘어나지 않게 SizedBox + Align)
+                  if (hasImage) ...[
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: GestureDetector(
+                        onTap: () => _showImagePreview(firstImage),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 72,
+                            height: 72,
+                            child: buildSmartImage(firstImage, width: 72, height: 72),
+                          ),
+                        ),
                       ),
                     ),
-                    Text('$formattedPrice원', style: const TextStyle(fontSize: 13, color: AppColors.priceRed, fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right, size: 16, color: AppColors.textHint),
+                    const SizedBox(width: 8),
                   ],
-                ),
-              ),
-            );
+                  // 아이템 리스트 (이미지 오른쪽, 이미지 아래로도 계속 이어짐)
+                  Expanded(
+                    child: Column(
+                      children: items.map((item) {
+                        final formattedPrice = NumberFormat('#,###').format(item['price'] ?? 0);
+                        final types = (item['housingTypes'] as List?)?.join(', ') ?? '';
+                        return GestureDetector(
+                          onTap: () => _showItemDetailDialog(item, product['name'] ?? ''),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                      if (types.isNotEmpty)
+                                        Text(types, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                    ],
+                                  ),
+                                ),
+                                Text('$formattedPrice원', style: const TextStyle(fontSize: 13, color: AppColors.priceRed, fontWeight: FontWeight.w600)),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.chevron_right, size: 16, color: AppColors.textHint),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              );
           }),
         ],
       ],
@@ -1111,6 +1128,23 @@ class _OrganizerEventManageScreenState
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          // 엑셀 다운로드 버튼 (수익분배/정산용)
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: _contracts.isEmpty ? null : _downloadContractExcel,
+              icon: const Icon(Icons.download, size: 18),
+              label: const Text('계약 정산 엑셀 다운로드'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.organizer,
+                side: const BorderSide(color: AppColors.organizer),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
           // 계약 건 > + 뷰 모드 전환
           Row(
@@ -1223,7 +1257,7 @@ class _OrganizerEventManageScreenState
               ),
               // 계약건수 + 총액
               Text(
-                '${activeCount}건  |  ${format.format(totalAmount)}원',
+                '$activeCount건  |  ${format.format(totalAmount)}원',
                 style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(width: 4),
@@ -1308,6 +1342,99 @@ class _OrganizerEventManageScreenState
         ),
       );
     }).toList();
+  }
+
+  // 계약 정산 엑셀 다운로드 (수익분배 포함)
+  Future<void> _downloadContractExcel() async {
+    if (_contracts.isEmpty) return;
+
+    final format = NumberFormat('#,###');
+
+    // 품목별 수수료율 매핑
+    Map<String, double> commRates = {};
+    Map<String, String> vendorMap = {};
+    for (final p in _products) {
+      final name = p['name'] as String? ?? '';
+      final rate = p['commissionRate'];
+      commRates[name] = rate is num ? rate.toDouble() : 0;
+      vendorMap[name] = p['vendorName'] as String? ?? '미배정';
+    }
+
+    // 헤더
+    final headers = [
+      '품목', '업체명', '고객명', '동/호', '타입', '연락처',
+      '패키지명', '가격', '계약금', '잔금', '상태',
+      '수수료율', '주관사 수익', '업체 수익',
+    ];
+
+    // 데이터 행
+    final dataRows = _contracts.map<List<String>>((c) {
+      final category = c['productCategory'] as String? ?? '기타';
+      final price = (c['originalPrice'] as num?)?.toInt() ?? 0;
+      final deposit = (c['depositAmount'] as num?)?.toInt() ?? 0;
+      final remain = (c['remainAmount'] as num?)?.toInt() ?? (price - deposit);
+      final status = c['status'] as String? ?? 'PENDING';
+      final statusText = status == 'CONFIRMED' ? '계약완료' : status == 'CANCELLED' ? '취소' : status == 'CANCEL_REQUESTED' ? '취소요청' : '대기';
+      final commRate = commRates[category] ?? 0.0;
+      final orgRevenue = (price * commRate).round();
+      final vendorRevenue = price - orgRevenue;
+      final dong = c['customerDong'] ?? '';
+      final ho = c['customerHo'] ?? '';
+
+      return [
+        category,
+        vendorMap[category] ?? c['vendorName'] ?? '',
+        c['customerName'] ?? '',
+        '$dong동 $ho호',
+        c['customerHousingType'] ?? '',
+        c['customerPhone'] ?? '',
+        c['productName'] ?? '',
+        format.format(price),
+        format.format(deposit),
+        format.format(remain),
+        statusText,
+        '${(commRate * 100).round()}%',
+        format.format(orgRevenue),
+        format.format(vendorRevenue),
+      ];
+    }).toList();
+
+    // 합계 행 (취소 건 제외)
+    final activeOnly = _contracts.where((c) => c['status'] != 'CANCELLED').toList();
+    final totalPrice = activeOnly.fold<int>(0, (sum, c) => sum + ((c['originalPrice'] as num?)?.toInt() ?? 0));
+    final totalDeposit = activeOnly.fold<int>(0, (sum, c) => sum + ((c['depositAmount'] as num?)?.toInt() ?? 0));
+    final totalRemain = totalPrice - totalDeposit;
+    // 품목별 수익 합계 계산
+    int totalOrgRevenue = 0;
+    int totalVendorRevenue = 0;
+    for (final c in activeOnly) {
+      final cat = c['productCategory'] as String? ?? '기타';
+      final price = (c['originalPrice'] as num?)?.toInt() ?? 0;
+      final rate = commRates[cat] ?? 0.0;
+      totalOrgRevenue += (price * rate).round();
+      totalVendorRevenue += price - (price * rate).round();
+    }
+
+    dataRows.add([
+      '합계', '', '${activeOnly.length}건', '', '', '',
+      '', format.format(totalPrice), format.format(totalDeposit),
+      format.format(totalRemain), '',
+      '', format.format(totalOrgRevenue), format.format(totalVendorRevenue),
+    ]);
+
+    await downloadExcel(
+      title: widget.eventTitle,
+      subtitle: '계약 정산 내역 (${DateFormat('yyyy.MM.dd HH:mm').format(DateTime.now())})',
+      headers: headers,
+      dataRows: dataRows,
+      fileName: '${widget.eventTitle}_계약정산.xlsx',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('계약 정산 엑셀이 다운로드되었습니다')),
+      );
+    }
   }
 
   // 품목별 그룹 정보 행
@@ -2262,17 +2389,35 @@ class _OrganizerEventManageScreenState
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        backgroundColor: Colors.black,
-        insetPadding: const EdgeInsets.all(16),
-        child: Stack(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        insetPadding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Center(child: buildSmartImage(imageUrl, width: double.infinity, height: double.infinity)),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 28),
-                onPressed: () => Navigator.pop(context),
+            // 상단 바 (제목 + 닫기)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+              child: Row(
+                children: [
+                  const Text('품목 이미지', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 22),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            // 이미지
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 400),
+                  child: buildSmartImage(imageUrl, width: double.infinity),
+                ),
               ),
             ),
           ],

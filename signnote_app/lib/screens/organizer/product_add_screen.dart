@@ -38,6 +38,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
   late final TextEditingController _nameController;        // 품목명
   late final TextEditingController _feeController;         // 참가비
   late final TextEditingController _commissionController;  // 수수료
+  late final TextEditingController _depositRateController; // 계약금 비율
   bool _isSubmitting = false;
 
   // 수정 모드인지 여부
@@ -59,6 +60,10 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
     final rate = widget.product?['commissionRate'];
     final ratePercent = rate is num ? (rate * 100).toStringAsFixed(0) : '';
     _commissionController = TextEditingController(text: ratePercent);
+    // 계약금 비율 (null이면 행사 기본값 사용)
+    final depositRate = widget.product?['depositRate'];
+    final depositPercent = depositRate is num ? (depositRate * 100).toStringAsFixed(0) : '';
+    _depositRateController = TextEditingController(text: depositPercent);
   }
 
   @override
@@ -66,6 +71,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
     _nameController.dispose();
     _feeController.dispose();
     _commissionController.dispose();
+    _depositRateController.dispose();
     super.dispose();
   }
 
@@ -83,6 +89,11 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
 
     final fee = parseCommaNumber(_feeController.text.trim());
     final commission = double.tryParse(_commissionController.text.trim()) ?? 0;
+    // 계약금 비율: 입력값이 있으면 % → 소수 변환, 비어있으면 null (행사 기본값 사용)
+    final depositRateText = _depositRateController.text.trim();
+    final double? depositRate = depositRateText.isNotEmpty
+        ? (double.tryParse(depositRateText) ?? 0) / 100
+        : null;
 
     Map<String, dynamic> result;
 
@@ -94,6 +105,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
           'name': name,
           'participationFee': fee,
           'commissionRate': commission / 100, // % → 소수
+          'depositRate': depositRate, // null이면 행사 기본값
         },
       );
     } else {
@@ -103,6 +115,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
         name: name,
         participationFee: fee,
         commissionRate: commission / 100, // % → 소수 (예: 20 → 0.2)
+        depositRate: depositRate,
       );
     }
 
@@ -220,6 +233,36 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
+            // 계약금 비율 (#10, #14 연계)
+            const Text('계약금 비율', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            const Text(
+              '비워두면 행사 기본값(30%) 사용',
+              style: TextStyle(fontSize: 12, color: AppColors.textHint),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _depositRateController,
+              textAlign: TextAlign.right,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: '예: 30',
+                hintStyle: const TextStyle(color: AppColors.textHint),
+                suffixText: '%',
+                suffixStyle: const TextStyle(color: AppColors.textSecondary),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -231,6 +274,7 @@ class _OrganizerProductAddScreenState extends State<OrganizerProductAddScreen> {
               ? '처리 중...'
               : _isEditMode ? '수정하기' : '추가하기',
           onPressed: _isSubmitting ? null : _submit,
+          backgroundColor: AppColors.organizer, // 주관사 주황색
         ),
       ),
     );

@@ -66,4 +66,7 @@ export class CreateEventDto {
   @IsOptional()
   @IsNumber()
   depositRate?: number;                   // 계약금 비율 (0.0 ~ 1.0, 기본 0.3 = 30%)
+
+  @IsOptional()
+  paymentSchedule?: any;                  // 결제 일정 JSON (계약금/중도금/잔금 요율+날짜)
 }

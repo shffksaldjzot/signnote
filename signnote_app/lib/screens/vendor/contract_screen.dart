@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
@@ -7,6 +10,7 @@ import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/contract/contract_card.dart';
 import '../../widgets/common/app_card.dart';
 import '../../services/contract_service.dart';
+import '../../utils/image_download.dart';
 import 'home_screen.dart';
 import '../customer/contract_detail_screen.dart';
 
@@ -43,6 +47,9 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
 
   // 상태 필터 (null = 전체)
   String? _statusFilter;
+
+  // 선택 다운로드용 체크 상태
+  final Set<String> _selectedIds = {};
 
   final ContractService _contractService = ContractService();
 
@@ -381,6 +388,9 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
 
     final filtered = _filteredContracts;
 
+    // 전체 선택 여부
+    final allSelected = filtered.isNotEmpty && filtered.every((c) => _selectedIds.contains(c['id']));
+
     return Column(
       children: [
         // 검색창 (돋보기 클릭 시 노출)
@@ -415,6 +425,37 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
         _buildFilterChips(),
         // 집계 요약 카드
         _buildSummaryCards(),
+        // 전체 선택 체크박스
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 20, height: 20,
+                child: Checkbox(
+                  value: allSelected,
+                  onChanged: (_) {
+                    setState(() {
+                      if (allSelected) {
+                        _selectedIds.clear();
+                      } else {
+                        _selectedIds.addAll(filtered.map((c) => c['id'] as String));
+                      }
+                    });
+                  },
+                  activeColor: AppColors.vendor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text('전체 선택', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const Spacer(),
+              // 선택 건수 표시
+              if (_selectedIds.isNotEmpty)
+                Text('${_selectedIds.length}건 선택', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
         // 계약 카드 목록 (필터 적용)
         Expanded(
           child: filtered.isEmpty
@@ -427,37 +468,90 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final contract = filtered[index];
-                    return ContractCard.vendor(
-                      customerName: contract['customerName'],
-                      customerAddress: contract['customerAddress'],
-                      customerPhone: contract['customerPhone'],
-                      productName: contract['productName'],
-                      productDescription: contract['description'],
-                      price: contract['price'],
-                      depositAmount: contract['depositAmount'],
-                      status: _parseStatus(contract['status']),
-                      onDetailTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => CustomerContractDetailScreen(
-                              contract: contract,
-                              categoryName: contract['productCategory'] ?? '계약 상세',
+                    final contractId = contract['id'] as String;
+                    final isSelected = _selectedIds.contains(contractId);
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 체크박스
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16, right: 8),
+                          child: SizedBox(
+                            width: 20, height: 20,
+                            child: Checkbox(
+                              value: isSelected,
+                              onChanged: (v) {
+                                setState(() {
+                                  if (v == true) {
+                                    _selectedIds.add(contractId);
+                                  } else {
+                                    _selectedIds.remove(contractId);
+                                  }
+                                });
+                              },
+                              activeColor: AppColors.vendor,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
-                        );
-                      },
-                      onVendorCancelTap: (contract['status'] == 'CONFIRMED' || contract['status'] == 'PENDING')
-                          ? () => _showVendorCancelDialog(contract)
-                          : null,
-                      onApproveTap: contract['status'] == 'CANCEL_REQUESTED'
-                          ? () => _showApproveCancelDialog(contract)
-                          : null,
-                      onRejectTap: contract['status'] == 'CANCEL_REQUESTED'
-                          ? () => _showRejectCancelDialog(contract)
-                          : null,
+                        ),
+                        // 계약 카드
+                        Expanded(
+                          child: ContractCard.vendor(
+                            customerName: contract['customerName'],
+                            customerAddress: contract['customerAddress'],
+                            customerPhone: contract['customerPhone'],
+                            productName: contract['productName'],
+                            productDescription: contract['description'],
+                            price: contract['price'],
+                            depositAmount: contract['depositAmount'],
+                            status: _parseStatus(contract['status']),
+                            onDetailTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => CustomerContractDetailScreen(
+                                    contract: contract,
+                                    categoryName: contract['productCategory'] ?? '계약 상세',
+                                  ),
+                                ),
+                              );
+                            },
+                            onVendorCancelTap: (contract['status'] == 'CONFIRMED' || contract['status'] == 'PENDING')
+                                ? () => _showVendorCancelDialog(contract)
+                                : null,
+                            onApproveTap: contract['status'] == 'CANCEL_REQUESTED'
+                                ? () => _showApproveCancelDialog(contract)
+                                : null,
+                            onRejectTap: contract['status'] == 'CANCEL_REQUESTED'
+                                ? () => _showRejectCancelDialog(contract)
+                                : null,
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
+        ),
+        // 하단: 선택 다운로드 버튼 (선택 없으면 비활성화)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _selectedIds.isEmpty ? null : _downloadSelectedContracts,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.vendor,
+                foregroundColor: AppColors.white,
+                disabledBackgroundColor: AppColors.border,
+                disabledForegroundColor: AppColors.textHint,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              child: Text(_selectedIds.isEmpty
+                  ? '계약서 다운로드 (선택해 주세요)'
+                  : '선택 계약서 다운로드 (${_selectedIds.length}건)'),
+            ),
+          ),
         ),
       ],
     );
@@ -532,6 +626,74 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
         Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: valueColor)),
       ],
     );
+  }
+
+  // 선택한 계약서 다운로드 (이미지 파일로 순차 다운로드)
+  Future<void> _downloadSelectedContracts() async {
+    if (_selectedIds.isEmpty) return;
+    final selected = _contracts.where((c) => _selectedIds.contains(c['id'])).toList();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${selected.length}건의 계약서를 다운로드합니다...')),
+    );
+
+    int downloadCount = 0;
+    for (final contract in selected) {
+      final success = await _downloadContractAsImage(contract);
+      if (success) downloadCount++;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$downloadCount건의 계약서가 다운로드되었습니다')),
+      );
+    }
+  }
+
+  // 개별 계약을 이미지로 다운로드 (오프스크린 렌더링 — 고객 계약서와 동일 형식)
+  Future<bool> _downloadContractAsImage(Map<String, dynamic> contract) async {
+    try {
+      final captureKey = GlobalKey();
+      final overlay = OverlayEntry(
+        builder: (_) => Positioned(
+          left: -9999,
+          child: Material(
+            child: RepaintBoundary(
+              key: captureKey,
+              child: Container(
+                width: 400,
+                color: Colors.white,
+                padding: const EdgeInsets.all(24),
+                child: CustomerContractDetailScreen.buildContractContent(contract),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Overlay.of(context).insert(overlay);
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      final boundary = captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary != null) {
+        final image = await boundary.toImage(pixelRatio: 3.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData != null) {
+          final bytes = byteData.buffer.asUint8List();
+          final customerName = contract['customerName'] ?? '고객';
+          final productName = contract['productName'] ?? '품목';
+          final date = DateFormat('yyyyMMdd').format(DateTime.now());
+          final fileName = '계약서_${customerName}_${productName}_$date.png';
+          await downloadImageBytes(bytes, fileName);
+          overlay.remove();
+          return true;
+        }
+      }
+      overlay.remove();
+    } catch (_) {
+      // 실패 시 다음 건 진행
+    }
+    return false;
   }
 
   // 빈 상태

@@ -1,11 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../services/product_service.dart';
 import '../../services/event_service.dart';
 import '../../utils/number_formatter.dart';
+import '../../utils/image_helper.dart';
+import '../common/image_gallery_screen.dart';
 
 // ============================================
 // 업체용 상세 품목(2뎁스) 추가/수정 폼 화면
@@ -40,6 +44,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final ProductService _productService = ProductService();
   final EventService _eventService = EventService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   // 입력 필드 컨트롤러
   late final TextEditingController _nameController;       // 패키지명
@@ -53,6 +58,10 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
   // 적용 타입
   late Set<String> _selectedTypes;
   List<String> _eventHousingTypes = [];
+
+  // 이미지 목록 (base64 데이터 URL, 최대 5장)
+  final List<String> _images = [];
+  static const int _maxImages = 5;
 
   bool _isLoading = false;
   bool get _isEditMode => widget.product != null;
@@ -70,6 +79,20 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
       text: widget.product?['price'] != null ? formatWithComma(widget.product!['price'] as int) : '',
     );
     _selectedTypes = Set<String>.from(widget.product?['housingTypes'] ?? []);
+
+    // 기존 이미지 로드 (수정 모드)
+    if (widget.product != null) {
+      final existingImages = widget.product!['images'];
+      if (existingImages is List && existingImages.isNotEmpty) {
+        _images.addAll(List<String>.from(existingImages));
+      } else {
+        // images 배열이 없으면 단일 image 필드에서 가져오기
+        final singleImage = widget.product!['image'] ?? widget.product!['imageUrl'];
+        if (singleImage != null && singleImage.toString().isNotEmpty) {
+          _images.add(singleImage.toString());
+        }
+      }
+    }
   }
 
   @override
@@ -148,6 +171,8 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
           'description': _descriptionController.text,
           'price': parseCommaNumber(_priceController.text),
           'housingTypes': _selectedTypes.toList(),
+          'images': _images,
+          if (_images.isNotEmpty) 'image': _images.first, // 대표 이미지 (하위호환)
         },
       );
     } else {
@@ -158,6 +183,8 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         housingTypes: _selectedTypes.toList(),
         price: parseCommaNumber(_priceController.text),
         description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
+        image: _images.isNotEmpty ? _images.first : null, // 대표 이미지 (하위호환)
+        images: _images.isNotEmpty ? _images : null,
       );
     }
 
@@ -247,6 +274,17 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 20),
+
+              // 품목 이미지 (최대 5장)
+              _buildLabel('품목 이미지'),
+              const SizedBox(height: 4),
+              Text(
+                '최대 $_maxImages장까지 등록 가능합니다',
+                style: const TextStyle(fontSize: 12, color: AppColors.textHint),
+              ),
+              const SizedBox(height: 8),
+              _buildImagePicker(),
               const SizedBox(height: 32),
 
               // "작성 완료" 검정 버튼
@@ -332,9 +370,9 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
               }
             });
           },
-          selectedColor: AppColors.vendor.withValues(alpha: 0.12),
+          selectedColor: AppColors.vendor, // 선택 시 진한 검정 배경
           labelStyle: TextStyle(
-            color: isSelected ? AppColors.vendor : AppColors.textSecondary,
+            color: isSelected ? AppColors.white : AppColors.textSecondary, // 선택 시 흰 글씨
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
           shape: RoundedRectangleBorder(
@@ -390,6 +428,154 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.priceRed),
+        ),
+      ),
+    );
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 이미지 업로드 UI (최대 5장)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // 이미지 피커 UI — 가로 스크롤, 추가 버튼 + 이미지 썸네일들
+  Widget _buildImagePicker() {
+    return SizedBox(
+      height: 88,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          // "+" 추가 버튼 (5장 미만일 때만 표시)
+          if (_images.length < _maxImages)
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                width: 80,
+                height: 80,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.border, width: 1.5),
+                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.background,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.camera_alt_outlined, color: AppColors.textHint, size: 24),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_images.length}/$_maxImages',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textHint),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // 이미지 썸네일 목록
+          ..._images.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final imageUrl = entry.value;
+            return GestureDetector(
+              onTap: () => _openGallery(idx),
+              child: Container(
+                width: 80,
+                height: 80,
+                margin: const EdgeInsets.only(right: 8),
+                child: Stack(
+                  children: [
+                    // 이미지 썸네일
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: buildSmartImage(imageUrl, width: 80, height: 80),
+                      ),
+                    ),
+                    // 대표 이미지 뱃지 (첫번째 이미지)
+                    if (idx == 0)
+                      Positioned(
+                        left: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: const BoxDecoration(
+                            color: AppColors.vendor,
+                            borderRadius: BorderRadius.only(
+                              topRight: Radius.circular(6),
+                              bottomLeft: Radius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            '대표',
+                            style: TextStyle(color: AppColors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    // 삭제 버튼 (우상단 X)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: GestureDetector(
+                        onTap: () => _removeImage(idx),
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close, color: Colors.white, size: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // 갤러리에서 이미지 선택 → base64로 변환 후 목록에 추가
+  Future<void> _pickImage() async {
+    if (_images.length >= _maxImages) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('이미지는 최대 $_maxImages장까지 등록 가능합니다')),
+      );
+      return;
+    }
+
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 70,
+    );
+    if (picked == null) return;
+
+    // base64 데이터 URL로 변환
+    final bytes = await picked.readAsBytes();
+    final base64String = base64Encode(bytes);
+    final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    final dataUrl = 'data:$mimeType;base64,$base64String';
+
+    setState(() => _images.add(dataUrl));
+  }
+
+  // 이미지 삭제
+  void _removeImage(int index) {
+    setState(() => _images.removeAt(index));
+  }
+
+  // 이미지 갤러리 뷰어 열기 (전체화면)
+  void _openGallery(int initialIndex) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ImageGalleryScreen(
+          images: _images,
+          initialIndex: initialIndex,
         ),
       ),
     );

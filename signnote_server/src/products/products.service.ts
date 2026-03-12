@@ -120,6 +120,7 @@ export class ProductsService {
         ...(dto.image !== undefined && { image: dto.image }),
         ...(dto.commissionRate !== undefined && { commissionRate: dto.commissionRate }),
         ...((dto as any).depositRate !== undefined && { depositRate: (dto as any).depositRate }),
+        ...((dto as any).paymentSchedule !== undefined && { paymentSchedule: (dto as any).paymentSchedule }),
         ...(dto.participationFee !== undefined && { participationFee: dto.participationFee }),
         ...((dto as any).feePaymentConfirmed !== undefined && { feePaymentConfirmed: (dto as any).feePaymentConfirmed }),
       },
@@ -171,6 +172,7 @@ export class ProductsService {
         participationFee: dto.participationFee ?? 0,
         commissionRate: dto.commissionRate ?? 0,
         depositRate: dto.depositRate ?? null,  // 품목별 계약금 비율 (null = 행사 기본값)
+        paymentSchedule: dto.paymentSchedule ?? undefined,  // 결제 일정 (null = 행사 기본값)
         image: dto.image,
       },
     });
@@ -409,7 +411,8 @@ export class ProductsService {
         housingTypes: dto.housingTypes,
         description: dto.description,
         price: dto.price,
-        image: dto.image,
+        image: dto.image ?? (dto.images?.length ? dto.images[0] : undefined),
+        images: dto.images ?? (dto.image ? [dto.image] : []),
       },
     });
 
@@ -462,6 +465,7 @@ export class ProductsService {
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.price !== undefined && { price: dto.price }),
         ...(dto.image !== undefined && { image: dto.image }),
+        ...(dto.images !== undefined && { images: dto.images }),
       },
     });
 

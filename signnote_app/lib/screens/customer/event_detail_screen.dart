@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/theme.dart';
-import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../services/product_service.dart';
 import '../../services/cart_service.dart';
 import '../../services/event_service.dart';
+import '../../services/contract_service.dart';
 import '../../utils/image_helper.dart';
+import '../common/image_gallery_screen.dart';
 import 'cart_screen.dart';
 import 'contract_screen.dart';
 import '../common/mypage_screen.dart';
@@ -64,6 +65,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   final ProductService _productService = ProductService();
   final CartService _cartService = CartService();
   final EventService _eventService = EventService();
+  final ContractService _contractService = ContractService();
+
+  // 이미 계약 완료된 productItemId 집합 (이중결제 방지)
+  final Set<String> _contractedItemIds = {};
   final _priceFormat = NumberFormat('#,###');
 
   @override
@@ -77,6 +82,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Future<void> _initData() async {
     await _loadMyInfo();
     _loadProducts();
+    _loadContractedItems(); // 계약 완료 품목 로드 (이중결제 방지)
     // 동호수 또는 타입이 비어있으면 입력 유도
     _checkRequiredInfo();
   }
@@ -225,7 +231,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       housingType: selectedType,
                     );
 
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     Navigator.of(ctx).pop();
 
                     // 정보 갱신
@@ -267,6 +273,29 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  // 이미 계약 완료된 품목 ID 로드 (이중결제 방지)
+  Future<void> _loadContractedItems() async {
+    final result = await _contractService.getMyContracts(eventId: widget.eventId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      final contracts = List<Map<String, dynamic>>.from(result['contracts'] ?? []);
+      setState(() {
+        _contractedItemIds.clear();
+        for (final c in contracts) {
+          // 취소된 계약은 제외 (CANCELLED 상태는 다시 구매 가능)
+          final status = c['status']?.toString() ?? '';
+          if (status == 'CANCELLED') continue;
+          // productItemId (2뎁스) 우선, 없으면 productItem 관계에서 추출
+          final itemId = c['productItemId']?.toString() ??
+              (c['productItem'] as Map<String, dynamic>?)?['id']?.toString() ?? '';
+          if (itemId.isNotEmpty) {
+            _contractedItemIds.add(itemId);
+          }
+        }
+      });
+    }
+  }
+
   // 서버에서 품목 목록 불러오기 (1뎁스 + 2뎁스 items 포함)
   Future<void> _loadProducts() async {
     setState(() { _isLoading = true; _error = null; });
@@ -283,16 +312,29 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       setState(() {
         _products = products.map((p) {
           // 2뎁스 상세 품목 목록 파싱
-          final items = (p['items'] as List?)?.map<Map<String, dynamic>>((item) => {
-            'id': item['id']?.toString() ?? '',
-            'productId': p['id']?.toString() ?? '',
-            'name': item['name'] ?? '패키지명 없음',
-            'description': item['description'] ?? '',
-            'price': item['price'] ?? 0,
-            'imageUrl': item['image'],
-            'housingTypes': item['housingTypes'] != null ? List<String>.from(item['housingTypes']) : <String>[],
-            'vendorName': p['vendorName'] ?? '업체명 없음',
-            'category': p['category'] ?? p['name'] ?? '기타',
+          final items = (p['items'] as List?)?.map<Map<String, dynamic>>((item) {
+            // 이미지 배열: images 필드 우선, 없으면 단일 image 필드에서 생성
+            final rawImages = item['images'];
+            List<String> imageList = [];
+            if (rawImages is List && rawImages.isNotEmpty) {
+              imageList = List<String>.from(rawImages);
+            } else if (item['image'] != null && item['image'].toString().isNotEmpty) {
+              imageList = [item['image'].toString()];
+            }
+
+            return {
+              'id': item['id']?.toString() ?? '',
+              'productId': p['id']?.toString() ?? '',
+              'name': item['name'] ?? '패키지명 없음',
+              'description': item['description'] ?? '',
+              'price': item['price'] ?? 0,
+              'imageUrl': item['image'],
+              'images': imageList, // 다중 이미지 배열
+              'housingTypes': item['housingTypes'] != null ? List<String>.from(item['housingTypes']) : <String>[],
+              'vendorName': p['vendorName'] ?? '업체명 없음',
+              'vendorPhone': p['vendorPhone'],
+              'category': p['category'] ?? p['name'] ?? '기타',
+            };
           }).toList() ?? [];
 
           return {
@@ -397,6 +439,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   // 품목 상세 팝업 (디자인: 6.고객용-품목 상세.jpg)
   void _showItemDetail(Map<String, dynamic> item) {
     final isInCart = _cartItemIds.contains(item['id']);
+    final isContracted = _contractedItemIds.contains(item['id']); // 계약 완료 여부
 
     showModalBottomSheet(
       context: context,
@@ -425,6 +468,36 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
+            // 이미지 가로 스크롤 (이미지가 있을 때만 표시)
+            if ((item['images'] as List?)?.isNotEmpty == true) ...[
+              SizedBox(
+                height: 160,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: (item['images'] as List).length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, idx) {
+                    final images = List<String>.from(item['images']);
+                    return GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ImageGalleryScreen(images: images, initialIndex: idx),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          width: 160,
+                          height: 160,
+                          child: buildSmartImage(images[idx], width: 160, height: 160),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             // 업체명
             Text(
               item['vendorName'] ?? '',
@@ -459,24 +532,64 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ]),
             ),
             const SizedBox(height: 24),
-            // 장바구니 담기/빼기 버튼
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () {
-                  _toggleCart(item);
-                  Navigator.pop(ctx);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isInCart ? AppColors.textSecondary : AppColors.primary,
-                  foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            // 계약 완료 시 비활성 버튼, 아니면 장바구니+전화 버튼
+            if (isContracted)
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: null, // 비활성화
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.textSecondary,
+                    foregroundColor: AppColors.white,
+                    disabledBackgroundColor: AppColors.textSecondary.withValues(alpha: 0.5),
+                    disabledForegroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('이미 계약된 품목입니다'),
                 ),
-                child: Text(isInCart ? '장바구니에서 빼기' : '장바구니 담기'),
+              )
+            else
+              Row(
+                children: [
+                  // 장바구니 버튼
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _toggleCart(item);
+                          Navigator.pop(ctx);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isInCart ? AppColors.textSecondary : AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        child: Text(isInCart ? '장바구니에서 빼기' : '장바구니 담기'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // 전화하기 버튼 (정사각형)
+                  SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () => _callVendor(item['vendorPhone'] as String?),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.background,
+                        foregroundColor: AppColors.textPrimary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: const Icon(Icons.phone, size: 22),
+                    ),
+                  ),
+                ],
               ),
-            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -484,12 +597,26 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  // 업체에게 전화하기
+  void _callVendor(String? phone) {
+    if (phone == null || phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('업체 연락처 정보가 없습니다')),
+      );
+      return;
+    }
+    launchUrl(Uri.parse('tel:$phone'));
+  }
+
   // 탭 전환 — IndexedStack으로 즉시 전환 (Navigator.push 없음)
   void _onTabChanged(int index) {
     if (index == _currentTabIndex) return;
     setState(() => _currentTabIndex = index);
-    // 홈 탭으로 돌아올 때 장바구니 변경사항 반영
-    if (index == 0) _loadCartItems();
+    // 홈 탭으로 돌아올 때 장바구니 변경사항 + 계약 완료 상태 반영
+    if (index == 0) {
+      _loadCartItems();
+      _loadContractedItems();
+    }
     // 장바구니 탭으로 전환 시 최신 데이터 로드
     if (index == 1) _cartKey.currentState?.reload();
   }
@@ -497,7 +624,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   // 탭별 AppBar 제목
   String get _appBarTitle {
     switch (_currentTabIndex) {
-      case 2: return '계약함';
+      case 2: return widget.eventTitle; // 계약함도 행사명 표시 (통일)
       case 3: return '마이페이지';
       default: return widget.eventTitle;
     }
@@ -632,105 +759,166 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   // isFirstItem: true이면 좌측 이미지 썸네일 표시, false이면 이미지 자리만큼 패딩
   Widget _buildItemCard(Map<String, dynamic> item, {bool isFirstItem = false}) {
     final isInCart = _cartItemIds.contains(item['id']);
+    final isContracted = _contractedItemIds.contains(item['id']); // 계약 완료 여부
     final formattedPrice = _priceFormat.format(item['price']);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 이미지 썸네일 — 첫번째 품목만 표시, 나머지는 동일 너비 패딩으로 정렬 맞춤
-          if (isFirstItem) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 72,
-                height: 72,
-                color: AppColors.background,
-                child: buildSmartImage(
-                  item['imageUrl'] as String?,
-                  width: 72,
-                  height: 72,
-                  placeholder: const Icon(Icons.image_outlined, color: AppColors.textHint),
+    return Opacity(
+      opacity: isContracted ? 0.5 : 1.0, // 계약 완료 품목은 반투명 처리
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 이미지 썸네일 — 첫번째 품목만 표시, 나머지는 동일 너비 패딩으로 정렬 맞춤
+            if (isFirstItem) ...[
+              GestureDetector(
+                onTap: () {
+                  // 이미지가 있으면 갤러리 뷰어 열기
+                  final images = List<String>.from(item['images'] ?? []);
+                  if (images.isNotEmpty) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ImageGalleryScreen(images: images),
+                      ),
+                    );
+                  }
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    color: AppColors.background,
+                    child: Stack(
+                      children: [
+                        buildSmartImage(
+                          item['imageUrl'] as String?,
+                          width: 72,
+                          height: 72,
+                          placeholder: const Icon(Icons.image_outlined, color: AppColors.textHint),
+                        ),
+                        // 다중 이미지 개수 뱃지 (2장 이상일 때)
+                        if ((item['images'] as List?)?.length != null && (item['images'] as List).length > 1)
+                          Positioned(
+                            right: 4,
+                            bottom: 4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${(item['images'] as List).length}',
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-          ] else ...[
-            // 이미지 없는 품목도 동일한 왼쪽 여백으로 텍스트 라인 정렬
-            const SizedBox(width: 84), // 72(이미지) + 12(간격)
-          ],
-          // 품목 정보
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 업체명 + 상세보기 버튼
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(item['vendorName'] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    GestureDetector(
-                      onTap: () => _showItemDetail(item),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text('상세보기', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                // 패키지명
-                Text(item['name'] ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                // 설명
-                if ((item['description'] as String?)?.isNotEmpty == true) ...[
-                  const SizedBox(height: 2),
-                  Text(item['description'], style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-                const SizedBox(height: 6),
-                // 가격 + 장바구니 버튼
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    RichText(
-                      text: TextSpan(children: [
-                        const TextSpan(text: '가격 : ', style: TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
-                        TextSpan(text: '$formattedPrice원', style: const TextStyle(fontSize: 14, color: AppColors.priceRed, fontWeight: FontWeight.w700)),
-                      ]),
-                    ),
-                    // 장바구니 담기 / 파란 V 체크 (탭으로 토글)
-                    GestureDetector(
-                      onTap: () => _toggleCart(item),
-                      child: isInCart
-                          ? Container(
-                              width: 28,
-                              height: 28,
-                              decoration: const BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.check, color: AppColors.white, size: 18),
-                            )
-                          : Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: AppColors.border),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.add, color: AppColors.textSecondary, size: 18),
+              const SizedBox(width: 12),
+            ] else ...[
+              // 이미지 없는 품목도 동일한 왼쪽 여백으로 텍스트 라인 정렬
+              const SizedBox(width: 84), // 72(이미지) + 12(간격)
+            ],
+            // 품목 정보
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 업체명 + 상세보기/계약완료 뱃지
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(item['vendorName'] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      if (isContracted)
+                        // 계약 완료 뱃지
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.textSecondary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text('계약완료', style: TextStyle(fontSize: 11, color: AppColors.white, fontWeight: FontWeight.w600)),
+                        )
+                      else
+                        GestureDetector(
+                          onTap: () => _showItemDetail(item),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppColors.border),
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                    ),
+                            child: const Text('상세보기', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // 패키지명
+                  Text(item['name'] ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  // 설명
+                  if ((item['description'] as String?)?.isNotEmpty == true) ...[
+                    const SizedBox(height: 2),
+                    Text(item['description'], style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
                   ],
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  // 가격 + 장바구니 버튼
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      RichText(
+                        text: TextSpan(children: [
+                          const TextSpan(text: '가격 : ', style: TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                          TextSpan(text: '$formattedPrice원', style: const TextStyle(fontSize: 14, color: AppColors.priceRed, fontWeight: FontWeight.w700)),
+                        ]),
+                      ),
+                      // 계약 완료 시 장바구니 버튼 비활성화
+                      if (isContracted)
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: AppColors.textSecondary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check, color: AppColors.white, size: 18),
+                        )
+                      else
+                        // 장바구니 담기 / 파란 V 체크 (탭으로 토글)
+                        GestureDetector(
+                          onTap: () => _toggleCart(item),
+                          child: isInCart
+                              ? Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.check, color: AppColors.white, size: 18),
+                                )
+                              : Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: AppColors.border),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.add, color: AppColors.textSecondary, size: 18),
+                                ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

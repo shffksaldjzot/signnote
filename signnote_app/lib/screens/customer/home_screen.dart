@@ -247,6 +247,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       return;
                     }
 
+                    // async 호출 전에 navigator 미리 캡처
+                    final navigator = Navigator.of(context);
+                    final ctxNavigator = Navigator.of(ctx);
+
                     // 서버에 평형 정보 저장
                     await _eventService.updateParticipantInfo(
                       eventId,
@@ -255,11 +259,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       housingType: selectedType,
                     );
 
-                    if (!mounted) return;
-                    Navigator.of(ctx).pop();
+                    if (!context.mounted) return;
+                    ctxNavigator.pop();
 
                     // 행사 상세로 이동
-                    Navigator.of(context).pushReplacement(
+                    navigator.pushReplacement(
                       MaterialPageRoute(
                         builder: (_) => EventDetailScreen(
                           eventId: eventId,

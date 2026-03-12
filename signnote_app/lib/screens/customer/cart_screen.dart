@@ -49,6 +49,8 @@ class CartScreenState extends State<CartScreen> {
   bool _agreedToTerms = false; // 동의 체크박스 상태
   String? _error;
   double _defaultDepositRate = AppConstants.depositRate; // 행사 기본 계약금 비율
+  String? _cancelDeadlineStart; // 취소 가능 시작일
+  String? _cancelDeadlineEnd;   // 취소 가능 종료일
 
   // 외부에서 호출 가능한 새로고침 메서드 (탭 전환 시 사용)
   void reload() {
@@ -70,9 +72,14 @@ class CartScreenState extends State<CartScreen> {
     if (result['success'] == true) {
       final event = result['event'] as Map<String, dynamic>? ?? {};
       final rate = event['depositRate'];
-      if (rate != null) {
-        setState(() => _defaultDepositRate = (rate as num).toDouble());
-      }
+      setState(() {
+        if (rate != null) {
+          _defaultDepositRate = (rate as num).toDouble();
+        }
+        // 취소 지정 기간 저장
+        _cancelDeadlineStart = event['cancelDeadlineStart']?.toString();
+        _cancelDeadlineEnd = event['cancelDeadlineEnd']?.toString();
+      });
     }
   }
 
@@ -142,8 +149,20 @@ class CartScreenState extends State<CartScreen> {
   // 잔금
   int get _remainAmount => _totalPrice - _depositAmount;
 
-  // 계약금 비율 퍼센트 표시 (혼합 비율일 경우 대표값)
-  int get _depositPercent => (_defaultDepositRate * 100).round();
+
+  // 취소 기간 안내 텍스트
+  String get _cancelPeriodText {
+    if (_cancelDeadlineStart == null || _cancelDeadlineEnd == null) return '';
+    try {
+      final start = DateTime.parse(_cancelDeadlineStart!);
+      final end = DateTime.parse(_cancelDeadlineEnd!);
+      final startStr = '${start.year}년 ${start.month.toString().padLeft(2, '0')}월 ${start.day.toString().padLeft(2, '0')}일';
+      final endStr = '${end.year}년 ${end.month.toString().padLeft(2, '0')}월 ${end.day.toString().padLeft(2, '0')}일';
+      return '취소는 취소기간 내에 가능합니다 [$startStr ~ $endStr까지]\n';
+    } catch (_) {
+      return '';
+    }
+  }
 
   // 숫자 콤마 표시
   String _formatPrice(int price) {
@@ -158,63 +177,11 @@ class CartScreenState extends State<CartScreen> {
     await _cartService.removeItem(id);
   }
 
-  // 계약하기 → 계약 API 호출 → 결제 화면으로 이동
+  // 계약하기 → 바로 계약 API 호출 → 결제 화면으로 이동 (확인 팝업 없이 바로 진행)
   void _handleContract() {
     if (_cartItems.isEmpty) return;
     if (!_agreedToTerms) return;
-
-    // 계약 확인 다이얼로그
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          '계약하시겠습니까?',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('선택 품목: ${_cartItems.length}개'),
-            const SizedBox(height: 4),
-            Text('합계: ${_formatPrice(_totalPrice)}원'),
-            const SizedBox(height: 4),
-            Text(
-              '계약금($_depositPercent%): ${_formatPrice(_depositAmount)}원',
-              style: const TextStyle(
-                color: AppColors.priceRed,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '계약 후 계약금 결제가 진행됩니다.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              _createContractAndPay();
-            },
-            child: const Text(
-              '계약하기',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    _createContractAndPay();
   }
 
   // 계약 API 호출 후 결제 화면으로 이동
@@ -463,9 +430,9 @@ class CartScreenState extends State<CartScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // 상세보기 버튼
+          // 상세보기 버튼 → 품목 상세 팝업
           OutlinedButton(
-            onPressed: () {}, // 상세보기 (추후 연동)
+            onPressed: () => _showItemDetail(item),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textSecondary,
               side: const BorderSide(color: AppColors.border),
@@ -534,6 +501,72 @@ class CartScreenState extends State<CartScreen> {
     );
   }
 
+  // 장바구니 품목 상세보기 팝업
+  void _showItemDetail(Map<String, dynamic> item) {
+    final price = (item['price'] as num?)?.toInt() ?? 0;
+    final rate = _getItemDepositRate(item);
+    final deposit = (price * rate).round();
+    final remain = price - deposit;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          item['productName'] ?? '품목 상세',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 업체명
+            Text('업체: ${item['vendorName'] ?? '-'}',
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            // 카테고리
+            if ((item['categoryName'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Text('품목: ${item['categoryName']}',
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            ],
+            // 설명
+            if ((item['description'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              Text(item['description'],
+                style: const TextStyle(fontSize: 13, height: 1.4)),
+            ],
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+            // 가격 정보
+            _buildDetailPriceRow('가격', '${_formatPrice(price)}원'),
+            const SizedBox(height: 4),
+            _buildDetailPriceRow('계약금', '${_formatPrice(deposit)}원', color: AppColors.priceRed),
+            const SizedBox(height: 4),
+            _buildDetailPriceRow('잔금', '${_formatPrice(remain)}원'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 상세보기 가격 행
+  Widget _buildDetailPriceRow(String label, String value, {Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, color: color ?? AppColors.textSecondary)),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? AppColors.textPrimary)),
+      ],
+    );
+  }
+
   // 동의 체크박스 + 안내 문구 (디자인: 7.고객용-장바구니.jpg)
   Widget _buildAgreementSection() {
     return Padding(
@@ -567,13 +600,14 @@ class CartScreenState extends State<CartScreen> {
               ],
             ),
           ),
-          // 상세 안내 문구
-          const Padding(
-            padding: EdgeInsets.only(left: 30, top: 8),
+          // 상세 안내 문구 (취소 기간 포함)
+          Padding(
+            padding: const EdgeInsets.only(left: 30, top: 8),
             child: Text(
               '지금 결제 하시면 모두 결제되는 것이 아니라 계약금만 결제되며, 잔금은 해당 업체와 직접 결제하시면 됩니다.\n'
+              '$_cancelPeriodText'
               '취소 지정 기간 이후 취소 건은 계약금 환불은 어렵습니다.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.5),
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.5),
             ),
           ),
         ],

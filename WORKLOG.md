@@ -712,7 +712,6 @@
 - [ ] Phase 5: PG 결제 실제 연동 — PG사 계약 필요
 - [ ] Phase 8: 세금계산서 자동 발행 (팝빌 API) — 보류
 - [ ] FCM/카카오 알림톡 키 설정 후 알림 활성화
-- [ ] 사업자등록증 이미지 실제 업로드 기능 (파일 스토리지 연동)
 - [ ] 앱 패키징 (APK/IPA) + 스토어 배포
 
 ### 2026-03-04 — 자동로그인 기능 + 주관사 사업자번호 확인
@@ -791,7 +790,6 @@
 - [ ] Phase 5: PG 결제 실제 연동 — PG사 계약 필요
 - [ ] Phase 8: 세금계산서 자동 발행 (팝빌 API) — 보류
 - [ ] FCM/카카오 알림톡 키 설정 후 알림 활성화
-- [ ] 사업자등록증 이미지 실제 업로드 기능 (파일 스토리지 연동)
 - [ ] 앱 패키징 (APK/IPA) + 스토어 배포
 - [ ] Firebase Studio 환경 인증 이슈 해결 (비대화형 터미널에서 `firebase login` 불가)
 
@@ -1974,6 +1972,52 @@ Product(1뎁스, 주관사가 생성하는 품목 카테고리)와 ProductItem(2
 
 #### 빌드 & 배포
 - [x] Flutter 빌드 에러 0건
-- [ ] Cloudflare Pages 프론트엔드 배포
-- [ ] git push (Render 백엔드 변경 없음)
+- [x] Cloudflare Pages 프론트엔드 배포
+- [x] git push 완료
+
+---
+
+### 2026-03-11 — 피드백 Batch 4 (6건) + 코드 정리
+
+#### 처리 내역
+
+1. **주관사 계약함 품목별 "상세보기" 버그 수정**
+   - `event_manage_screen.dart`: 상세보기 클릭 시 고객별 뷰 전환 → 아코디언 내 건별 계약 목록 표시로 변경
+   - 각 계약 카드 클릭 시 계약 상세보기(API 조회 후 이동)
+
+2. **협력업체 홈 행사카드 알림 배지 + 알림탭 숫자 배지**
+   - `vendor/home_screen.dart`: NotificationService.getUnreadCountByEvents() 연동, EventCard에 notificationCount 전달
+   - `vendor/event_detail_screen.dart`: 알림 탭 헤더에 읽지 않은 알림 수 빨간 배지 표시
+
+3. **고객 계약서 하단 취소 안내 문구 추가**
+   - `customer/contract_detail_screen.dart`: 환불 안내 아래 주황색 박스로 "계약 취소는 협력업체에 직접 연락" 안내
+
+4. **주관사 고객관리 최근 참여순 정렬**
+   - `signnote_server/src/events/events.service.ts`: getParticipants orderBy joinedAt 'asc' → 'desc' 변경
+
+5. **주관사 참여업체 목록에 배정 품목 표시**
+   - `event_manage_screen.dart`: _showVendorListPanel()에서 _products의 vendorId별 품목명 추출, 업체명 옆에 괄호로 표시
+
+6. **협력업체 이미지 1뎁스당 1장 제한 + 주관사 이미지 열람**
+   - `vendor/event_detail_screen.dart`: _buildProductItemCard에 isFirstItem 파라미터 추가, 첫 번째 item만 이미지 표시
+   - `event_manage_screen.dart`: _buildItemsList에서 첫 번째 item 이미지를 "상세 품목" 라벨 아래 왼쪽에 72x72 썸네일 표시, 클릭→크게보기 다이얼로그
+   - items 파싱에 imageUrl 필드 추가
+
+#### 코드 정리 (flutter analyze 12건 → 0건)
+- `customer/event_detail_screen.dart`: 미사용 import 제거 (go_router, routes)
+- `event_manage_screen.dart`: 미사용 변수(index) 제거, 불필요 non-null assertion 제거, 불필요 brace 정리
+- `common/profile_edit_screen.dart`: mounted 체크 추가 (use_build_context_synchronously)
+- `customer/home_screen.dart`: async 전 navigator 캡처
+- `onboarding/entry_code_screen.dart`: async 전 router/navigator 캡처
+- `organizer/web/dashboard_page.dart`: _settlements ignore 주석 추가
+
+#### 변경 파일
+**프론트엔드 (8개):** vendor/home_screen.dart, vendor/event_detail_screen.dart, customer/contract_detail_screen.dart, customer/event_detail_screen.dart, customer/home_screen.dart, organizer/event_manage_screen.dart, organizer/web/dashboard_page.dart, onboarding/entry_code_screen.dart, common/profile_edit_screen.dart
+**백엔드 (1개):** events/events.service.ts
+
+#### 빌드 & 배포
+- [x] Flutter analyze 0건 (12건 전부 해결)
+- [x] Flutter 빌드 성공
+- [x] Cloudflare Pages 프론트엔드 배포 완료
+- [x] git push (Render 백엔드 자동 배포)
 
