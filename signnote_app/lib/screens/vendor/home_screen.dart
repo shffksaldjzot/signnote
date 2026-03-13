@@ -284,54 +284,65 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
 
     // 신규 업체(행사 없음) → 첫 페이지처럼 코드 입력 안내 (1.업체용-첫 페이지.jpg)
     if (_events.isEmpty) {
-      return _buildFirstTimeView();
+      // 당겨서 새로고침 지원
+      return RefreshIndicator(
+        onRefresh: _loadEvents,
+        color: AppColors.vendor,
+        child: _buildFirstTimeView(),
+      );
     }
 
-    // 행사가 있으면 그리드 (+ 카드는 맨 뒤)
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.72,
-      ),
-      itemCount: _events.length + 1,
-      itemBuilder: (context, index) {
-        // 맨 앞에 + 추가 카드 (순차 등장 애니메이션 적용)
-        if (index == 0) {
+    // 행사가 있으면 그리드 (+ 카드는 맨 뒤) — 당겨서 새로고침 지원
+    return RefreshIndicator(
+      onRefresh: _loadEvents,
+      color: AppColors.vendor,
+      child: GridView.builder(
+        // RefreshIndicator가 동작하려면 항상 스크롤 가능해야 함
+        physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.72,
+        ),
+        itemCount: _events.length + 1,
+        itemBuilder: (context, index) {
+          // 맨 앞에 + 추가 카드 (순차 등장 애니메이션 적용)
+          if (index == 0) {
+            return AnimatedListItem(
+              index: index,
+              child: AddEventCard(onTap: _showEntryCodePopup),
+            );
+          }
+
+          final event = _events[index - 1];
+          final eventId = event['id']?.toString() ?? '';
+          // 행사 카드 순차 등장 애니메이션
           return AnimatedListItem(
             index: index,
-            child: AddEventCard(onTap: _showEntryCodePopup),
-          );
-        }
-
-        final event = _events[index - 1];
-        final eventId = event['id']?.toString() ?? '';
-        // 행사 카드 순차 등장 애니메이션
-        return AnimatedListItem(
-          index: index,
-          child: EventCard(
-            title: event['title'],
-            eventId: eventId, // Hero 애니메이션 태그용
-            coverImageUrl: event['coverImageUrl'],
-            startDate: event['startDate'],
-            endDate: event['endDate'],
-            notificationCount: _unreadCounts[eventId] ?? 0,  // 알림 배지 숫자
-            onTap: () {
-              // 페이드+슬라이드 전환 애니메이션 적용
-              Navigator.of(context).push(
-                heroFadeSlideRoute(
-                  VendorEventDetailScreen(
-                    eventId: event['id'],
-                    eventTitle: event['title'],
+            child: EventCard(
+              title: event['title'],
+              eventId: eventId, // Hero 애니메이션 태그용
+              coverImageUrl: event['coverImageUrl'],
+              startDate: event['startDate'],
+              endDate: event['endDate'],
+              notificationCount: _unreadCounts[eventId] ?? 0,  // 알림 배지 숫자
+              onTap: () {
+                // 페이드+슬라이드 전환 애니메이션 적용
+                Navigator.of(context).push(
+                  heroFadeSlideRoute(
+                    VendorEventDetailScreen(
+                      eventId: event['id'],
+                      eventTitle: event['title'],
+                    ),
                   ),
-                ),
-              ).then((_) => _loadUnreadCounts());  // 돌아오면 알림 수 갱신
-            },
-            onMoreTap: () => _showEventMenu(event),
-          ),
-        );
-      },
+                ).then((_) => _loadUnreadCounts());  // 돌아오면 알림 수 갱신
+              },
+              onMoreTap: () => _showEventMenu(event),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -340,6 +351,8 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
     final codeController = TextEditingController();
 
     return SingleChildScrollView(
+      // RefreshIndicator가 동작하려면 항상 스크롤 가능해야 함
+      physics: const AlwaysScrollableScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

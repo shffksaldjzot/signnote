@@ -216,64 +216,71 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.only(bottom: 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.72,
-      ),
-      itemCount: _events.length + 1,
-      itemBuilder: (context, index) {
-        // 맨 앞 + 추가 카드 (순차 등장 애니메이션 적용)
-        if (index == 0) {
+    // 당겨서 새로고침 지원
+    return RefreshIndicator(
+      onRefresh: _loadEvents,
+      color: AppColors.organizer,
+      child: GridView.builder(
+        // RefreshIndicator가 동작하려면 항상 스크롤 가능해야 함
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.72,
+        ),
+        itemCount: _events.length + 1,
+        itemBuilder: (context, index) {
+          // 맨 앞 + 추가 카드 (순차 등장 애니메이션 적용)
+          if (index == 0) {
+            return AnimatedListItem(
+              index: index,
+              child: AddEventCard(
+                onTap: () async {
+                  final result = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (_) => const OrganizerEventFormScreen(),
+                    ),
+                  );
+                  if (result == true) _loadEvents();
+                },
+              ),
+            );
+          }
+
+          final event = _events[index - 1];
+          final eventId = event['id'] as String;
+          // 행사 카드 순차 등장 애니메이션
           return AnimatedListItem(
             index: index,
-            child: AddEventCard(
-              onTap: () async {
-                final result = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) => const OrganizerEventFormScreen(),
+            child: EventCard(
+              title: event['title'],
+              eventId: eventId, // Hero 애니메이션 태그용
+              organizerName: event['organizerName'],
+              coverImageUrl: event['coverImageUrl'],
+              startDate: event['startDate'],
+              endDate: event['endDate'],
+              badgeColor: AppColors.organizer, // 주황색 D-day 뱃지
+              notificationCount: _unreadCounts[eventId] ?? 0,
+              onTap: () {
+                // 페이드+슬라이드 전환 애니메이션 적용
+                Navigator.of(context).push(
+                  heroFadeSlideRoute(
+                    OrganizerEventManageScreen(
+                      eventId: eventId,
+                      eventTitle: event['title'],
+                      entryCode: event['entryCode'],
+                      vendorEntryCode: event['vendorEntryCode'],
+                    ),
                   ),
-                );
-                if (result == true) _loadEvents();
+                ).then((_) => _loadUnreadCounts());
               },
+              onMoreTap: () => _showEventMenu(event),
             ),
           );
-        }
-
-        final event = _events[index - 1];
-        final eventId = event['id'] as String;
-        // 행사 카드 순차 등장 애니메이션
-        return AnimatedListItem(
-          index: index,
-          child: EventCard(
-            title: event['title'],
-            eventId: eventId, // Hero 애니메이션 태그용
-            organizerName: event['organizerName'],
-            coverImageUrl: event['coverImageUrl'],
-            startDate: event['startDate'],
-            endDate: event['endDate'],
-            badgeColor: AppColors.organizer, // 주황색 D-day 뱃지
-            notificationCount: _unreadCounts[eventId] ?? 0,
-            onTap: () {
-              // 페이드+슬라이드 전환 애니메이션 적용
-              Navigator.of(context).push(
-                heroFadeSlideRoute(
-                  OrganizerEventManageScreen(
-                    eventId: eventId,
-                    eventTitle: event['title'],
-                    entryCode: event['entryCode'],
-                    vendorEntryCode: event['vendorEntryCode'],
-                  ),
-                ),
-              ).then((_) => _loadUnreadCounts());
-            },
-            onMoreTap: () => _showEventMenu(event),
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 

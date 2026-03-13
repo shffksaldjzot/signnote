@@ -72,6 +72,14 @@ class EventCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     color: AppColors.background,
+                    // 카드 그림자 (은은한 입체감)
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                     image: coverImageUrl != null
                         ? DecorationImage(
                             image: _resolveImage(coverImageUrl!),

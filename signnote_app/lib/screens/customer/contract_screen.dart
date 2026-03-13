@@ -181,8 +181,14 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
     return Column(
       children: [
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(24),
+          // 당겨서 새로고침 지원
+          child: RefreshIndicator(
+            onRefresh: _loadContracts,
+            color: AppColors.customer,
+            child: ListView(
+              // RefreshIndicator가 동작하려면 항상 스크롤 가능해야 함
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(24),
             children: [
               // 계약함 헤더 + 전체 선택 체크박스
               Row(
@@ -267,6 +273,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                 });
               }(),
             ],
+          ),
           ),
         ),
         // 하단: 선택 다운로드 / 전체 다운로드 버튼

@@ -271,12 +271,18 @@ class CartScreenState extends State<CartScreen> {
       );
     }
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // "장바구니 >" 부제목
-          const Padding(
+    // 당겨서 새로고침 지원
+    return RefreshIndicator(
+      onRefresh: _loadCartItems,
+      color: AppColors.customer,
+      child: SingleChildScrollView(
+        // RefreshIndicator가 동작하려면 항상 스크롤 가능해야 함
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // "장바구니 >" 부제목
+            const Padding(
             padding: EdgeInsets.fromLTRB(24, 12, 24, 8),
             child: Row(
               children: [
@@ -323,6 +329,7 @@ class CartScreenState extends State<CartScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

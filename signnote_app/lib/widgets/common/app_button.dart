@@ -63,6 +63,31 @@ class _AppButtonState extends State<AppButton> {
   // 버튼이 눌려있는지 여부 (눌리면 살짝 줄어드는 애니메이션용)
   bool _isPressed = false;
 
+  // 역할별 그라데이션 반환 (outlined 버튼은 null)
+  LinearGradient? _getGradient() {
+    // 테두리 버튼은 그라데이션 없음
+    if (widget.backgroundColor == AppColors.white) return null;
+
+    // 비활성 상태: 회색 그라데이션
+    if (!widget.enabled) {
+      return const LinearGradient(
+        colors: [Color(0xFFBDBDBD), Color(0xFF9E9E9E)],
+      );
+    }
+
+    // 검정 버튼 (업체/주관사용): 검정 그라데이션
+    if (widget.backgroundColor == AppColors.primaryDark) {
+      return const LinearGradient(
+        colors: [Color(0xFF222222), Color(0xFF000000)],
+      );
+    }
+
+    // 기본/고객용: 파란 그라데이션
+    return const LinearGradient(
+      colors: [Color(0xFF2D6EFF), Color(0xFF1A5AE0)],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 테두리 버튼인지 확인 (배경이 흰색이면 테두리 버튼)
@@ -70,6 +95,9 @@ class _AppButtonState extends State<AppButton> {
 
     // 버튼 활성 상태일 때만 축소 애니메이션 적용
     final bool isActive = widget.enabled && !widget.isLoading;
+
+    // 그라데이션 (outlined이면 null)
+    final gradient = _getGradient();
 
     return GestureDetector(
       // 누르는 순간 살짝 줄어듦
@@ -85,21 +113,43 @@ class _AppButtonState extends State<AppButton> {
         child: SizedBox(
           width: double.infinity,   // 가로 꽉 차게
           height: 52,               // 높이 52 (디자인 기준)
-          child: ElevatedButton(
-            onPressed: isActive ? widget.onPressed : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.enabled ? widget.backgroundColor : AppColors.border,
-              foregroundColor: widget.textColor,
-              elevation: 0,           // 그림자 없음
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: isOutlined
-                    ? const BorderSide(color: AppColors.border)
-                    : BorderSide.none,
-              ),
-            ),
-            child: _buildChild(),
-          ),
+          // 그라데이션이 있으면 Container로 감싸서 적용
+          child: gradient != null
+              ? Container(
+                  decoration: BoxDecoration(
+                    gradient: gradient,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: isActive ? widget.onPressed : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent, // 투명 (그라데이션 보이게)
+                      shadowColor: Colors.transparent,     // 그림자 없음
+                      foregroundColor: widget.textColor,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _buildChild(),
+                  ),
+                )
+              // 테두리 버튼(outlined)은 기존 방식 유지
+              : ElevatedButton(
+                  onPressed: isActive ? widget.onPressed : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.enabled ? widget.backgroundColor : AppColors.border,
+                    foregroundColor: widget.textColor,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: isOutlined
+                          ? const BorderSide(color: AppColors.border)
+                          : BorderSide.none,
+                    ),
+                  ),
+                  child: _buildChild(),
+                ),
         ),
       ),
     );

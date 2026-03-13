@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 
@@ -25,34 +26,40 @@ class AppModal {
     return showDialog<T>(
       context: context,
       barrierDismissible: dismissible,
+      // 반투명 배경 (블러 효과와 함께 사용)
+      barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (context) {
-        return Dialog(
-          backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,  // 내용 크기만큼만
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 제목 (있으면 표시)
-                if (title != null) ...[
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+        // 배경 블러 처리 (유리 느낌)
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Dialog(
+            backgroundColor: AppColors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,  // 내용 크기만큼만
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 제목 (있으면 표시)
+                  if (title != null) ...[
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
+                  ],
+                  // 내용
+                  child,
                 ],
-                // 내용
-                child,
-              ],
+              ),
             ),
           ),
         );
@@ -72,6 +79,8 @@ class AppModal {
       isDismissible: dismissible,
       isScrollControlled: true,   // 내용 크기에 맞게 높이 조절
       backgroundColor: AppColors.white,
+      // 반투명 배경 (블러 효과와 함께 사용)
+      barrierColor: Colors.black.withValues(alpha: 0.3),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -109,4 +118,21 @@ class AppModal {
       },
     );
   }
+}
+
+// 블러 배경 다이얼로그 표시 (AppModal 밖에서도 간편하게 사용 가능)
+Future<T?> showBlurDialog<T>({
+  required BuildContext context,
+  required Widget child,
+}) {
+  return showDialog<T>(
+    context: context,
+    // 반투명 배경
+    barrierColor: Colors.black.withValues(alpha: 0.3),
+    builder: (context) => BackdropFilter(
+      // 배경 블러 처리 (유리 느낌)
+      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+      child: child,
+    ),
+  );
 }

@@ -335,7 +335,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ? const SkeletonList(itemCount: 3) // 로딩 중 스켈레톤 표시
               : _error != null
                   ? Center(child: Text(_error!, style: const TextStyle(color: AppColors.priceRed)))
-                  : _buildEntryCodePage(),
+                  // 당겨서 새로고침 지원
+              : RefreshIndicator(
+                  onRefresh: _checkExistingEvent,
+                  color: AppColors.customer,
+                  child: _buildEntryCodePage(),
+                ),
         ),
         bottomNavigationBar: AppTabBar.customer(
           currentIndex: _currentTabIndex,
@@ -347,9 +352,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   // 코드 입력 페이지 (디자인: 1.고객용-첫 페이지.jpg)
   Widget _buildEntryCodePage() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
+    return SingleChildScrollView(
+      // RefreshIndicator가 동작하려면 항상 스크롤 가능해야 함
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 32),
@@ -389,6 +397,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

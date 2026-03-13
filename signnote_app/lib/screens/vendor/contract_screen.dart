@@ -456,14 +456,19 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
             ],
           ),
         ),
-        // 계약 카드 목록 (필터 적용)
+        // 계약 카드 목록 (필터 적용) — 당겨서 새로고침 지원
         Expanded(
           child: filtered.isEmpty
               ? const Center(
                   child: Text('검색 결과가 없습니다', style: TextStyle(color: AppColors.textSecondary)),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+              : RefreshIndicator(
+                  onRefresh: _loadContracts,
+                  color: AppColors.vendor,
+                  child: ListView.separated(
+                    // RefreshIndicator가 동작하려면 항상 스크롤 가능해야 함
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
@@ -529,6 +534,7 @@ class _VendorContractScreenState extends State<VendorContractScreen> {
                       ],
                     );
                   },
+                ),
                 ),
         ),
         // 하단: 선택 다운로드 버튼 (선택 없으면 비활성화)

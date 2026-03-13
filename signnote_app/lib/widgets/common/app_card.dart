@@ -49,6 +49,14 @@ class AppCard extends StatelessWidget {
         color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor, width: 0.5),
+        // 카드 그림자 (은은한 입체감)
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: child,
     );
