@@ -17,6 +17,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool showBackButton;        // 뒤로가기 버튼 표시 여부
   final VoidCallback? onBackPressed; // 뒤로가기 눌렀을 때 (기본: 이전 화면으로)
   final List<Widget>? actions;      // 오른쪽에 넣을 버튼들 (선택사항)
+  final String? heroTag;            // Hero 애니메이션 태그 (카드→상세 전환용)
 
   const AppHeader({
     super.key,
@@ -24,6 +25,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     this.showBackButton = true,
     this.onBackPressed,
     this.actions,
+    this.heroTag,
   });
 
   @override
@@ -47,15 +49,30 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
             )
           : null,
       automaticallyImplyLeading: false,
-      // 가운데 제목
-      title: Text(
-        title,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      // 가운데 제목 (Hero 태그가 있으면 애니메이션 연결)
+      title: heroTag != null
+          ? Hero(
+              tag: heroTag!,
+              child: Material(
+                color: Colors.transparent,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            )
+          : Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
       // 오른쪽 버튼들
       actions: actions,
       // 하단 구분선

@@ -3,10 +3,13 @@ import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../widgets/layout/app_tab_bar.dart';
+import '../../widgets/common/skeleton_loading.dart';
 import '../../widgets/event/event_card.dart';
 import '../../services/event_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../utils/app_transitions.dart';
+import '../../widgets/common/animated_list_item.dart';
 import 'event_detail_screen.dart';
 
 // ============================================
@@ -262,7 +265,7 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
   // 본문 영역
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.vendor));
+      return const SkeletonList(itemCount: 3); // 로딩 중 스켈레톤 표시
     }
     if (_error != null) {
       return Center(
@@ -294,31 +297,39 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
       ),
       itemCount: _events.length + 1,
       itemBuilder: (context, index) {
-        // 맨 앞에 + 추가 카드
+        // 맨 앞에 + 추가 카드 (순차 등장 애니메이션 적용)
         if (index == 0) {
-          return AddEventCard(onTap: _showEntryCodePopup);
+          return AnimatedListItem(
+            index: index,
+            child: AddEventCard(onTap: _showEntryCodePopup),
+          );
         }
 
         final event = _events[index - 1];
         final eventId = event['id']?.toString() ?? '';
-        return EventCard(
-          title: event['title'],
-          coverImageUrl: event['coverImageUrl'],
-          startDate: event['startDate'],
-          endDate: event['endDate'],
-          notificationCount: _unreadCounts[eventId] ?? 0,  // 알림 배지 숫자
-          onTap: () {
-            // 행사 상세 (3탭) 화면으로 이동
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => VendorEventDetailScreen(
-                  eventId: event['id'],
-                  eventTitle: event['title'],
+        // 행사 카드 순차 등장 애니메이션
+        return AnimatedListItem(
+          index: index,
+          child: EventCard(
+            title: event['title'],
+            eventId: eventId, // Hero 애니메이션 태그용
+            coverImageUrl: event['coverImageUrl'],
+            startDate: event['startDate'],
+            endDate: event['endDate'],
+            notificationCount: _unreadCounts[eventId] ?? 0,  // 알림 배지 숫자
+            onTap: () {
+              // 페이드+슬라이드 전환 애니메이션 적용
+              Navigator.of(context).push(
+                heroFadeSlideRoute(
+                  VendorEventDetailScreen(
+                    eventId: event['id'],
+                    eventTitle: event['title'],
+                  ),
                 ),
-              ),
-            ).then((_) => _loadUnreadCounts());  // 돌아오면 알림 수 갱신
-          },
-          onMoreTap: () => _showEventMenu(event),
+              ).then((_) => _loadUnreadCounts());  // 돌아오면 알림 수 갱신
+            },
+            onMoreTap: () => _showEventMenu(event),
+          ),
         );
       },
     );

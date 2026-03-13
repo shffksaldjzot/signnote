@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../config/theme.dart';
 import '../../services/event_service.dart';
 import '../../utils/number_formatter.dart';
+import '../../widgets/common/success_animation.dart';
 
 // ============================================
 // 주관사용 행사 생성/수정 폼 (2차 디자인)
@@ -320,14 +321,17 @@ class _OrganizerEventFormScreenState extends State<OrganizerEventFormScreen> {
 
     if (result['success'] == true) {
       if (!_isEditMode) {
+        // 행사 생성 성공 애니메이션 표시 후 참여 코드 다이얼로그 표시
+        await showSuccessDialog(context, '행사가 생성되었습니다');
+        if (!mounted) return;
         final event = result['event'] ?? {};
         final entryCode = event['entryCode']?.toString() ?? '------';
         final vendorCode = event['vendorEntryCode']?.toString() ?? '------';
         _showEntryCodeDialog(entryCode, vendorCode);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('행사가 수정되었습니다')),
-        );
+        // 행사 수정 성공 애니메이션 표시 후 이전 화면으로 이동
+        await showSuccessDialog(context, '행사가 수정되었습니다');
+        if (!mounted) return;
         Navigator.of(context).pop(true);
       }
     } else {

@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/skeleton_loading.dart';
 import '../../services/product_service.dart';
 import '../../services/cart_service.dart';
 import '../../services/event_service.dart';
@@ -637,6 +638,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       appBar: AppHeader(
         title: _appBarTitle,
         showBackButton: false,
+        // Hero 애니메이션: 행사 카드 제목과 연결
+        heroTag: 'event_title_${widget.eventId}',
       ),
       // IndexedStack: 모든 탭 위젯을 유지하며 현재 탭만 표시
       body: IndexedStack(
@@ -708,7 +711,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   // 품목 목록 (1뎁스 아코디언 → 2뎁스 카드)
   Widget _buildProductList() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList(itemCount: 4); // 로딩 중 스켈레톤 표시
     }
     if (_error != null) {
       return EmptyState(

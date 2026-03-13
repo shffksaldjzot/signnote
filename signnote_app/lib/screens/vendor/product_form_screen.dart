@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
+import '../../widgets/common/success_animation.dart';
 import '../../services/product_service.dart';
 import '../../services/event_service.dart';
 import '../../utils/number_formatter.dart';
@@ -193,9 +194,9 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isEditMode ? '품목이 수정되었습니다' : '품목이 등록되었습니다')),
-      );
+      // 품목 추가/수정 성공 애니메이션 표시 후 이전 화면으로 이동
+      await showSuccessDialog(context, _isEditMode ? '품목이 수정되었습니다' : '품목이 추가되었습니다');
+      if (!mounted) return;
       Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

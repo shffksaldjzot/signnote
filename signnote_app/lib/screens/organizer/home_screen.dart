@@ -4,10 +4,13 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../widgets/event/event_card.dart';
+import '../../widgets/common/skeleton_loading.dart';
 import '../../services/event_service.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../utils/app_transitions.dart';
+import '../../widgets/common/animated_list_item.dart';
 import 'event_form_screen.dart';
 import 'event_manage_screen.dart';
 
@@ -196,7 +199,7 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
   // 본문 영역: 로딩 / 에러 / 행사 목록 분기
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.organizer));
+      return const SkeletonList(itemCount: 3); // 로딩 중 스켈레톤 표시
     }
     if (_error != null) {
       return Center(
@@ -223,43 +226,52 @@ class _OrganizerHomeScreenState extends State<OrganizerHomeScreen> {
       ),
       itemCount: _events.length + 1,
       itemBuilder: (context, index) {
-        // 맨 앞 + 추가 카드
+        // 맨 앞 + 추가 카드 (순차 등장 애니메이션 적용)
         if (index == 0) {
-          return AddEventCard(
-            onTap: () async {
-              final result = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(
-                  builder: (_) => const OrganizerEventFormScreen(),
-                ),
-              );
-              if (result == true) _loadEvents();
-            },
+          return AnimatedListItem(
+            index: index,
+            child: AddEventCard(
+              onTap: () async {
+                final result = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => const OrganizerEventFormScreen(),
+                  ),
+                );
+                if (result == true) _loadEvents();
+              },
+            ),
           );
         }
 
         final event = _events[index - 1];
         final eventId = event['id'] as String;
-        return EventCard(
-          title: event['title'],
-          organizerName: event['organizerName'],
-          coverImageUrl: event['coverImageUrl'],
-          startDate: event['startDate'],
-          endDate: event['endDate'],
-          badgeColor: AppColors.organizer, // 주황색 D-day 뱃지
-          notificationCount: _unreadCounts[eventId] ?? 0,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => OrganizerEventManageScreen(
-                  eventId: eventId,
-                  eventTitle: event['title'],
-                  entryCode: event['entryCode'],
-                  vendorEntryCode: event['vendorEntryCode'],
+        // 행사 카드 순차 등장 애니메이션
+        return AnimatedListItem(
+          index: index,
+          child: EventCard(
+            title: event['title'],
+            eventId: eventId, // Hero 애니메이션 태그용
+            organizerName: event['organizerName'],
+            coverImageUrl: event['coverImageUrl'],
+            startDate: event['startDate'],
+            endDate: event['endDate'],
+            badgeColor: AppColors.organizer, // 주황색 D-day 뱃지
+            notificationCount: _unreadCounts[eventId] ?? 0,
+            onTap: () {
+              // 페이드+슬라이드 전환 애니메이션 적용
+              Navigator.of(context).push(
+                heroFadeSlideRoute(
+                  OrganizerEventManageScreen(
+                    eventId: eventId,
+                    eventTitle: event['title'],
+                    entryCode: event['entryCode'],
+                    vendorEntryCode: event['vendorEntryCode'],
+                  ),
                 ),
-              ),
-            ).then((_) => _loadUnreadCounts());
-          },
-          onMoreTap: () => _showEventMenu(event),
+              ).then((_) => _loadUnreadCounts());
+            },
+            onMoreTap: () => _showEventMenu(event),
+          ),
         );
       },
     );

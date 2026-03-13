@@ -287,10 +287,17 @@ class _OrganizerEventManageScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(
-                child: Text(
-                  widget.eventTitle,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                  overflow: TextOverflow.ellipsis,
+                // Hero 애니메이션: 행사 카드 제목과 연결
+                child: Hero(
+                  tag: 'event_title_${widget.eventId}',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Text(
+                      widget.eventTitle,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 4),

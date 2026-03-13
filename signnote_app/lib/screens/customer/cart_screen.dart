@@ -4,6 +4,7 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/success_animation.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../services/cart_service.dart';
 import '../../services/contract_service.dart';
@@ -206,6 +207,9 @@ class CartScreenState extends State<CartScreen> {
 
     if (result['success']) {
       final contracts = List<Map<String, dynamic>>.from(result['contracts']);
+      // 계약 완료 성공 애니메이션 표시 후 결제 화면으로 이동
+      await showSuccessDialog(context, '계약이 완료되었습니다');
+      if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => PaymentScreen(

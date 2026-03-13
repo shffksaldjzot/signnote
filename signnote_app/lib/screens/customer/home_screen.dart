@@ -4,8 +4,10 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../config/routes.dart';
 import '../../widgets/layout/app_tab_bar.dart';
+import '../../widgets/common/skeleton_loading.dart';
 import '../../services/event_service.dart';
 import '../../services/auth_service.dart';
+import '../../utils/app_transitions.dart';
 import 'event_detail_screen.dart';
 import 'cart_screen.dart';
 import 'contract_screen.dart';
@@ -94,9 +96,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   void _goToEventDetail() {
     if (_currentEvent == null) return;
 
+    // 페이드+슬라이드 전환 애니메이션 적용
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => EventDetailScreen(
+      fadeSlideRoute(
+        EventDetailScreen(
           eventId: _currentEvent!['id'],
           eventTitle: _currentEvent!['title'],
         ),
@@ -262,10 +265,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     if (!context.mounted) return;
                     ctxNavigator.pop();
 
-                    // 행사 상세로 이동
+                    // 행사 상세로 이동 (페이드+슬라이드 전환 애니메이션)
                     navigator.pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => EventDetailScreen(
+                      fadeSlideRoute(
+                        EventDetailScreen(
                           eventId: eventId,
                           eventTitle: eventTitle,
                         ),
@@ -329,7 +332,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         backgroundColor: AppColors.white,
         body: SafeArea(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const SkeletonList(itemCount: 3) // 로딩 중 스켈레톤 표시
               : _error != null
                   ? Center(child: Text(_error!, style: const TextStyle(color: AppColors.priceRed)))
                   : _buildEntryCodePage(),

@@ -21,6 +21,7 @@ import '../common/badge_icon.dart';
 
 class EventCard extends StatelessWidget {
   final String title;             // 행사명
+  final String? eventId;          // 행사 ID (Hero 애니메이션 태그용)
   final String? organizerName;    // 주관사명 (누가 개최했는지)
   final String? coverImageUrl;    // 커버 이미지 URL (없으면 기본 이미지)
   final DateTime? startDate;      // 시작일 (null 가능)
@@ -33,6 +34,7 @@ class EventCard extends StatelessWidget {
   const EventCard({
     super.key,
     required this.title,
+    this.eventId,
     this.organizerName,
     this.coverImageUrl,
     this.startDate,
@@ -113,17 +115,35 @@ class EventCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // 행사명
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+          // 행사명 (Hero 애니메이션으로 상세 화면과 연결)
+          if (eventId != null)
+            Hero(
+              tag: 'event_title_$eventId',
+              child: Material(
+                color: Colors.transparent,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            )
+          else
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,  // 길면 ... 처리
-          ),
           // 주관사명 (있을 때만 표시)
           if (organizerName != null) ...[
             const SizedBox(height: 2),

@@ -8,6 +8,8 @@ import '../../config/routes.dart';
 import '../../widgets/layout/app_header.dart';
 import '../../widgets/layout/app_tab_bar.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/skeleton_loading.dart';
+import '../../widgets/common/animated_list_item.dart';
 import '../../services/contract_service.dart';
 import '../../utils/image_download.dart';
 import 'contract_detail_screen.dart';
@@ -163,7 +165,7 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_isLoading) return const SkeletonList(itemCount: 3); // 로딩 중 스켈레톤 표시
     if (_error != null) {
       return EmptyState(icon: Icons.error_outline, message: _error!, actionLabel: '다시 시도', onAction: _loadContracts);
     }
@@ -227,30 +229,43 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              // 카테고리별 그룹핑
-              ...grouped.entries.map((entry) {
-                final category = entry.key;
-                final contracts = entry.value;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 카테고리 헤더
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(8),
+              // 카테고리별 그룹핑 (순차 등장 애니메이션 적용)
+              ...() {
+                int animIndex = 0; // 전체 순차 인덱스 (카테고리 헤더 + 카드)
+                return grouped.entries.map((entry) {
+                  final category = entry.key;
+                  final contracts = entry.value;
+                  final headerIndex = animIndex++;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 카테고리 헤더 (순차 등장 애니메이션)
+                      AnimatedListItem(
+                        index: headerIndex,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        ),
                       ),
-                      child: Text(category, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(height: 8),
-                    // 계약 카드들
-                    ...contracts.map((c) => _buildContractCard(c)),
-                    const SizedBox(height: 12),
-                  ],
-                );
-              }),
+                      const SizedBox(height: 8),
+                      // 계약 카드들 (순차 등장 애니메이션)
+                      ...contracts.map((c) {
+                        final cardIndex = animIndex++;
+                        return AnimatedListItem(
+                          index: cardIndex,
+                          child: _buildContractCard(c),
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                    ],
+                  );
+                });
+              }(),
             ],
           ),
         ),
