@@ -148,7 +148,12 @@ class _CustomerContractScreenState extends State<CustomerContractScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: const AppHeader(title: '계약함', showBackButton: false),
+      appBar: AppHeader(
+        title: _contracts.isNotEmpty
+            ? _contracts.first['eventTitle']?.toString() ?? '계약함'
+            : '계약함',
+        showBackButton: false,
+      ),
       body: _buildBody(),
       bottomNavigationBar: AppTabBar.customer(
         currentIndex: _currentTabIndex,
