@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../config/theme.dart';
-import '../../../config/routes.dart';
-import '../../../services/event_service.dart';
-import '../../../services/product_service.dart';
-import '../../../services/contract_service.dart';
+import '../../config/theme.dart';
+import '../../config/routes.dart';
+import '../../services/event_service.dart';
+import '../../services/product_service.dart';
+import '../../services/contract_service.dart';
 
 // ============================================
 // 품목 상세 페이지 (Product Detail) — 3뎁스

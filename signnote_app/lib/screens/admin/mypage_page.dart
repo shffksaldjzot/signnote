@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../config/theme.dart';
-import '../../../widgets/common/app_card.dart';
-import '../../../services/api_service.dart';
-import '../../../services/user_service.dart';
+import '../../config/theme.dart';
+import '../../widgets/common/app_card.dart';
+import '../../services/api_service.dart';
+import '../../services/user_service.dart';
 
 // ============================================
 // 웹 대시보드용 마이페이지 (MyPage)

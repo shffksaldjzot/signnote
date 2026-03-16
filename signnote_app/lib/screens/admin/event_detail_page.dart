@@ -4,16 +4,16 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../config/theme.dart';
-import '../../../config/routes.dart';
-import '../../../widgets/common/app_card.dart';
-import '../../../services/event_service.dart';
-import '../../../services/product_service.dart';
-import '../../../services/contract_service.dart';
-import '../../../services/settlement_service.dart';
-import '../../../services/notification_service.dart';
-import '../../../utils/image_download.dart';
-import '../event_form_screen.dart';
+import '../../config/theme.dart';
+import '../../config/routes.dart';
+import '../../widgets/common/app_card.dart';
+import '../../services/event_service.dart';
+import '../../services/product_service.dart';
+import '../../services/contract_service.dart';
+import '../../services/settlement_service.dart';
+import '../../services/notification_service.dart';
+import '../../utils/image_download.dart';
+import '../organizer/event_form_screen.dart';
 
 // ============================================
 // 행사 상세 페이지 (Event Detail Page) — 2뎁스
@@ -53,7 +53,8 @@ class _EventDetailPageState extends State<EventDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    // B-27: 요약 탭 추가 (5 → 6탭)
+    _tabController = TabController(length: 6, vsync: this);
     _loadData();
   }
 
@@ -226,49 +227,44 @@ class _EventDetailPageState extends State<EventDetailPage>
           ),
           const SizedBox(height: 12),
 
-          // ── 행사 기본 정보 바 ──
+          // ── B-31: 행사 정보 바 (시각적 위계 개선) ──
           if (!_isLoading)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Wrap(
-                spacing: 24,
-                runSpacing: 8,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 고객 코드
-                  _buildInfoChip('고객코드', customerCode, () => _copyCode(customerCode, '고객코드')),
-                  // 업체 코드
-                  _buildInfoChip('업체코드', vendorCode, () => _copyCode(vendorCode, '업체코드')),
-                  // 기간
-                  Text(
-                    '기간: ${_formatDate(_event['startDate']?.toString())} ~ ${_formatDate(_event['endDate']?.toString())}',
-                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  // 1행: 코드 (크게, 강조)
+                  Row(
+                    children: [
+                      _buildCodeBox('고객코드', customerCode, AppColors.primary, () => _copyCode(customerCode, '고객코드')),
+                      const SizedBox(width: 12),
+                      _buildCodeBox('업체코드', vendorCode, AppColors.organizer, () => _copyCode(vendorCode, '업체코드')),
+                    ],
                   ),
-                  // 세대수
-                  Text(
-                    '세대수: ${_priceFormat.format(_event['unitCount'] ?? 0)}',
-                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                  ),
-                  // 주관사
-                  Text(
-                    '주관사: ${_event['organizer']?['name'] ?? '-'}',
-                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                  ),
-                  // 계약금 비율
-                  Text(
-                    '계약금: ${((_event['depositRate'] ?? 0.3) * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  const SizedBox(height: 10),
+                  // 2행: 부가 정보 (작게)
+                  Wrap(
+                    spacing: 20,
+                    runSpacing: 6,
+                    children: [
+                      _infoText('기간', '${_formatDate(_event['startDate']?.toString())} ~ ${_formatDate(_event['endDate']?.toString())}'),
+                      _infoText('세대수', _priceFormat.format(_event['unitCount'] ?? 0)),
+                      _infoText('주관사', _event['organizer']?['name'] ?? '-'),
+                      _infoText('계약금', '${((_event['depositRate'] ?? 0.3) * 100).toStringAsFixed(0)}%'),
+                    ],
                   ),
                 ],
               ),
             ),
           const SizedBox(height: 16),
 
-          // ── 5개 탭 ──
+          // ── 6개 탭 (B-27: 요약 탭 추가) ──
           AppCard(
             padding: EdgeInsets.zero,
             child: TabBar(
@@ -277,8 +273,10 @@ class _EventDetailPageState extends State<EventDetailPage>
               unselectedLabelColor: AppColors.textSecondary,
               indicatorColor: AppColors.primary,
               indicatorWeight: 3,
+              isScrollable: true, // 탭이 많아지면 가로 스크롤
               labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               tabs: [
+                const Tab(text: '요약'),
                 Tab(text: '품목관리 (${_products.length})'),
                 Tab(text: '고객관리 (${_participants.where((p) => (p['role'] ?? p['user']?['role']) == 'CUSTOMER').length})'),
                 Tab(text: '계약현황 (${_contracts.length})'),
@@ -296,6 +294,7 @@ class _EventDetailPageState extends State<EventDetailPage>
                 : TabBarView(
                     controller: _tabController,
                     children: [
+                      _buildOverviewTab(), // B-27: 요약
                       _buildProductsTab(),
                       _buildCustomersTab(),
                       _buildContractsTab(),
@@ -309,25 +308,181 @@ class _EventDetailPageState extends State<EventDetailPage>
     );
   }
 
-  // 정보 칩 (코드 + 복사)
-  Widget _buildInfoChip(String label, String value, VoidCallback onCopy) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('$label: ', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 2, color: AppColors.primary)),
-        const SizedBox(width: 4),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onCopy,
-          child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.copy, size: 14, color: AppColors.textHint)),
+  // B-31: 코드 박스 (크게 강조)
+  Widget _buildCodeBox(String label, String code, Color color, VoidCallback onCopy) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onCopy,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Text('$label  ', style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
+              Text(code, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 3, color: color)),
+              const Spacer(),
+              Icon(Icons.copy, size: 14, color: color.withValues(alpha: 0.5)),
+            ],
+          ),
         ),
-      ],
+      ),
+    );
+  }
+
+  // B-31: 부가 정보 텍스트 (작게)
+  Widget _infoText(String label, String value) {
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(text: '$label ', style: const TextStyle(fontSize: 12, color: AppColors.textHint)),
+          TextSpan(text: value, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
   }
 
   // ═══════════════════════════════════════════
-  // 탭 1: 품목관리 — 클릭하면 3뎁스로 드릴다운
+  // B-27: 요약(Overview) 탭 — 핵심 지표 한눈에
+  // ═══════════════════════════════════════════
+  Widget _buildOverviewTab() {
+    final customers = _participants.where((p) => (p['role'] ?? p['user']?['role']) == 'CUSTOMER').toList();
+    final vendors = _participants.where((p) => (p['role'] ?? p['user']?['role']) == 'VENDOR').toList();
+    final confirmedContracts = _contracts.where((c) => c['status'] == 'CONFIRMED').toList();
+    final cancelRequested = _contracts.where((c) => c['status'] == 'CANCEL_REQUESTED').toList();
+    final totalRevenue = confirmedContracts.fold<int>(0, (sum, c) => sum + ((c['depositAmount'] ?? 0) as int));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 핵심 숫자 카드 4개
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _overviewCard('참여 업체', '${vendors.length}개', Icons.business, AppColors.organizer),
+              _overviewCard('참여 고객', '${customers.length}명', Icons.people, AppColors.primary),
+              _overviewCard('확정 계약', '${confirmedContracts.length}건', Icons.description, AppColors.success),
+              _overviewCard('총 매출', '${_priceFormat.format(totalRevenue)}원', Icons.account_balance_wallet, AppColors.priceRed),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 처리 필요 알림
+          if (cancelRequested.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                  const SizedBox(width: 10),
+                  Text('취소 요청 ${cancelRequested.length}건이 있습니다',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.orange)),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => _tabController.animateTo(3), // 계약현황 탭으로 이동
+                    child: const Text('확인하기', style: TextStyle(fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+
+          // 최근 계약 5건
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('최근 계약', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                if (_contracts.isEmpty)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('계약 내역이 없습니다', style: TextStyle(color: AppColors.textHint)),
+                  ))
+                else
+                  ...(_contracts.toList()
+                    ..sort((a, b) => (b['createdAt'] ?? '').compareTo(a['createdAt'] ?? '')))
+                    .take(5)
+                    .map((c) {
+                      final customer = c['customer'] as Map<String, dynamic>?;
+                      final product = c['product'] as Map<String, dynamic>?;
+                      final status = c['status']?.toString() ?? '';
+                      final statusText = _getContractStatusText(status);
+                      final statusColor = _getContractStatusColor(status);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 52,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                              child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor), textAlign: TextAlign.center),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text(customer?['name'] ?? '-', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+                            Text(product?['name'] ?? '-', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                            const SizedBox(width: 12),
+                            Text('${_priceFormat.format(c['depositAmount'] ?? 0)}원',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.priceRed)),
+                          ],
+                        ),
+                      );
+                    }),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 요약 카드 개별
+  Widget _overviewCard(String label, String value, IconData icon, Color color) {
+    return SizedBox(
+      width: 220,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4)],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // 탭 2: 품목관리 — 클릭하면 3뎁스로 드릴다운
   // ═══════════════════════════════════════════
   Widget _buildProductsTab() {
     if (_products.isEmpty) {
@@ -440,59 +595,116 @@ class _EventDetailPageState extends State<EventDetailPage>
   // ═══════════════════════════════════════════
   // 탭 3: 계약현황
   // ═══════════════════════════════════════════
+  // B-29: 계약 상태 필터 상태
+  String _contractStatusFilter = '전체';
+
   Widget _buildContractsTab() {
     if (_contracts.isEmpty) {
       return const Center(child: Text('계약 내역이 없습니다', style: TextStyle(color: AppColors.textSecondary)));
     }
 
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: SingleChildScrollView(
-        child: SizedBox(
-          width: double.infinity,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(AppColors.background),
-            columnSpacing: 24,
-            horizontalMargin: 20,
-            showCheckboxColumn: false, // 체크박스 열 숨김 (행 클릭만 사용)
-            columns: [
-              const DataColumn(label: Text('고객명', style: TextStyle(fontWeight: FontWeight.w600))),
-              const DataColumn(label: Text('품목', style: TextStyle(fontWeight: FontWeight.w600))),
-              const DataColumn(label: Text('패키지', style: TextStyle(fontWeight: FontWeight.w600))),
-              const DataColumn(label: Text('업체', style: TextStyle(fontWeight: FontWeight.w600))),
-              const DataColumn(label: Text('총 금액', style: TextStyle(fontWeight: FontWeight.w600))),
-              DataColumn(label: Text(
-                '계약금 (${((_event['depositRate'] ?? 0.3) * 100).toStringAsFixed(0)}%)',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              )),
-              const DataColumn(label: Text('상태', style: TextStyle(fontWeight: FontWeight.w600))),
-              const DataColumn(label: Text('날짜', style: TextStyle(fontWeight: FontWeight.w600))),
-            ],
-            rows: _contracts.map((c) {
-              final customer = c['customer'] as Map<String, dynamic>?;
-              final product = c['product'] as Map<String, dynamic>?;
-              final productItem = c['productItem'] as Map<String, dynamic>?;
-              final originalPrice = c['originalPrice'] ?? 0;
-              final deposit = c['depositAmount'] ?? 0;
-              final status = c['status']?.toString();
-              return DataRow(
-                // 계약 행 클릭 시 상세 다이얼로그 표시
-                onSelectChanged: (_) => _showContractDetailDialog(c),
-                cells: [
-                  DataCell(Text(customer?['name'] ?? '-')),
-                  DataCell(Text(product?['name'] ?? c['productName'] ?? '-')),
-                  DataCell(Text(productItem?['name'] ?? c['productItemName'] ?? '-')),
-                  DataCell(Text(product?['vendorName'] ?? c['vendorName'] ?? '-')),
-                  DataCell(Text('${_priceFormat.format(originalPrice)}원', style: const TextStyle(fontWeight: FontWeight.w500))),
-                  DataCell(Text('${_priceFormat.format(deposit)}원', style: const TextStyle(color: AppColors.priceRed, fontWeight: FontWeight.w600))),
-                  DataCell(_buildStatusBadge(status)),
-                  DataCell(Text(_formatDate(c['createdAt']?.toString()))),
-                ],
+    // B-29: 상태 필터 적용
+    final filteredContracts = _contractStatusFilter == '전체'
+        ? _contracts
+        : _contracts.where((c) => _getContractStatusText(c['status']?.toString()) == _contractStatusFilter).toList();
+
+    return Column(
+      children: [
+        // B-29: 상태 필터 칩
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: ['전체', '확정', '대기', '취소요청', '취소'].map((status) {
+              final isSelected = _contractStatusFilter == status;
+              final count = status == '전체' ? _contracts.length
+                  : _contracts.where((c) => _getContractStatusText(c['status']?.toString()) == status).length;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InkWell(
+                  onTap: () => setState(() => _contractStatusFilter = status),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isSelected ? AppColors.primary : AppColors.border),
+                    ),
+                    child: Text(
+                      '$status ($count)',
+                      style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        color: isSelected ? Colors.white : AppColors.textSecondary),
+                    ),
+                  ),
+                ),
               );
             }).toList(),
           ),
         ),
-      ),
+        // 테이블
+        Expanded(
+          child: AppCard(
+            padding: EdgeInsets.zero,
+            child: SingleChildScrollView(
+              child: SizedBox(
+                width: double.infinity,
+                child: DataTable(
+                  headingRowColor: WidgetStateProperty.all(AppColors.background),
+                  dataRowMinHeight: 56,
+                  dataRowMaxHeight: 64,
+                  columnSpacing: 20,
+                  horizontalMargin: 20,
+                  showCheckboxColumn: false,
+                  columns: [
+                    const DataColumn(label: Text('고객명', style: TextStyle(fontWeight: FontWeight.w600))),
+                    const DataColumn(label: Text('품목', style: TextStyle(fontWeight: FontWeight.w600))),
+                    const DataColumn(label: Text('패키지', style: TextStyle(fontWeight: FontWeight.w600))),
+                    const DataColumn(label: Text('총 금액', style: TextStyle(fontWeight: FontWeight.w600))),
+                    DataColumn(label: Text(
+                      '계약금 (${((_event['depositRate'] ?? 0.3) * 100).toStringAsFixed(0)}%)',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    )),
+                    const DataColumn(label: Text('상태', style: TextStyle(fontWeight: FontWeight.w600))),
+                    const DataColumn(label: Text('날짜', style: TextStyle(fontWeight: FontWeight.w600))),
+                  ],
+                  rows: filteredContracts.map((c) {
+                    final customer = c['customer'] as Map<String, dynamic>?;
+                    final product = c['product'] as Map<String, dynamic>?;
+                    final productItem = c['productItem'] as Map<String, dynamic>?;
+                    final originalPrice = c['originalPrice'] ?? 0;
+                    final deposit = c['depositAmount'] ?? 0;
+                    final status = c['status']?.toString();
+                    return DataRow(
+                      onSelectChanged: (_) => _showContractDetailDialog(c),
+                      cells: [
+                        // B-32: 고객명 + 동/호수 표시
+                        DataCell(Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(customer?['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500)),
+                            if ((c['customerDong'] ?? customer?['dong'] ?? '').toString().isNotEmpty)
+                              Text(
+                                '${c['customerDong'] ?? customer?['dong'] ?? ''}동 ${c['customerHo'] ?? customer?['ho'] ?? ''}호',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textHint),
+                              ),
+                          ],
+                        )),
+                        DataCell(Text(product?['name'] ?? c['productName'] ?? '-')),
+                        DataCell(Text(productItem?['name'] ?? c['productItemName'] ?? '-')),
+                        DataCell(Text('${_priceFormat.format(originalPrice)}원', style: const TextStyle(fontWeight: FontWeight.w500))),
+                        DataCell(Text('${_priceFormat.format(deposit)}원', style: const TextStyle(color: AppColors.priceRed, fontWeight: FontWeight.w600))),
+                        DataCell(_buildStatusBadge(status)),
+                        DataCell(Text(_formatDate(c['createdAt']?.toString()))),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -871,26 +1083,46 @@ class _EventDetailPageState extends State<EventDetailPage>
     );
   }
 
+  // B-30: 정산 액션에 확인 다이얼로그 추가 (돈 관련 실수 방지)
   Widget _buildSettlementAction(String id, String status) {
     if (status == 'PENDING') {
       return TextButton(
-        onPressed: () async {
+        onPressed: () => _confirmSettlementAction(id, '지급', '이 정산 건을 지급 처리하시겠습니까?', () async {
           await _settlementService.transfer(id);
           _loadData();
-        },
+        }),
         child: const Text('지급', style: TextStyle(color: AppColors.primary)),
       );
     }
     if (status == 'TRANSFERRED') {
       return TextButton(
-        onPressed: () async {
+        onPressed: () => _confirmSettlementAction(id, '완료', '이 정산 건을 완료 처리하시겠습니까?', () async {
           await _settlementService.complete(id);
           _loadData();
-        },
+        }),
         child: const Text('완료', style: TextStyle(color: Colors.green)),
       );
     }
     return const Text('-', style: TextStyle(color: Colors.grey));
+  }
+
+  // B-30: 정산 확인 다이얼로그
+  void _confirmSettlementAction(String id, String action, String message, VoidCallback onConfirm) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('정산 $action'),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () { Navigator.pop(ctx); onConfirm(); },
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
   }
 
   String _getContractStatusText(String? status) {

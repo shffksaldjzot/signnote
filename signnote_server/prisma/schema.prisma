@@ -86,6 +86,8 @@ model User {
   notifications  Notification[]                 // 이 사용자의 알림 목록
   participatedEvents EventParticipant[]         // 참여한 행사 기록
 
+  updatedAt      DateTime? @updatedAt              // 수정 시각 (C-1)
+
   @@map("users")  // 실제 DB 테이블 이름
 }
 
@@ -123,6 +125,8 @@ model Event {
   cartItems           CartItem[]                      // 이 행사의 장바구니들
   participants        EventParticipant[]              // 이 행사의 참여자들
 
+  updatedAt           DateTime? @updatedAt              // 수정 시각 (C-1)
+
   @@map("events")
 }
 
@@ -149,11 +153,15 @@ model Product {
   feePaymentConfirmed Boolean @default(false)        // 참가비 입금 확인 (주관사 체크)
   createdAt       DateTime @default(now())
 
+  updatedAt       DateTime? @updatedAt              // 수정 시각 (C-1)
+
   // 관계 설정
   items           ProductItem[]                       // 2뎁스 상세 품목 목록
   contracts       Contract[]
   cartItems       CartItem[]
 
+  @@index([eventId])                                  // B-5: 행사별 조회 최적화
+  @@index([vendorId])                                 // B-5: 업체별 조회 최적화
   @@map("products")
 }
 
@@ -226,13 +234,21 @@ model Contract {
   originalPrice   Int                                 // 원래 가격
   depositAmount   Int                                 // 계약금 (보통 30%)
   remainAmount    Int                                 // 잔금
+  // C-5: 계약 시점 스냅샷 (품목/업체가 나중에 변경되어도 원본 보존)
+  snapshotCommissionRate Float?                       // 계약 시점 수수료율
+  snapshotDepositRate    Float?                       // 계약 시점 계약금 비율
   status          ContractStatus @default(PENDING)    // 계약 상태
   createdAt       DateTime       @default(now())
+  updatedAt       DateTime?      @updatedAt           // 수정 시각 (C-1)
 
   // 관계 설정
   payments        Payment[]                           // 이 계약의 결제 내역
   settlement      Settlement?                         // 이 계약의 정산 내역
 
+  @@index([customerId])                               // B-5: 고객별 조회 최적화
+  @@index([eventId])                                  // B-5: 행사별 조회 최적화
+  @@index([status])                                   // B-5: 상태별 필터 최적화
+  @@index([vendorId])                                 // B-5: 업체별 조회 최적화
   @@map("contracts")
 }
 
@@ -251,6 +267,8 @@ model Payment {
   paidAt          DateTime?                           // 결제 완료 시각
   createdAt       DateTime      @default(now())
 
+  @@index([contractId])                               // B-5
+  @@index([status])                                   // B-5
   @@map("payments")
 }
 
@@ -294,6 +312,8 @@ model Notification {
   isRead    Boolean  @default(false)            // 읽음 여부
   createdAt DateTime @default(now())
 
+  @@index([userId, isRead])                           // B-5: 안 읽은 알림 조회
+  @@index([createdAt])                                // B-5: 최신순 정렬
   @@map("notifications")
 }
 
@@ -310,6 +330,9 @@ model ActivityLog {
   ipAddress String?                              // IP 주소
   createdAt DateTime @default(now())
 
+  @@index([userId])                                   // B-5
+  @@index([action])                                   // B-5
+  @@index([createdAt])                                // B-5: 최신순 정렬
   @@map("activity_logs")
 }
 

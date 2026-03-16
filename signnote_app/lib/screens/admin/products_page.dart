@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../config/theme.dart';
-import '../../../services/product_service.dart';
-import '../../../services/event_service.dart';
+import '../../config/theme.dart';
+import '../../services/product_service.dart';
+import '../../services/event_service.dart';
 
 // ============================================
 // 품목 관리 페이지 (Products Page)

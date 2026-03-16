@@ -2,9 +2,10 @@
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../config/theme.dart';
-import '../../../services/user_service.dart';
-import '../../../services/api_service.dart';
+import '../../config/theme.dart';
+import '../../services/user_service.dart';
+import '../../services/api_service.dart';
+import '../../utils/number_formatter.dart';
 
 // ============================================
 // 업체 관리 페이지 (Users Page)
@@ -97,6 +98,10 @@ class _UsersPageState extends State<UsersPage> {
   List<dynamic> get _filteredUsers {
     // 고객은 '고객 관리' 페이지로 분리, 관리자는 삭제 방지를 위해 제외
     var result = _users.where((u) => u['role'] != 'CUSTOMER' && u['role'] != 'ADMIN').toList();
+    // B-19: 미승인만 보기 특수 필터
+    if (_searchQuery == '__UNAPPROVED__') {
+      return result.where((u) => u['isApproved'] != true).toList();
+    }
     if (_searchQuery.isEmpty) return result;
     final query = _searchQuery.toLowerCase();
     return result.where((u) {
@@ -749,6 +754,37 @@ class _UsersPageState extends State<UsersPage> {
             const SizedBox(width: 8),
             _buildRoleTab('ORGANIZER', '주관사'),
           ],
+          const SizedBox(width: 8),
+          // B-19: 미승인만 보기 필터 (빨간 뱃지)
+          Builder(builder: (_) {
+            final unapprovedCount = _users.where((u) => u['role'] != 'CUSTOMER' && u['role'] != 'ADMIN' && u['isApproved'] != true).length;
+            return InkWell(
+              onTap: () => setState(() => _searchQuery = '__UNAPPROVED__'),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _searchQuery == '__UNAPPROVED__' ? Colors.red : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _searchQuery == '__UNAPPROVED__' ? Colors.red : Colors.grey[300]!),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber, size: 14, color: _searchQuery == '__UNAPPROVED__' ? Colors.white : Colors.red),
+                    const SizedBox(width: 4),
+                    Text(
+                      '미승인 ($unapprovedCount)',
+                      style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.bold,
+                        color: _searchQuery == '__UNAPPROVED__' ? Colors.white : Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
 
           const Spacer(),
 
@@ -884,6 +920,9 @@ class _UsersPageState extends State<UsersPage> {
       child: SingleChildScrollView(
         child: DataTable(
           headingRowColor: WidgetStateProperty.all(Colors.grey[50]),
+          // B-40: 행 높이 조정
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 64,
           columnSpacing: 16,
           horizontalMargin: 12,
           columns: [
@@ -949,7 +988,7 @@ class _UsersPageState extends State<UsersPage> {
                   style: const TextStyle(fontSize: 13),
                   overflow: TextOverflow.ellipsis,
                 )),
-                DataCell(Text(u['phone'] ?? '-', style: const TextStyle(fontSize: 13))),
+                DataCell(Text(formatPhone(u['phone']?.toString()), style: const TextStyle(fontSize: 13))),
                 DataCell(_buildRoleBadge(roleName, roleColor)),
                 DataCell(_buildApprovalBadge(isApproved)),
                 DataCell(Text(createdAt, style: TextStyle(color: Colors.grey[600], fontSize: 13))),

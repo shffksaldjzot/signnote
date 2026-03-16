@@ -60,7 +60,7 @@ export class ActivityLogsService {
     });
   }
 
-  // 로그 목록 조회 (주관사/관리자용)
+  // D-6: 로그 목록 조회 (사용자 이름 포함)
   async findAll(options?: {
     action?: string;
     userId?: string;
@@ -70,10 +70,28 @@ export class ActivityLogsService {
     if (options?.action) where.action = options.action;
     if (options?.userId) where.userId = options.userId;
 
-    return this.prisma.activityLog.findMany({
+    const logs = await this.prisma.activityLog.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: options?.limit ?? 100,
     });
+
+    // D-6: userId → 사용자 이름 매핑 (N+1 방지: 한 번에 조회)
+    const userIds = [...new Set(logs.map(l => l.userId).filter(Boolean))];
+    if (userIds.length > 0) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: userIds as string[] } },
+        select: { id: true, name: true, role: true },
+      });
+      const userMap = new Map(users.map(u => [u.id, { name: u.name, role: u.role }]));
+
+      return logs.map(log => ({
+        ...log,
+        userName: log.userId ? userMap.get(log.userId)?.name ?? null : null,
+        userRole: log.userId ? userMap.get(log.userId)?.role ?? null : null,
+      }));
+    }
+
+    return logs.map(log => ({ ...log, userName: null, userRole: null }));
   }
 }

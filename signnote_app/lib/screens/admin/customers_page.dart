@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../config/theme.dart';
-import '../../../services/event_service.dart';
-import '../../../services/user_service.dart';
+import '../../config/theme.dart';
+import '../../services/event_service.dart';
+import '../../services/user_service.dart';
+import '../../utils/number_formatter.dart';
+import '../../utils/csv_download.dart';
 
 // ============================================
 // 고객 관리 페이지 (Customers Page)
@@ -201,12 +203,63 @@ class _CustomersPageState extends State<CustomersPage> {
           ),
           const SizedBox(height: 16),
 
+          // B-26: 전체 선택 시 동/호수 빈칸 안내
+          if (_selectedEventId == null && customers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    const Text('행사를 선택하면 동/호수/타입 정보가 표시됩니다', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    const Spacer(),
+                    // B-25: 엑셀 다운로드
+                    TextButton.icon(
+                      onPressed: customers.isEmpty ? null : () => _downloadCustomerExcel(customers),
+                      icon: const Icon(Icons.download, size: 16),
+                      label: const Text('엑셀', style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_selectedEventId != null && customers.isNotEmpty)
+            // B-25: 행사 선택 시에도 엑셀 버튼
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _downloadCustomerExcel(customers),
+                  icon: const Icon(Icons.download, size: 16),
+                  label: const Text('엑셀 다운로드', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                ),
+              ),
+            ),
+
           // ── 고객 테이블 ──
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : customers.isEmpty
-                        ? const Center(child: Text('참여한 고객이 없습니다', style: TextStyle(color: AppColors.textHint)))
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.people_outline, size: 48, color: AppColors.textHint),
+                                const SizedBox(height: 12),
+                                const Text('참여한 고객이 없습니다', style: TextStyle(color: AppColors.textHint)),
+                              ],
+                            ),
+                          )
                         : Container(
                             decoration: BoxDecoration(
                               color: Colors.white,
@@ -218,7 +271,9 @@ class _CustomersPageState extends State<CustomersPage> {
                                 width: double.infinity,
                                 child: DataTable(
                                   headingRowColor: WidgetStateProperty.all(AppColors.background),
-                                  columnSpacing: 24,
+                                  dataRowMinHeight: 56,
+                                  dataRowMaxHeight: 64,
+                                  columnSpacing: 20,
                                   horizontalMargin: 20,
                                   columns: const [
                                     DataColumn(label: Text('이름', style: TextStyle(fontWeight: FontWeight.w600))),
@@ -232,7 +287,6 @@ class _CustomersPageState extends State<CustomersPage> {
                                     DataColumn(label: Text('관리', style: TextStyle(fontWeight: FontWeight.w600))),
                                   ],
                                   rows: customers.map<DataRow>((p) {
-                                    // 플랫 구조/중첩 구조 모두 지원
                                     final name = p['name'] ?? p['user']?['name'] ?? '-';
                                     final phone = p['phone'] ?? p['user']?['phone'] ?? '-';
                                     final email = p['email'] ?? p['user']?['email'] ?? '-';
@@ -241,22 +295,26 @@ class _CustomersPageState extends State<CustomersPage> {
                                         ? _dateFormat.format(DateTime.parse(p['joinedAt']))
                                         : '-';
                                     final userId = p['id'] ?? p['user']?['id'] ?? '';
-                                    return DataRow(cells: [
-                                      DataCell(Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
-                                      DataCell(Text(phone)),
-                                      DataCell(Text(email)),
-                                      DataCell(Text(eventTitle, style: const TextStyle(fontSize: 13))),
-                                      DataCell(Text(p['dong'] ?? '-')),
-                                      DataCell(Text(p['ho'] ?? '-')),
-                                      DataCell(Text(p['housingType'] ?? '-')),
-                                      DataCell(Text(joinedAt, style: TextStyle(color: AppColors.textSecondary))),
-                                      // 관리 버튼 (강제 탈퇴)
-                                      DataCell(IconButton(
-                                        icon: const Icon(Icons.person_remove_outlined, size: 18, color: Colors.red),
-                                        tooltip: '고객 탈퇴',
-                                        onPressed: () => _confirmDeleteCustomer(userId, name),
-                                      )),
-                                    ]);
+                                    return DataRow(
+                                      // B-24: 고객 클릭 → 상세 팝업
+                                      onSelectChanged: (_) => _showCustomerDetail(p),
+                                      cells: [
+                                        DataCell(Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
+                                        // B-37: 전화번호 하이픈
+                                        DataCell(Text(formatPhone(phone?.toString()))),
+                                        DataCell(Text(email, style: const TextStyle(fontSize: 13))),
+                                        DataCell(Text(eventTitle, style: const TextStyle(fontSize: 13))),
+                                        DataCell(Text(p['dong'] ?? '-')),
+                                        DataCell(Text(p['ho'] ?? '-')),
+                                        DataCell(Text(p['housingType'] ?? '-')),
+                                        DataCell(Text(joinedAt, style: const TextStyle(color: AppColors.textSecondary))),
+                                        DataCell(IconButton(
+                                          icon: const Icon(Icons.person_remove_outlined, size: 18, color: Colors.red),
+                                          tooltip: '고객 탈퇴',
+                                          onPressed: () => _confirmDeleteCustomer(userId.toString(), name),
+                                        )),
+                                      ],
+                                    );
                                   }).toList(),
                                 ),
                               ),
@@ -265,6 +323,95 @@ class _CustomersPageState extends State<CustomersPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // B-24: 고객 상세 팝업
+  void _showCustomerDetail(dynamic customer) {
+    final name = customer['name'] ?? customer['user']?['name'] ?? '-';
+    final phone = customer['phone'] ?? customer['user']?['phone'] ?? '-';
+    final email = customer['email'] ?? customer['user']?['email'] ?? '-';
+    final dong = customer['dong'] ?? '-';
+    final ho = customer['ho'] ?? '-';
+    final housingType = customer['housingType'] ?? '-';
+    final eventTitle = customer['eventTitle'] ?? '-';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          width: 420,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 제목
+              Row(
+                children: [
+                  const Text('고객 상세 정보', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 8),
+              _detailRow('이름', name),
+              _detailRow('전화번호', formatPhone(phone?.toString())),
+              _detailRow('이메일', email),
+              _detailRow('행사', eventTitle),
+              _detailRow('동/호수', '$dong동 $ho호'),
+              _detailRow('타입', housingType),
+              if (customer['joinedAt'] != null)
+                _detailRow('참여일', _dateFormat.format(DateTime.parse(customer['joinedAt']))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 상세 행
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(width: 80, child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600]))),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+
+  // B-25: 고객 엑셀 다운로드
+  void _downloadCustomerExcel(List<dynamic> customers) {
+    final headers = ['이름', '전화번호', '이메일', '행사명', '동', '호수', '타입'];
+    final dataRows = customers.map<List<String>>((p) => [
+      p['name'] ?? p['user']?['name'] ?? '-',
+      p['phone'] ?? p['user']?['phone'] ?? '-',
+      p['email'] ?? p['user']?['email'] ?? '-',
+      p['eventTitle'] ?? '-',
+      p['dong'] ?? '-',
+      p['ho'] ?? '-',
+      p['housingType'] ?? '-',
+    ]).toList();
+
+    final eventName = _selectedEventId != null
+        ? _events.firstWhere((e) => e['id']?.toString() == _selectedEventId, orElse: () => {})['title'] ?? '전체'
+        : '전체';
+
+    downloadExcel(
+      title: '고객 리스트 ($eventName)',
+      subtitle: '작성: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}',
+      headers: headers,
+      dataRows: dataRows,
+      fileName: '고객리스트_$eventName.xlsx',
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${customers.length}명 고객 리스트 다운로드 완료')),
     );
   }
 }

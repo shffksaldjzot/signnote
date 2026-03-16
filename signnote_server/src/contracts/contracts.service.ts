@@ -75,6 +75,21 @@ export class ContractsService {
         productItemName = productItem.name;
       }
 
+      // C-2: 중복 계약 방지 (같은 고객이 같은 상세품목을 같은 행사에서 중복 계약 차단)
+      if (item.productItemId) {
+        const existingContract = await this.prisma.contract.findFirst({
+          where: {
+            customerId: userId,
+            productItemId: item.productItemId,
+            eventId: item.eventId,
+            status: { not: 'CANCELLED' }, // 취소된 건은 다시 계약 가능
+          },
+        });
+        if (existingContract) {
+          throw new BadRequestException(`이미 계약한 품목입니다: ${productItemName ?? item.productItemId}`);
+        }
+      }
+
       // 계약금과 잔금 계산
       const depositAmount = Math.round(price * depositRate);
       const remainAmount = price - depositAmount;
@@ -113,6 +128,9 @@ export class ContractsService {
           originalPrice: price,
           depositAmount,
           remainAmount,
+          // C-5: 계약 시점 스냅샷 (나중에 품목 설정이 바뀌어도 원본 보존)
+          snapshotCommissionRate: product.commissionRate,
+          snapshotDepositRate: depositRate,
         },
         include: {
           product: true,

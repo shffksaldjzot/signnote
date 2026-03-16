@@ -10,16 +10,16 @@ import '../screens/common/notification_screen.dart';
 import '../screens/organizer/home_screen.dart';
 import '../screens/vendor/home_screen.dart';
 import '../screens/customer/home_screen.dart';
-// 관리자 PC 웹 대시보드 페이지들
-import '../screens/organizer/web/web_shell.dart';
-import '../screens/organizer/web/dashboard_page.dart';
-import '../screens/organizer/web/events_page.dart';
-import '../screens/organizer/web/event_detail_page.dart';
-import '../screens/organizer/web/product_detail_page.dart';
-import '../screens/organizer/web/users_page.dart';
-import '../screens/organizer/web/customers_page.dart';
-import '../screens/organizer/web/logs_page.dart';
-import '../screens/organizer/web/mypage_page.dart';
+// 관리자 PC 웹 대시보드 페이지들 (screens/admin/)
+import '../screens/admin/web_shell.dart';
+import '../screens/admin/dashboard_page.dart';
+import '../screens/admin/events_page.dart';
+import '../screens/admin/event_detail_page.dart';
+import '../screens/admin/product_detail_page.dart';
+import '../screens/admin/users_page.dart';
+import '../screens/admin/customers_page.dart';
+import '../screens/admin/logs_page.dart';
+import '../screens/admin/mypage_page.dart';
 
 // ============================================
 // GoRouter 라우터 설정

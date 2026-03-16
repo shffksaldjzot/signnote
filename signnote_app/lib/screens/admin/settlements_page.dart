@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../config/theme.dart';
-import '../../../services/settlement_service.dart';
+import '../../config/theme.dart';
+import '../../services/settlement_service.dart';
 
 // ============================================
 // 정산 관리 페이지 (Settlements Page)

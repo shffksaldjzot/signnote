@@ -277,23 +277,33 @@ export class EventsService {
     });
   }
 
-  // 중복 없는 참여 코드 생성 (숫자 6자리)
+  // C-3: 중복 없는 참여 코드 생성 (숫자 6자리)
+  // 고객코드/업체코드 양쪽 + 삭제된 행사 포함하여 완전 중복 검증
   // excludeCode: 이 값과 다른 코드 생성 (고객/업체 코드 분리용)
   private async generateUniqueEntryCode(excludeCode?: string): Promise<string> {
     let code: string;
     let exists: boolean;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 100; // 무한루프 방지
 
     do {
+      attempts++;
+      if (attempts > MAX_ATTEMPTS) {
+        throw new Error('참여코드 생성에 실패했습니다. 관리자에게 문의하세요.');
+      }
+
       // 숫자 6자리 랜덤 생성 (000000 ~ 999999)
       code = Math.floor(Math.random() * 1000000)
         .toString()
         .padStart(6, '0');
+
       // 제외 코드와 같으면 다시 생성
       if (excludeCode && code === excludeCode) {
         exists = true;
         continue;
       }
-      // DB에 이미 있는지 확인 (고객코드 + 업체코드 모두 체크)
+
+      // DB에 이미 있는지 확인 (삭제된 행사 포함, 고객코드+업체코드 모두 체크)
       const existingEntry = await this.prisma.event.findUnique({
         where: { entryCode: code },
       });
